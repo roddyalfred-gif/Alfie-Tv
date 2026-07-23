@@ -1,1 +1,44 @@
-{\n  "name": "@alfie-tv/mobile",\n  "version": "1.0.0",\n  "description": "Alfie TV - Mobile App (iOS & Android)",\n  "private": true,\n  "scripts": {\n    "android": "react-native run-android",\n    "ios": "react-native run-ios",\n    "start": "react-native start",\n    "test": "jest",\n    "lint": "eslint .",\n    "build-apk": "cd android && ./gradlew assembleRelease",\n    "build-aab": "cd android && ./gradlew bundleRelease",\n    "build-debug-apk": "cd android && ./gradlew assembleDebug",\n    "install-debug": "cd android && ./gradlew installDebug"\n  },\n  "dependencies": {\n    "@alfie-tv/core": "*",\n    "@react-navigation/native": "^6.1.0",\n    "@react-navigation/bottom-tabs": "^6.5.0",\n    "react": "^18.2.0",\n    "react-native": "^0.72.0",\n    "react-native-screens": "^3.22.0",\n    "react-native-safe-area-context": "^4.6.0",\n    "react-native-video": "^5.2.0",\n    "react-native-gesture-handler": "^2.13.0"\n  },\n  "devDependencies": {\n    "@babel/core": "^7.23.0",\n    "@babel/preset-env": "^7.23.0",\n    "@babel/preset-react": "^7.22.0",\n    "@babel/preset-typescript": "^7.23.0",\n    "@types/react": "^18.2.0",\n    "@types/react-native": "^0.72.0",\n    "typescript": "^5.0.0",\n    "jest": "^29.7.0",\n    "@testing-library/react-native": "^12.0.0"\n  },\n  "engines": {\n    "node": ">=18.0.0",\n    "npm": ">=9.0.0"\n  }\n}\n
+{
+  "name": "@alfie-tv/mobile",
+  "version": "1.0.0",
+  "description": "Alfie TV - Mobile App (iOS & Android)",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "android": "react-native run-android",
+    "ios": "react-native run-ios",
+    "start": "react-native start",
+    "test": "jest",
+    "lint": "eslint .",
+    "build-apk": "cd android && gradlew assembleRelease",
+    "build-aab": "cd android && gradlew bundleRelease",
+    "build-debug-apk": "cd android && gradlew assembleDebug",
+    "install-debug": "cd android && gradlew installDebug"
+  },
+  "dependencies": {
+    "@alfie-tv/core": "*",
+    "@react-navigation/native": "^6.1.0",
+    "@react-navigation/bottom-tabs": "^6.5.0",
+    "react": "^18.2.0",
+    "react-native": "^0.72.0",
+    "react-native-gesture-handler": "^2.13.0",
+    "react-native-safe-area-context": "^4.6.0",
+    "react-native-screens": "^3.22.0",
+    "react-native-video": "^5.2.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.23.0",
+    "@babel/preset-env": "^7.23.0",
+    "@babel/preset-react": "^7.22.0",
+    "@babel/preset-typescript": "^7.23.0",
+    "@types/react": "^18.2.0",
+    "@types/react-native": "^0.72.0",
+    "@testing-library/react-native": "^12.0.0",
+    "jest": "^29.7.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
