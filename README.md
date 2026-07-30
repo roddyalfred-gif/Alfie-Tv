@@ -1,19 +1,16 @@
 # Alfie TV - Cross-Platform IPTV Player
 
-A modern, feature-rich IPTV player application built from scratch with support for all devices including web, mobile, desktop, and smart TVs. Built with 4K scalability and customizable features.
+Alfie TV is a monorepo for a cross-platform IPTV experience spanning web, mobile, desktop, and smart TV shells. The current codebase includes shared core logic, backend persistence helpers, UI components, and platform-specific entry points.
 
-## 🎯 Features
+## ✅ Current Status
 
-### Core Features
-- **Live TV Streaming** - HLS/DASH streaming support
-- **4K Ready** - Full 4K resolution support with adaptive bitrate
-- **Customizable Splash Screen** - Branded splash screens with custom themes
-- **Channel Management** - Browse, search, and organize channels
-- **EPG** - Program listings and scheduling
-- **Favorites** - Save favorite channels
-- **Playback Controls** - Play, pause, seek, volume, quality selection
-- **Multi-User Support** - User profiles with preferences
-- **Dark/Light Themes** - Complete theme customization
+The repository is in a working state with:
+- shared channel and navigation state in the core package
+- persistence and profile helpers in the backend package
+- web, mobile, desktop, and TV shell scaffolds
+- verified Vitest coverage for core, backend, web, mobile, and desktop behavior
+- recent hardening for backend storage safety and M3U playlist import reliability
+- Docker-based build support and CI workflow scaffolding for repeatable validation
 
 ## 🚀 Getting Started
 
@@ -21,29 +18,29 @@ A modern, feature-rich IPTV player application built from scratch with support f
 git clone https://github.com/roddyalfred-gif/alfie-tv.git
 cd alfie-tv
 npm install
-npm run dev
+npm test
 ```
 
 ## 📁 Project Structure
 
-```
+```text
 packages/
-├── core/        # Streaming & business logic
-├── ui/          # Shared UI components
-├── web/         # Web application
-├── mobile/      # React Native app
-├── desktop/     # Electron app
-├── tv/          # Smart TV app
-└── backend/     # Express API
+├── backend/   # persistence, auth, and storage helpers
+├── core/      # shared platform logic and channel models
+├── ui/        # reusable UI components
+├── web/       # React web app shell
+├── mobile/    # React Native app shell
+├── desktop/   # Electron desktop shell
+└── tv/        # smart TV shell
 ```
 
-## 📋 Tech Stack
+## 🛠️ Tech Stack
 
-- React 18, TypeScript, Tailwind CSS
-- HLS.js, Dash.js for streaming
-- Redux Toolkit for state management
-- Express.js backend
-- React Native, Electron, React TV
+- TypeScript
+- React and React Native
+- Vite for the web app
+- Vitest for tests
+- npm workspaces for package management
 
 ## 📝 License
 

@@ -28,6 +28,14 @@ export const ChannelList: React.FC<ChannelListProps> = ({
             }
           `}
           onClick={() => onChannelSelect(channel)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onChannelSelect(channel);
+            }
+          }}
+          role="button"
+          tabIndex={0}
         >
           {channel.logo && (
             <img
@@ -38,11 +46,25 @@ export const ChannelList: React.FC<ChannelListProps> = ({
           )}
 
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold truncate">{channel.name}</h3>
-            <p className="text-xs opacity-75">{channel.category}</p>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="font-semibold truncate">{channel.name}</h3>
+              <div className="flex items-center gap-2">
+                {selectedChannelId === channel.id ? (
+                  <span className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-blue-200">
+                    Live
+                  </span>
+                ) : null}
+                <span className="rounded-full bg-gray-700/80 px-2 py-0.5 text-[10px] uppercase tracking-wide text-gray-300">
+                  {channel.quality || 'HD'}
+                </span>
+              </div>
+            </div>
+            <p className="mt-1 text-xs opacity-75">{channel.category}</p>
           </div>
 
           <button
+            type="button"
+            aria-label={channel.isFavorite ? `Remove ${channel.name} from favorites` : `Add ${channel.name} to favorites`}
             onClick={(e) => {
               e.stopPropagation();
               onFavoriteToggle(channel.id);
@@ -51,7 +73,7 @@ export const ChannelList: React.FC<ChannelListProps> = ({
               channel.isFavorite ? 'text-yellow-400' : 'text-gray-400'
             } hover:text-yellow-400`}
           >
-            ★
+            {channel.isFavorite ? '★' : '☆'}
           </button>
         </div>
       ))}

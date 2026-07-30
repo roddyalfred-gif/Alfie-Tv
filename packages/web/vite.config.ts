@@ -1,1 +1,22 @@
-import { defineConfig } from 'vite'\nimport react from '@vitejs/plugin-react'\nimport path from 'path'\n\nexport default defineConfig({\n  plugins: [react()],\n  resolve: {\n    alias: {\n      '@alfie-tv/core': path.resolve(__dirname, '../core/src'),\n      '@alfie-tv/ui': path.resolve(__dirname, '../ui/src'),\n      '@': path.resolve(__dirname, './src'),\n    },\n  },\n  server: {\n    port: 5173,\n    strictPort: false,\n  },\n  build: {\n    outDir: 'dist',\n    sourcemap: true,\n  },\n})\n
+import { defineConfig, type PluginOption } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [react() as unknown as PluginOption],
+  resolve: {
+    alias: {
+      '@alfie-tv/core': path.resolve(__dirname, '../core/src'),
+      '@alfie-tv/ui': path.resolve(__dirname, '../ui/src'),
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+  server: {
+    port: 5173,
+    strictPort: false,
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: true,
+  },
+});

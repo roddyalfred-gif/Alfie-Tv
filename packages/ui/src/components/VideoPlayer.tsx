@@ -18,42 +18,72 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [engine, setEngine] = useState<StreamingEngine | null>(null);
   const [quality, setQuality] = useState<StreamQuality>(StreamQuality.HD);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [status, setStatus] = useState('Ready to play');
 
   useEffect(() => {
+    let cancelled = false;
+
     const initializeEngine = async () => {
       try {
         const streamingEngine = new StreamingEngine(streamConfig);
         await streamingEngine.initialize();
-        setEngine(streamingEngine);
-        onReady?.();
+
+        if (!cancelled) {
+          setEngine(streamingEngine);
+          setStatus('Stream ready');
+          setIsPlaying(false);
+          onReady?.();
+        } else {
+          streamingEngine.stop();
+        }
       } catch (error) {
-        onError?.(error as Error);
+        if (!cancelled) {
+          setStatus('Stream unavailable');
+          onError?.(error as Error);
+        }
       }
     };
 
     initializeEngine();
 
     return () => {
+      cancelled = true;
       engine?.stop();
     };
   }, [streamConfig, onError, onReady]);
 
   const handlePlay = async () => {
-    if (engine) {
+    if (!engine) {
+      setStatus('Stream unavailable');
+      return;
+    }
+
+    try {
       await engine.play();
       setIsPlaying(true);
+      setStatus('Playing');
+    } catch (error) {
+      setStatus('Playback failed');
+      onError?.(error as Error);
     }
   };
 
   const handlePause = () => {
-    engine?.pause();
+    if (!engine) {
+      setStatus('Stream unavailable');
+      return;
+    }
+
+    engine.pause();
     setIsPlaying(false);
+    setStatus('Paused');
   };
 
   const handleQualityChange = async (newQuality: StreamQuality) => {
     if (engine) {
       await engine.changeQuality(newQuality);
       setQuality(newQuality);
+      setStatus(`Quality: ${newQuality}`);
     }
   };
 
@@ -70,6 +100,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       </video>
 
       <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black to-transparent">
+        <div className="mb-3 flex items-center justify-between rounded-full bg-black/50 px-3 py-2 text-sm text-gray-200">
+          <span>{status}</span>
+          <span className="text-blue-300">{quality}</span>
+        </div>
         <div className="flex items-center justify-between">
           <div className="flex gap-2">
             <button

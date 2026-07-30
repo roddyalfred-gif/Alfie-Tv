@@ -1,0 +1,21 @@
+{
+  "name": "@alfie-tv/desktop",
+  "version": "1.0.0",
+  "description": "Alfie TV - Desktop App",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@alfie-tv/core": "*",
+    "electron": "^31.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.10"
+  }
+}

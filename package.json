@@ -3,11 +3,13 @@
   "version": "1.0.0",
   "description": "Cross-platform IPTV player",
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "npm run dev --workspaces",
-    "build": "npm run build --workspaces",
-    "test": "npm run test --workspaces",
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "test": "vitest run",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
     "format": "prettier --write packages/**/*.{ts,tsx,js,jsx,json}",
     "clean": "rimraf node_modules packages/*/node_modules dist"
@@ -16,8 +18,10 @@
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.0.0",
+    "jsdom": "^29.1.1",
     "prettier": "^3.0.0",
     "rimraf": "^5.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.10"
   }
 }

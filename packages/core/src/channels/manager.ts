@@ -4,9 +4,18 @@ export class ChannelManager {
   private channels: Map<string, Channel> = new Map();
   private groups: Map<string, ChannelGroup> = new Map();
   private favorites: Set<string> = new Set();
+  private cachedChannelList: Channel[] = [];
+
+  private syncCachedChannelList(): void {
+    this.cachedChannelList = Array.from(this.channels.values()).map((channel) => ({
+      ...channel,
+      isFavorite: this.favorites.has(channel.id),
+    }));
+  }
 
   addChannel(channel: Channel): void {
-    this.channels.set(channel.id, channel);
+    this.channels.set(channel.id, { ...channel, isFavorite: this.favorites.has(channel.id) });
+    this.syncCachedChannelList();
   }
 
   getChannel(id: string): Channel | undefined {
@@ -14,12 +23,12 @@ export class ChannelManager {
   }
 
   getAllChannels(): Channel[] {
-    return Array.from(this.channels.values());
+    return this.cachedChannelList;
   }
 
   searchChannels(query: string): Channel[] {
     const lowerQuery = query.toLowerCase();
-    return Array.from(this.channels.values()).filter(
+    return this.cachedChannelList.filter(
       (channel) =>
         channel.name.toLowerCase().includes(lowerQuery) ||
         channel.category.toLowerCase().includes(lowerQuery)
@@ -27,7 +36,7 @@ export class ChannelManager {
   }
 
   filterChannels(filter: ChannelFilter): Channel[] {
-    let filtered = Array.from(this.channels.values());
+    let filtered = this.cachedChannelList;
 
     if (filter.category) {
       filtered = filtered.filter((c) => c.category === filter.category);
@@ -47,21 +56,79 @@ export class ChannelManager {
   }
 
   toggleFavorite(channelId: string): boolean {
+    const channel = this.channels.get(channelId);
+
     if (this.favorites.has(channelId)) {
       this.favorites.delete(channelId);
+      if (channel) {
+        this.channels.set(channelId, { ...channel, isFavorite: false });
+      }
+      this.syncCachedChannelList();
       return false;
-    } else {
-      this.favorites.add(channelId);
-      return true;
     }
+
+    this.favorites.add(channelId);
+    if (channel) {
+      this.channels.set(channelId, { ...channel, isFavorite: true });
+    }
+    this.syncCachedChannelList();
+    return true;
   }
 
   getFavorites(): Channel[] {
-    return Array.from(this.channels.values()).filter((c) => this.favorites.has(c.id));
+    return this.cachedChannelList.filter((c) => this.favorites.has(c.id));
   }
 
   createGroup(id: string, name: string, channels: Channel[]): void {
     this.groups.set(id, { id, name, channels });
+  }
+
+  importFromM3U(content: string): Channel[] {
+    const lines = content.split(/\r?\n/);
+    const importedChannels: Channel[] = [];
+    const seenUrls = new Set<string>();
+    let pendingName = 'Imported Channel';
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+
+      if (!trimmed) {
+        return;
+      }
+
+      if (trimmed.startsWith('#EXTINF')) {
+        const match = trimmed.match(/,(.+)$/);
+        if (match?.[1]) {
+          pendingName = match[1].trim();
+        }
+        return;
+      }
+
+      if (trimmed.startsWith('#')) {
+        return;
+      }
+
+      if (seenUrls.has(trimmed)) {
+        return;
+      }
+
+      seenUrls.add(trimmed);
+      const channel: Channel = {
+        id: `imported-${importedChannels.length + 1}`,
+        name: pendingName || `Imported Channel ${importedChannels.length + 1}`,
+        number: importedChannels.length + 1,
+        logo: '',
+        streamUrl: trimmed,
+        category: 'Imported',
+        isFavorite: false,
+        quality: '1080p',
+      };
+
+      importedChannels.push(channel);
+      this.addChannel(channel);
+    });
+
+    return importedChannels;
   }
 
   getGroup(id: string): ChannelGroup | undefined {

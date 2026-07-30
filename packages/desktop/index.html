@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Alfie TV Desktop</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #020617;
+        color: #f8fafc;
+      }
+      .shell {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .panel {
+        background: #111827;
+        border: 1px solid #334155;
+        border-radius: 16px;
+        padding: 28px;
+        max-width: 760px;
+        width: 100%;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 20px;
+      }
+      .card {
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 14px;
+        margin-bottom: 10px;
+      }
+      .pill {
+        display: inline-block;
+        margin-top: 6px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: #1d4ed8;
+        color: #dbeafe;
+        font-size: 12px;
+      }
+      .toolbar {
+        display: flex;
+        gap: 8px;
+        margin: 12px 0;
+      }
+      .toolbar button {
+        border: none;
+        border-radius: 999px;
+        background: #1d4ed8;
+        color: white;
+        padding: 6px 10px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="panel">
+        <h1>Alfie TV Desktop</h1>
+        <p>Desktop shell scaffold is running.</p>
+        <div class="toolbar">
+          <button data-screen="home">Home</button>
+          <button data-screen="channels">Channels</button>
+          <button data-screen="player">Player</button>
+          <button data-screen="settings">Settings</button>
+        </div>
+        <div class="status-banner">
+          <div id="screen-label" class="pill">HOME</div>
+          <div class="status-text">Shared client state active</div>
+        </div>
+        <div class="layout">
+          <div>
+            <div class="card">
+              <strong>News HD</strong>
+              <div>News • 1080p</div>
+              <span class="pill">Favorite</span>
+            </div>
+            <div class="card">
+              <strong>Sports Live</strong>
+              <div>Sports • 720p</div>
+              <span class="pill">Live</span>
+            </div>
+          </div>
+          <div class="card">
+            <strong>Now playing</strong>
+            <p>Channel browsing and playback controls are ready for the next desktop milestone.</p>
+            <div class="quick-row">
+              <span class="quick-pill">Favorites</span>
+              <span class="quick-pill">Resume</span>
+              <span class="quick-pill">Watch later</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const label = document.getElementById('screen-label');
+      document.querySelectorAll('.toolbar button').forEach((button) => {
+        button.addEventListener('click', () => {
+          const screen = button.getAttribute('data-screen').toUpperCase();
+          label.textContent = screen;
+        });
+      });
+    </script>
+  </body>
+</html>

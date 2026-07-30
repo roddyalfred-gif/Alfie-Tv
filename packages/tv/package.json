@@ -1,0 +1,18 @@
+{
+  "name": "@alfie-tv/tv",
+  "version": "1.0.0",
+  "description": "Alfie TV - Smart TV App",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@alfie-tv/core": "*",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.10"
+  }
+}

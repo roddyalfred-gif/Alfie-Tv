@@ -36,6 +36,18 @@ export class UserManager {
       this.preferences.set(userId, { ...prefs, ...updates });
     }
   }
+
+  addWatchHistory(userId: string, channelId: string): void {
+    const prefs = this.preferences.get(userId);
+    if (!prefs) {
+      return;
+    }
+
+    this.preferences.set(userId, {
+      ...prefs,
+      lastPosition: { channelId, timestamp: Date.now() },
+    });
+  }
 }
 
 export * from './types';
