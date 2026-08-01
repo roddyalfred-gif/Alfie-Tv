@@ -4,14 +4,14 @@
     "lib": ["esnext"],
     "allowJs": true,
     "jsx": "react-jsx",
-    "module": "commonjs",
+    "module": "esnext",
     "skipLibCheck": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "strict": true,
     "noEmit": true,
     "ignoreDeprecations": "5.0",
-    "moduleResolution": "bundler"
+    "moduleResolution": "node"
   },
   "include": ["./**/*"],
   "exclude": ["node_modules"]

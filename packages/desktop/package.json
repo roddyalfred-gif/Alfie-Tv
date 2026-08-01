@@ -6,6 +6,7 @@
   "main": "index.js",
   "scripts": {
     "start": "electron .",
+    "build": "tsc --noEmit",
     "test": "vitest"
   },
   "dependencies": {
