@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@alfie-tv/core": "*",
-    "react": "^18.2.0"
+    "react": "^19.2.0"
   },
   "devDependencies": {
     "typescript": "^5.0.0",
