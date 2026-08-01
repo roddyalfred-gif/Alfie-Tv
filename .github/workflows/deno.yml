@@ -11,8 +11,16 @@ name: Deno
 on:
   push:
     branches: ["main"]
+    paths:
+      - deno.json
+      - deno.jsonc
+      - .github/workflows/deno.yml
   pull_request:
     branches: ["main"]
+    paths:
+      - deno.json
+      - deno.jsonc
+      - .github/workflows/deno.yml
 
 permissions:
   contents: read
