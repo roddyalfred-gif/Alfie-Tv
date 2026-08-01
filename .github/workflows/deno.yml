@@ -19,6 +19,7 @@ permissions:
 
 jobs:
   test:
+    if: ${{ hashFiles('deno.json', 'deno.jsonc') != '' }}
     runs-on: ubuntu-latest
 
     steps:
