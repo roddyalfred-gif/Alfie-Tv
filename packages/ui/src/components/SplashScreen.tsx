@@ -26,7 +26,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
     }, finalConfig.duration);
 
     return () => clearTimeout(timer);
-  }, [finalConfig, onComplete]);
+  }, [finalConfig.enabled, finalConfig.duration, onComplete]);
 
   if (!isVisible) return null;
 

@@ -1,2 +1,3 @@
 export { StreamingEngine } from './engine';
-export { StreamQuality, StreamFormat, StreamConfig, StreamMetadata, StreamEvent } from './types';
+export { StreamQuality, StreamFormat } from './types';
+export type { StreamConfig, StreamMetadata, StreamEvent } from './types';

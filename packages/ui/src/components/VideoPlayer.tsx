@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { StreamingEngine, StreamConfig, StreamQuality } from '@alfie-tv/core';
+import { StreamingEngine, StreamQuality } from '@alfie-tv/core';
+import type { StreamConfig } from '@alfie-tv/core';
 
 interface VideoPlayerProps {
   streamConfig: StreamConfig;
