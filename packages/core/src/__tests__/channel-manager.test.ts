@@ -6,6 +6,8 @@ import { createDefaultPreferences, updatePreference } from '../preferences';
 import { createPlaybackState, updatePlaybackState } from '../playback-state';
 import { createDeviceProfile } from '../device-profile';
 import { resolveVpnStatus } from '../vpn';
+import type { ClientPreferences } from '../preferences';
+import type { PlaybackState } from '../playback-state';
 
 describe('ChannelManager favorites', () => {
   it('updates channel favorite state when toggled', () => {
@@ -119,18 +121,18 @@ https://example.com/news.m3u8
 
   it('normalizes invalid preference values to safe defaults', () => {
     const preferences = createDefaultPreferences();
-    const nextPreferences = updatePreference(preferences, 'quality', '4k' as any);
+    const nextPreferences = updatePreference(preferences, 'quality', '4k' as unknown as ClientPreferences['quality']);
 
     expect(nextPreferences.quality).toBe('auto');
-    expect(updatePreference(preferences, 'autoplay', undefined as any).autoplay).toBe(false);
-    expect(updatePreference(preferences, 'theme', 'blue' as any).theme).toBe('dark');
+    expect(updatePreference(preferences, 'autoplay', undefined as unknown as ClientPreferences['autoplay']).autoplay).toBe(false);
+    expect(updatePreference(preferences, 'theme', 'blue' as unknown as ClientPreferences['theme']).theme).toBe('dark');
   });
 
   it('supports vpn preferences with safe defaults', () => {
     const preferences = createDefaultPreferences();
     const nextPreferences = updatePreference(preferences, 'vpnEnabled', true);
     const vpnModePreferences = updatePreference(nextPreferences, 'vpnMode', 'auto');
-    const invalidModePreferences = updatePreference(preferences, 'vpnMode', 'boost' as any);
+    const invalidModePreferences = updatePreference(preferences, 'vpnMode', 'boost' as unknown as ClientPreferences['vpnMode']);
 
     expect(nextPreferences.vpnEnabled).toBe(true);
     expect(vpnModePreferences.vpnMode).toBe('auto');
@@ -161,7 +163,7 @@ https://example.com/news.m3u8
 
   it('clamps invalid playback positions and normalizes playback flags', () => {
     const state = createPlaybackState('news');
-    const nextState = updatePlaybackState(state, { isPlaying: false, positionSeconds: -10 as any });
+    const nextState = updatePlaybackState(state, { isPlaying: false, positionSeconds: -10 as unknown as PlaybackState['positionSeconds'] });
 
     expect(nextState.positionSeconds).toBe(0);
     expect(nextState.isPlaying).toBe(false);

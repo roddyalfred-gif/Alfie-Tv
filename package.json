@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Cross-platform IPTV player",
   "private": true,
+  "type": "module",
   "workspaces": [
     "packages/*"
   ],

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { act } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from '../App';
 
@@ -8,9 +9,13 @@ describe('App', () => {
     document.body.appendChild(container);
 
     const root = ReactDOM.createRoot(container);
-    root.render(<App />);
+    await act(async () => {
+      root.render(<App />);
+    });
 
-    await new Promise((resolve) => setTimeout(resolve, 3200));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 3200));
+    });
 
     expect(container.textContent).toContain('Channels');
     expect(container.textContent).toContain('VPN integration');

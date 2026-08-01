@@ -32,7 +32,7 @@ describe('FileStore', () => {
     store.setChannels([
       { id: 'c1', name: 'Valid', category: 'News', streamUrl: 'https://example.com/stream.m3u8', isFavorite: true },
       { id: '', name: 'Missing Fields', category: 'News', streamUrl: '' },
-      { id: 'c2', name: 'Missing Category', streamUrl: 'https://example.com/stream2.m3u8' } as any,
+      { id: 'c2', name: 'Missing Category', streamUrl: 'https://example.com/stream2.m3u8' } as unknown as Parameters<FileStore['setChannels']>[0][number],
     ]);
 
     const reloaded = new FileStore(path.join(dir, 'data.json'));

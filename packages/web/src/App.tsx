@@ -30,7 +30,7 @@ function App() {
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [favoritesOnly, setFavoritesOnly] = useState(false);
-  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [_authToken, setAuthToken] = useState<string | null>(null);
   const [authUser, setAuthUser] = useState<{ username: string } | null>(null);
   const [username, setUsername] = useState('demo');
   const [password, setPassword] = useState('password');
@@ -149,7 +149,7 @@ function App() {
   );
 
   const handleFavoriteToggle = useCallback((channelId: string) => {
-    const nextState = favoritesStore.toggle(channelId);
+    favoritesStore.toggle(channelId);
     channelManager.toggleFavorite(channelId);
     userManager.updatePreferences('demo-user', { favoriteChannels: [...favoritesStore.getAll()] });
   }, [channelManager, favoritesStore, userManager]);
@@ -165,7 +165,7 @@ function App() {
     [activateChannel, resumeChannelId]
   );
 
-  const handleResumeSelection = useCallback(() => {
+  const _handleResumeSelection = useCallback(() => {
     if (!selectedChannel) {
       return;
     }

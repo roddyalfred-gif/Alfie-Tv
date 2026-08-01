@@ -1,14 +1,13 @@
 import { defineConfig, type PluginOption } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
 
 export default defineConfig({
   plugins: [react() as unknown as PluginOption],
   resolve: {
     alias: {
-      '@alfie-tv/core': path.resolve(__dirname, '../core/src'),
-      '@alfie-tv/ui': path.resolve(__dirname, '../ui/src'),
-      '@': path.resolve(__dirname, './src'),
+      '@alfie-tv/core': new URL('../core/src', import.meta.url).pathname,
+      '@alfie-tv/ui': new URL('../ui/src', import.meta.url).pathname,
+      '@': new URL('./src', import.meta.url).pathname,
     },
   },
   server: {

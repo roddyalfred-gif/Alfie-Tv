@@ -100,7 +100,6 @@ app.get('/api/channels', (req, res) => {
     return;
   }
 
-  const storedChannels = store.getChannels();
   const dbChannels = database.listChannels();
   const channels = dbChannels.length > 0
     ? dbChannels.map((channel) => ({ ...channel, number: 0, logo: '', quality: '1080p' }))
@@ -196,9 +195,10 @@ app.get('/api/users/:userId', (req, res) => {
 });
 
 // Error handling
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
-  res.status(500).json({ error: 'Internal Server Error', message: err.message });
+  const message = err instanceof Error ? err.message : 'Unknown error';
+  res.status(500).json({ error: 'Internal Server Error', message });
 });
 
 const server = app.listen(PORT, () => {
