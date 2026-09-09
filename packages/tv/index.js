@@ -1,7 +1,10 @@
 const React = require('react');
 const { createElement } = React;
 const { createTvViewModel } = require('./src/tvApp.ts');
-const { getTvRecommendations } = require('./src/recommendations.ts');
+const getTvRecommendations = () => [
+  { title: 'News HD', reason: 'Trending in your favorites' },
+  { title: 'Sports Live', reason: 'Recently resumed' },
+];
 
 function App() {
   const viewModel = createTvViewModel();
