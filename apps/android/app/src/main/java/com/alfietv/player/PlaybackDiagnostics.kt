@@ -17,7 +17,9 @@ data class PlaybackDiagnostics(
     var lastErrorAt: Long? = null,
     var audioTrackAvailable: Boolean = false,
     var videoTrackAvailable: Boolean = false,
-    var audioSessionId: Int? = null
+    var audioSessionId: Int? = null,
+    var lastAudioTrackChangeAt: Long? = null,
+    var lastVideoTrackChangeAt: Long? = null
 )
 
 class DiagnosticsListener(private val diagnostics: PlaybackDiagnostics) : Player.Listener {
@@ -26,8 +28,12 @@ class DiagnosticsListener(private val diagnostics: PlaybackDiagnostics) : Player
     }
 
     override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
-        diagnostics.audioTrackAvailable = tracks.groups.any { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO && it.isSupported }
-        diagnostics.videoTrackAvailable = tracks.groups.any { it.type == androidx.media3.common.C.TRACK_TYPE_VIDEO && it.isSupported }
+        val audioAvailable = tracks.groups.any { it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO && it.isSupported }
+        val videoAvailable = tracks.groups.any { it.type == androidx.media3.common.C.TRACK_TYPE_VIDEO && it.isSupported }
+        if (audioAvailable != diagnostics.audioTrackAvailable) diagnostics.lastAudioTrackChangeAt = System.currentTimeMillis()
+        if (videoAvailable != diagnostics.videoTrackAvailable) diagnostics.lastVideoTrackChangeAt = System.currentTimeMillis()
+        diagnostics.audioTrackAvailable = audioAvailable
+        diagnostics.videoTrackAvailable = videoAvailable
     }
 
     override fun onAudioSessionIdChanged(audioSessionId: Int) {
