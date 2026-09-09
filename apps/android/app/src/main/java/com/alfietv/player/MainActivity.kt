@@ -63,25 +63,54 @@ class MainActivity : ComponentActivity() {
             isFocusable = true
             isFocusableInTouchMode = true
         }
-        root.addView(playerView, FrameLayout.LayoutParams(-1, -1)); buildOverlay(); setContentView(root)
-        alfiePlayer = AlfiePlayer(this); alfiePlayer.attach(playerView)
+        root.addView(playerView, FrameLayout.LayoutParams(-1, -1))
+        buildOverlay()
+        setContentView(root)
+        alfiePlayer = AlfiePlayer(this)
+        alfiePlayer.attach(playerView)
         intent.getStringExtra("stream_url")?.takeIf { it.isNotBlank() }?.let { alfiePlayer.play(it, currentTitle()) }
-        showZapOverlay(); refreshOverlay(); root.postDelayed(refreshRunnable, 1000L)
+        showZapOverlay()
+        refreshOverlay()
+        root.postDelayed(refreshRunnable, 1000L)
     }
 
     private fun buildOverlay() {
-        val top = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(28, 20, 28, 16); setBackgroundColor(Color.argb(185, 0, 0, 0)) }
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(28, 20, 28, 16)
+            setBackgroundColor(Color.argb(185, 0, 0, 0))
+        }
         titleView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 22f }
         statusView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 14f; setPadding(0, 6, 0, 0) }
         formatView = TextView(this).apply { setTextColor(Color.LTGRAY); textSize = 13f; setPadding(0, 3, 0, 0) }
         epgView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 14f; setPadding(0, 8, 0, 0) }
-        top.addView(titleView); top.addView(statusView); top.addView(formatView); top.addView(epgView)
+        top.addView(titleView)
+        top.addView(statusView)
+        top.addView(formatView)
+        top.addView(epgView)
         root.addView(top, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP))
-        zapView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 26f; gravity = Gravity.CENTER; setPadding(32, 22, 32, 12); setBackgroundColor(Color.argb(205, 0, 0, 0)); visibility = View.GONE }
+        zapView = TextView(this).apply {
+            setTextColor(Color.WHITE)
+            textSize = 26f
+            gravity = Gravity.CENTER
+            setPadding(32, 22, 32, 12)
+            setBackgroundColor(Color.argb(205, 0, 0, 0))
+            visibility = View.GONE
+        }
         root.addView(zapView, FrameLayout.LayoutParams(-2, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
-        zapProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; progress = 0; visibility = View.GONE }
+        zapProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 100
+            progress = 0
+            visibility = View.GONE
+        }
         root.addView(zapProgress, FrameLayout.LayoutParams(500, 10, Gravity.CENTER).apply { topMargin = 100 })
-        trackPanel = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(18, 12, 18, 18); setBackgroundColor(Color.argb(200, 0, 0, 0)); visibility = View.GONE }
+        trackPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(18, 12, 18, 18)
+            setBackgroundColor(Color.argb(200, 0, 0, 0))
+            visibility = View.GONE
+        }
         root.addView(trackPanel, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
     }
 
@@ -92,7 +121,8 @@ class MainActivity : ComponentActivity() {
         statusView.text = "${number?.let { "CH $it" } ?: "LIVE TV"}  •  ${alfiePlayer.statusText()}"
         formatView.text = alfiePlayer.videoFormatText()
         val id = channelIds.getOrNull(channelIndex) ?: intent.getStringExtra("channel_id")
-        epgView.text = id?.let { getSharedPreferences("alfie_tv", MODE_PRIVATE).getString("epg_$it", null) } ?: "NOW  Program guide loading…\nNEXT  —"
+        epgView.text = id?.let { getSharedPreferences("alfie_tv", MODE_PRIVATE).getString("epg_$it", null) }
+            ?: "NOW  Program guide loading…\nNEXT  —"
     }
 
     private fun currentTitle(): String = channelTitles.getOrNull(channelIndex) ?: intent.getStringExtra("title") ?: "Alfie TV"
@@ -104,7 +134,8 @@ class MainActivity : ComponentActivity() {
         channelIndex = next
         alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle())
         channelIds.getOrNull(channelIndex)?.let { getSharedPreferences("alfie_tv", MODE_PRIVATE).edit().putString("last_channel_id", it).apply() }
-        showZapOverlay(); refreshOverlay()
+        showZapOverlay()
+        refreshOverlay()
     }
 
     private fun switchToChannel(index: Int) {
@@ -112,7 +143,8 @@ class MainActivity : ComponentActivity() {
         channelIndex = index
         alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle())
         channelIds.getOrNull(channelIndex)?.let { getSharedPreferences("alfie_tv", MODE_PRIVATE).edit().putString("last_channel_id", it).apply() }
-        showZapOverlay(); refreshOverlay()
+        showZapOverlay()
+        refreshOverlay()
     }
 
     private fun enterNumericDigit(digit: Int) {
@@ -127,15 +159,16 @@ class MainActivity : ComponentActivity() {
 
     private fun commitNumericChannel() {
         if (numericBuffer.isEmpty()) return
-        val target = numericBuffer
+        val target = numericBuffer.toIntOrNull()?.toString() ?: numericBuffer
         numericBuffer = ""
-        val exact = channelNumbers.indexOfFirst { it == target }
+        val exact = channelNumbers.indexOfFirst { it.trim().toIntOrNull()?.toString() == target }
         if (exact >= 0) switchToChannel(exact) else showZapOverlay()
     }
 
     private fun showZapOverlay() {
         zapView.text = "CH ${channelNumbers.getOrNull(channelIndex) ?: (channelIndex + 1)}\n${currentTitle()}"
-        zapView.visibility = View.VISIBLE; zapHideAt = System.currentTimeMillis() + 2500L
+        zapView.visibility = View.VISIBLE
+        zapHideAt = System.currentTimeMillis() + 2500L
     }
 
     private fun showTrackPanel() {
@@ -144,7 +177,8 @@ class MainActivity : ComponentActivity() {
         addTrackButton("AUDIO") { showAudioOptions(alfiePlayer.audioTracks()) }
         addTrackButton("SUBTITLES") { showSubtitleOptions(alfiePlayer.subtitleTracks()) }
         addTrackButton("CLOSE") { trackPanel.visibility = View.GONE; playerView.requestFocus() }
-        trackPanel.visibility = View.VISIBLE; trackPanel.getChildAt(0)?.requestFocus()
+        trackPanel.visibility = View.VISIBLE
+        trackPanel.getChildAt(0)?.requestFocus()
     }
 
     private fun showVideoOptions() {
@@ -153,7 +187,8 @@ class MainActivity : ComponentActivity() {
         addTrackButton("FILL") { setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL) }
         addTrackButton("ZOOM") { setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM) }
         addTrackButton("BACK") { showTrackPanel() }
-        trackPanel.visibility = View.VISIBLE; trackPanel.getChildAt(0)?.requestFocus()
+        trackPanel.visibility = View.VISIBLE
+        trackPanel.getChildAt(0)?.requestFocus()
     }
 
     private fun setResizeMode(mode: Int) {
@@ -166,18 +201,25 @@ class MainActivity : ComponentActivity() {
         trackPanel.removeAllViews()
         if (options.isEmpty()) addTrackButton("No audio tracks") { showTrackPanel() }
         options.forEach { option -> addTrackButton(option.label) { alfiePlayer.selectAudio(option); trackPanel.visibility = View.GONE; playerView.requestFocus() } }
-        addTrackButton("BACK") { showTrackPanel() }; trackPanel.getChildAt(0)?.requestFocus()
+        addTrackButton("BACK") { showTrackPanel() }
+        trackPanel.getChildAt(0)?.requestFocus()
     }
 
     private fun showSubtitleOptions(options: List<TrackOption>) {
         trackPanel.removeAllViews()
         addTrackButton("OFF") { alfiePlayer.selectSubtitle(null); trackPanel.visibility = View.GONE; playerView.requestFocus() }
         options.forEach { option -> addTrackButton(option.label) { alfiePlayer.selectSubtitle(option); trackPanel.visibility = View.GONE; playerView.requestFocus() } }
-        addTrackButton("BACK") { showTrackPanel() }; trackPanel.getChildAt(0)?.requestFocus()
+        addTrackButton("BACK") { showTrackPanel() }
+        trackPanel.getChildAt(0)?.requestFocus()
     }
 
     private fun addTrackButton(label: String, action: () -> Unit) {
-        val button = Button(this).apply { text = label; isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { action() } }
+        val button = Button(this).apply {
+            text = label
+            isFocusable = true
+            isFocusableInTouchMode = true
+            setOnClickListener { action() }
+        }
         trackPanel.addView(button, LinearLayout.LayoutParams(0, FrameLayout.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(6, 0, 6, 0) })
     }
 
@@ -186,8 +228,8 @@ class MainActivity : ComponentActivity() {
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { if (alfiePlayer.player.isPlaying) alfiePlayer.player.pause() else alfiePlayer.player.play(); return true }
             KeyEvent.KEYCODE_MEDIA_PLAY -> { alfiePlayer.player.play(); return true }
             KeyEvent.KEYCODE_MEDIA_PAUSE -> { alfiePlayer.player.pause(); return true }
-            KeyEvent.KEYCODE_CHANNEL_UP -> { commitNumericChannel(); switchChannel(-1); return true }
-            KeyEvent.KEYCODE_CHANNEL_DOWN -> { commitNumericChannel(); switchChannel(1); return true }
+            KeyEvent.KEYCODE_CHANNEL_UP -> { if (numericBuffer.isNotEmpty()) commitNumericChannel() else switchChannel(-1); return true }
+            KeyEvent.KEYCODE_CHANNEL_DOWN -> { if (numericBuffer.isNotEmpty()) commitNumericChannel() else switchChannel(1); return true }
             KeyEvent.KEYCODE_DPAD_UP -> { if (trackPanel.visibility == View.GONE) showTrackPanel(); return true }
             KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_INFO -> { showTrackPanel(); return true }
             KeyEvent.KEYCODE_BACK -> if (trackPanel.visibility == View.VISIBLE) { trackPanel.visibility = View.GONE; playerView.requestFocus(); return true }
@@ -214,6 +256,18 @@ class MainActivity : ComponentActivity() {
         root.postDelayed(refreshRunnable, 1000L)
     }
 
-    override fun onStop() { root.removeCallbacks(refreshRunnable); mainHandler.removeCallbacks(numericCommit); numericBuffer = ""; alfiePlayer.stop(); super.onStop() }
-    override fun onDestroy() { root.removeCallbacks(refreshRunnable); mainHandler.removeCallbacks(numericCommit); alfiePlayer.release(); super.onDestroy() }
+    override fun onStop() {
+        root.removeCallbacks(refreshRunnable)
+        mainHandler.removeCallbacks(numericCommit)
+        numericBuffer = ""
+        alfiePlayer.stop()
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        root.removeCallbacks(refreshRunnable)
+        mainHandler.removeCallbacks(numericCommit)
+        alfiePlayer.release()
+        super.onDestroy()
+    }
 }
