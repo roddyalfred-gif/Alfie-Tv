@@ -128,25 +128,24 @@ class AlfiePlayer(context: Context) {
         diagnostics.lastErrorCodeName = null
         diagnostics.lastErrorMessage = null
 
-        val normalizedPath = url.substringBefore('?').lowercase()
+        val sourceType = inferSourceType(url)
         val builder = MediaItem.Builder()
             .setUri(url)
             .setMediaId(title ?: "alfie-tv")
-            .setLiveConfiguration(MediaItem.LiveConfiguration.Builder()
-                .setTargetOffsetMs(2_000)
-                .setMinPlaybackSpeed(0.98f)
-                .setMaxPlaybackSpeed(1.02f)
-                .build())
 
-        when {
-            normalizedPath.endsWith(".m3u8") -> builder.setMimeType(MimeTypes.APPLICATION_M3U8)
-            normalizedPath.endsWith(".mpd") -> builder.setMimeType(MimeTypes.APPLICATION_MPD)
-            normalizedPath.endsWith(".mp4") || normalizedPath.endsWith(".m4v") -> builder.setMimeType(MimeTypes.VIDEO_MP4)
-            normalizedPath.endsWith(".mkv") -> builder.setMimeType("video/x-matroska")
-            normalizedPath.endsWith(".webm") -> builder.setMimeType(MimeTypes.VIDEO_WEBM)
-            normalizedPath.endsWith(".ts") || normalizedPath.endsWith(".mpegts") -> builder.setMimeType(MimeTypes.VIDEO_MP2T)
+        when (sourceType) {
+            SourceType.HLS -> builder.setMimeType(MimeTypes.APPLICATION_M3U8)
+            SourceType.DASH -> builder.setMimeType(MimeTypes.APPLICATION_MPD)
+            SourceType.MP4 -> builder.setMimeType(MimeTypes.VIDEO_MP4)
+            SourceType.MKV -> builder.setMimeType("video/x-matroska")
+            SourceType.WEBM -> builder.setMimeType(MimeTypes.VIDEO_WEBM)
+            SourceType.MPEG_TS -> builder.setMimeType(MimeTypes.VIDEO_MP2T)
+            SourceType.UNKNOWN -> Unit
         }
 
+        // Do not force a LiveConfiguration onto VOD. Media3 determines live/VOD
+        // from the actual media timeline; forcing live behavior can interfere with
+        // seeking and playback of provider direct-source VOD URLs.
         player.setMediaItem(builder.build(), if (positionMs == C.TIME_UNSET) C.TIME_UNSET else positionMs)
         player.prepare()
         player.playWhenReady = true
@@ -326,6 +325,22 @@ class AlfiePlayer(context: Context) {
             recovering = false
         }, 350L)
     }
+
+    private fun inferSourceType(url: String): SourceType {
+        val path = url.substringBefore('?').lowercase()
+        val query = url.substringAfter('?', "").lowercase()
+        return when {
+            path.endsWith(".m3u8") || query.contains("format=m3u8") || query.contains("type=m3u8") -> SourceType.HLS
+            path.endsWith(".mpd") || query.contains("format=mpd") || query.contains("type=mpd") -> SourceType.DASH
+            path.endsWith(".mp4") || path.endsWith(".m4v") -> SourceType.MP4
+            path.endsWith(".mkv") -> SourceType.MKV
+            path.endsWith(".webm") -> SourceType.WEBM
+            path.endsWith(".ts") || path.endsWith(".mpegts") -> SourceType.MPEG_TS
+            else -> SourceType.UNKNOWN
+        }
+    }
+
+    private enum class SourceType { HLS, DASH, MP4, MKV, WEBM, MPEG_TS, UNKNOWN }
 }
 
 data class TrackOption(val label: String, val mediaTrackGroup: TrackGroup, val trackIndex: Int)
