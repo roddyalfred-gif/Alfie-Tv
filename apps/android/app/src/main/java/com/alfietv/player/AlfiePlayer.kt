@@ -25,6 +25,7 @@ class AlfiePlayer(context: Context) {
     private var lastRecoveryAt = 0L
     private var lastAudioRecoveryAt = 0L
     private var lastPlayingPosition = C.TIME_UNSET
+    private var stagnantSince = 0L
     private var bufferingSince = 0L
     private var currentUrl: String? = null
     private var currentTitle: String? = null
@@ -73,6 +74,7 @@ class AlfiePlayer(context: Context) {
                     if (isPlaying) {
                         recoveryAttempts = 0
                         audioRecoveryAttempts = 0
+                        stagnantSince = 0L
                         bufferingSince = 0L
                     }
                 }
@@ -103,6 +105,7 @@ class AlfiePlayer(context: Context) {
         audioRecoveryAttempts = 0
         recovering = false
         bufferingSince = 0L
+        stagnantSince = 0L
         lastPlayingPosition = C.TIME_UNSET
         val builder = MediaItem.Builder().setUri(url).setMediaId(title ?: "alfie-tv")
             .setLiveConfiguration(MediaItem.LiveConfiguration.Builder().setTargetOffsetMs(2_000).setMinPlaybackSpeed(0.98f).setMaxPlaybackSpeed(1.02f).build())
@@ -205,20 +208,27 @@ class AlfiePlayer(context: Context) {
         val audioAvailable = diagnostics.audioTrackAvailable
         if (videoPlaying && audioAvailable) {
             val position = p.currentPosition
-            if (lastPlayingPosition != C.TIME_UNSET && position == lastPlayingPosition && now - lastAudioRecoveryAt > 5_000) recoverAudio()
+            if (lastPlayingPosition != C.TIME_UNSET && position == lastPlayingPosition) {
+                if (stagnantSince == 0L) stagnantSince = now
+                if (now - stagnantSince >= 12_000L && now - lastAudioRecoveryAt >= 12_000L) recoverAudio()
+            } else {
+                stagnantSince = 0L
+            }
             lastPlayingPosition = position
             return
         }
         if (p.playbackState == Player.STATE_BUFFERING && p.playerError == null) {
             if (bufferingSince == 0L) bufferingSince = now
             if (now - bufferingSince >= 10_000L) recover()
-        } else if (videoPlaying && !audioAvailable) recoverAudio()
+        } else if (videoPlaying && !audioAvailable && now - lastAudioRecoveryAt >= 12_000L) {
+            recoverAudio()
+        }
     }
 
     private fun recoverAudio() {
         if (recovering || player.currentMediaItem == null) return
         val now = System.currentTimeMillis()
-        if (now - lastAudioRecoveryAt < 8_000 || audioRecoveryAttempts >= 3) return
+        if (now - lastAudioRecoveryAt < 12_000 || audioRecoveryAttempts >= 3) return
         lastAudioRecoveryAt = now
         audioRecoveryAttempts++
         diagnostics.audioRecoveryCount++
