@@ -116,7 +116,9 @@ class MainActivity : ComponentActivity() {
                 }
             }
         })
-        intent.getStringExtra("stream_url")?.takeIf { it.isNotBlank() }?.let { alfiePlayer.play(it, currentTitle()) }
+        intent.getStringExtra("stream_url")?.takeIf { it.isNotBlank() }?.let {
+            alfiePlayer.play(it, currentTitle(), channelNumber = currentChannelNumber())
+        }
         showZapOverlay()
         refreshOverlay()
         scheduleRefresh()
@@ -177,7 +179,7 @@ class MainActivity : ComponentActivity() {
     private fun refreshOverlay() {
         if (!::alfiePlayer.isInitialized) return
         titleView.text = currentTitle()
-        val number = channelNumbers.getOrNull(channelIndex) ?: intent.getStringExtra("channel_number")
+        val number = currentChannelNumber()
         val error = alfiePlayer.errorText()
         statusView.text = if (error != null) "${number?.let { "CH $it" } ?: "PLAYBACK"}  •  ${alfiePlayer.statusText()}" else "${number?.let { "CH $it" } ?: "LIVE TV"}  •  ${alfiePlayer.statusText()}"
         formatView.text = if (error != null) "${alfiePlayer.videoFormatText()}\n${alfiePlayer.diagnosticsText()}\nERROR: $error" else "${alfiePlayer.videoFormatText()}\n${alfiePlayer.diagnosticsText()}"
@@ -187,6 +189,8 @@ class MainActivity : ComponentActivity() {
 
     private fun currentTitle(): String = channelTitles.getOrNull(channelIndex) ?: intent.getStringExtra("title") ?: "Alfie TV"
 
+    private fun currentChannelNumber(): String? = channelNumbers.getOrNull(channelIndex) ?: intent.getStringExtra("channel_number")
+
     private fun switchChannel(delta: Int) {
         if (channelUrls.isEmpty()) return
         val next = (channelIndex + delta).coerceIn(0, channelUrls.lastIndex)
@@ -194,7 +198,7 @@ class MainActivity : ComponentActivity() {
         saveProgress()
         channelIndex = next; showingPlaybackRetry = false; trackPanel.visibility = View.GONE
         playerView.hideController()
-        alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle())
+        alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle(), currentChannelNumber())
         channelIds.getOrNull(channelIndex)?.let { preferences.edit().putString("last_channel_id", it).apply() }
         showZapOverlay(); refreshOverlay()
     }
@@ -204,7 +208,7 @@ class MainActivity : ComponentActivity() {
         saveProgress()
         channelIndex = index; showingPlaybackRetry = false; trackPanel.visibility = View.GONE
         playerView.hideController()
-        alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle())
+        alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle(), currentChannelNumber())
         channelIds.getOrNull(channelIndex)?.let { preferences.edit().putString("last_channel_id", it).apply() }
         showZapOverlay(); refreshOverlay()
     }
