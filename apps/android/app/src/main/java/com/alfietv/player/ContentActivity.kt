@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
+import android.view.KeyEvent
 import android.widget.*
 import java.util.concurrent.Executors
 
@@ -32,26 +33,29 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         pendingSeriesId = intent.getStringExtra("selected_series_id")
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(20, 16, 20, 16) }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        val title = TextView(this).apply { text = if (mode == "series") "Series" else "Movies"; textSize = 26f }
-        search = EditText(this).apply { hint = "Search"; setSingleLine(true); isFocusable = true }
+        val title = TextView(this).apply { text = if (mode == "series") "Series" else "Movies"; textSize = 26f; isFocusable = false }
+        search = EditText(this).apply { hint = "Search"; setSingleLine(true); isFocusable = true; isFocusableInTouchMode = true }
         val sort = Button(this).apply {
             text = "A-Z"
             isAllCaps = false
+            isFocusable = true
+            isFocusableInTouchMode = true
             setOnClickListener {
                 sortMode = (sortMode + 1) % 3
                 text = when (sortMode) { 0 -> "A-Z"; 1 -> "Z-A"; else -> "Recent" }
                 render()
+                list.requestFocus()
             }
         }
         header.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
         header.addView(search, LinearLayout.LayoutParams(0, -2, 2f))
         header.addView(sort, LinearLayout.LayoutParams(0, -2, 0.8f))
-        val cats = HorizontalScrollView(this)
-        categoryRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        categoryRow.addView(Button(this).apply { text = "All"; isAllCaps = false; setOnClickListener { selectedCategory = null; render() } })
+        val cats = HorizontalScrollView(this).apply { isFocusable = false }
+        categoryRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isFocusable = false }
+        categoryRow.addView(Button(this).apply { text = "All"; isAllCaps = false; isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { selectedCategory = null; render() } })
         cats.addView(categoryRow)
         list = ListView(this).apply { isFocusable = true; isFocusableInTouchMode = true }
-        status = TextView(this).apply { text = "Loading..." }
+        status = TextView(this).apply { text = "Loading..."; isFocusable = false }
         root.addView(header); root.addView(cats, LinearLayout.LayoutParams(-1, -2)); root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f)); root.addView(status)
         setContentView(root)
         search.addTextChangedListener(object : TextWatcher {
@@ -59,7 +63,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { render() }
             override fun afterTextChanged(s: Editable?) = Unit
         })
-        search.setOnEditorActionListener { _, _, _ -> render(); false }
+        search.setOnEditorActionListener { _, _, _ -> list.requestFocus(); true }
         list.setOnItemClickListener { _, _, position, _ ->
             if (mode == "vod") playVod(filteredVod()[position])
             else if (episodes.isNotEmpty()) playEpisode(episodes[position])
@@ -113,7 +117,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         categories = newCategories
         if (mode == "vod") vod = newVod else series = newSeries
         while (categoryRow.childCount > 1) categoryRow.removeViewAt(1)
-        categories.forEach { c -> categoryRow.addView(Button(this).apply { text = c.name; isAllCaps = false; setOnClickListener { selectedCategory = c.id; render() } }) }
+        categories.forEach { c -> categoryRow.addView(Button(this).apply { text = c.name; isAllCaps = false; isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { selectedCategory = c.id; render(); list.requestFocus() } }) }
         if (selectedCategory != null && categories.none { it.id == selectedCategory }) selectedCategory = null
         render()
         if (mode == "series" && episodes.isEmpty() && selectedSeriesId == null) {
@@ -143,7 +147,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
             list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.map { e -> "S${e.season ?: 0} E${e.episode ?: 0}  ${if (UserLibraryStore.isFavorite(this, config, e.toLibraryItem(selectedSeriesId))) "★ " else ""}${e.name}" })
             if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} episodes • Long-press to favorite"
         }
-        list.requestFocus()
+        list.post { if (!search.hasFocus()) list.requestFocus() }
     }
 
     private fun loadEpisodes(seriesId: String) {
@@ -171,6 +175,12 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private fun SeriesEpisode.toLibraryItem(seriesId: String?) = UserLibraryStore.Item(id, UserLibraryStore.Type.EPISODE, name, streamUrl, seriesId = seriesId, season = season, episode = episode)
 
     override fun onBackPressed() {
+        if (search.hasFocus()) {
+            if (search.text.isNotEmpty()) search.text.clear()
+            search.clearFocus()
+            list.requestFocus()
+            return
+        }
         if (mode == "series" && episodes.isNotEmpty()) { episodes = emptyList(); selectedSeriesId = null; render() } else super.onBackPressed()
     }
 
