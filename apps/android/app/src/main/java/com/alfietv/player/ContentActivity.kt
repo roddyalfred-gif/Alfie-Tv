@@ -26,7 +26,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(20, 16, 20, 16) }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         val title = TextView(this).apply { text = if (mode == "series") "Series" else "Movies"; textSize = 26f }
-        search = EditText(this).apply { hint = "Search"; singleLine = true }
+        search = EditText(this).apply { hint = "Search"; setSingleLine(true) }
         header.addView(title, LinearLayout.LayoutParams(0, -2, 1f)); header.addView(search, LinearLayout.LayoutParams(0, -2, 2f))
         val cats = HorizontalScrollView(this)
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -43,11 +43,8 @@ class ContentActivity : androidx.activity.ComponentActivity() {
 
     private fun load(row: LinearLayout) = executor.execute {
         try {
-            if (mode == "vod") {
-                val result = XtreamClient().loadVod(config); categories = result.first; vod = result.second
-            } else {
-                val result = XtreamClient().loadSeries(config); categories = result.first; series = result.second
-            }
+            if (mode == "vod") { val result = XtreamClient().loadVod(config); categories = result.first; vod = result.second }
+            else { val result = XtreamClient().loadSeries(config); categories = result.first; series = result.second }
             runOnUiThread { categories.forEach { c -> row.addView(Button(this).apply { text = c.name; isAllCaps = false; setOnClickListener { selectedCategory = c.id; render() } }) }; render() }
         } catch (e: Exception) { runOnUiThread { status.text = "Unable to load content: ${e.message ?: "unknown error"}" } }
     }
@@ -56,20 +53,13 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private fun filteredSeries() = series.filter { (selectedCategory == null || it.categoryId == selectedCategory) && search.text.toString().trim().let { q -> q.isBlank() || it.name.contains(q, true) } }
 
     private fun render() {
-        if (mode == "vod") {
-            val items = filteredVod(); list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.mapIndexed { i, x -> "${i + 1}. ${x.name}" }); status.text = "${items.size} movies • Select to play"
-        } else if (episodes.isEmpty()) {
-            val items = filteredSeries(); list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.mapIndexed { i, x -> "${i + 1}. ${x.name}" }); status.text = "${items.size} series • Select for episodes"
-        } else {
-            list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, episodes.map { e -> "S${e.season ?: 0} E${e.episode ?: 0}  ${e.name}" }); status.text = "${episodes.size} episodes"
-        }
+        if (mode == "vod") { val items = filteredVod(); list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.mapIndexed { i, x -> "${i + 1}. ${x.name}" }); status.text = "${items.size} movies • Select to play" }
+        else if (episodes.isEmpty()) { val items = filteredSeries(); list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.mapIndexed { i, x -> "${i + 1}. ${x.name}" }); status.text = "${items.size} series • Select for episodes" }
+        else { list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, episodes.map { e -> "S${e.season ?: 0} E${e.episode ?: 0}  ${e.name}" }); status.text = "${episodes.size} episodes" }
         list.requestFocus()
     }
 
-    private fun loadEpisodes(seriesId: String) = executor.execute {
-        try { episodes = XtreamClient().loadSeriesEpisodes(config, seriesId); runOnUiThread { render() } }
-        catch (e: Exception) { runOnUiThread { status.text = "Unable to load episodes: ${e.message ?: "unknown error"}" } }
-    }
+    private fun loadEpisodes(seriesId: String) = executor.execute { try { episodes = XtreamClient().loadSeriesEpisodes(config, seriesId); runOnUiThread { render() } } catch (e: Exception) { runOnUiThread { status.text = "Unable to load episodes: ${e.message ?: "unknown error"}" } } }
     private fun playVod(item: VodItem) = play(item.streamUrl, item.name)
     private fun playEpisode(item: SeriesEpisode) = play(item.streamUrl, item.name)
     private fun play(url: String, title: String) { startActivity(Intent(this, MainActivity::class.java).apply { putExtra("stream_url", url); putExtra("title", title) }) }
