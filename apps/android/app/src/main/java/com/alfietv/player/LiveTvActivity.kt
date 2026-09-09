@@ -61,19 +61,44 @@ class LiveTvActivity : ComponentActivity() {
         load(categoryRow)
     }
 
-    private fun load(categoryRow: LinearLayout) = executor.execute {
-        try {
-            val (categories, channels) = XtreamClient().load(config)
-            runOnUiThread {
-                allChannels = channels
-                categories.forEach { category -> categoryRow.addView(Button(this).apply { text = category.name; isAllCaps = false; setOnClickListener { selectedCategory = category.id; render() } }) }
-                render()
-                if (!restoredLastChannel) { restoredLastChannel = true; prefs.getString("last_channel_id", null)?.let { id -> channels.firstOrNull { it.id == id }?.let { showEpg(it) } } }
+    private fun load(categoryRow: LinearLayout) {
+        val cached = LiveTvCache.read(this, config)
+        if (cached != null) {
+            applyChannels(cached.categories, cached.channels, categoryRow)
+            status.text = "${cached.channels.size} channels • Cached ${LiveTvCache.ageText(cached)} • Refreshing..."
+        } else {
+            status.text = "Loading channels..."
+        }
+        executor.execute {
+            try {
+                val (categories, channels) = XtreamClient().load(config)
+                LiveTvCache.write(this, config, categories, channels)
+                runOnUiThread {
+                    applyChannels(categories, channels, categoryRow)
+                    status.text = "${channels.size} channels • Updated just now • Long-press to favorite • CH+/CH− supported"
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    if (allChannels.isNotEmpty()) status.text = "${allChannels.size} channels • Offline cache • Refresh failed: ${e.message ?: "unknown error"}"
+                    else status.text = "Unable to load channels: ${e.message ?: "unknown error"}"
+                }
             }
-        } catch (e: Exception) { runOnUiThread { status.text = "Unable to load channels: ${e.message ?: "unknown error"}" } }
+        }
     }
+
+    private fun applyChannels(categories: List<IptvCategory>, channels: List<IptvChannel>, categoryRow: LinearLayout) {
+        allChannels = channels
+        while (categoryRow.childCount > 1) categoryRow.removeViewAt(1)
+        categories.forEach { category -> categoryRow.addView(Button(this).apply { text = category.name; isAllCaps = false; setOnClickListener { selectedCategory = category.id; render() } }) }
+        render()
+        if (!restoredLastChannel) {
+            restoredLastChannel = true
+            prefs.getString("last_channel_id", null)?.let { id -> channels.firstOrNull { it.id == id }?.let { showEpg(it) } }
+        }
+    }
+
     private fun filteredChannels(): List<IptvChannel> { val query = search.text.toString().trim().lowercase(); return allChannels.filter { channel -> (selectedCategory == null || channel.categoryId == selectedCategory) && (query.isBlank() || channel.name.lowercase().contains(query)) } }
-    private fun render() { val channels = filteredChannels(); list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, channels.mapIndexed { index, channel -> "${index + 1}  ${if (favorites.contains(channel.id)) "★ " else ""}${channel.name}" }); status.text = "${channels.size} channels • Long-press to favorite • CH+/CH− supported"; list.requestFocus() }
+    private fun render() { val channels = filteredChannels(); list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, channels.mapIndexed { index, channel -> "${index + 1}  ${if (favorites.contains(channel.id)) "★ " else ""}${channel.name}" }); status.text = status.text.takeIf { it.contains("Updated") || it.contains("Cached") || it.contains("Offline") } ?: "${channels.size} channels • Long-press to favorite • CH+/CH− supported"; list.requestFocus() }
     private fun moveChannel(delta: Int) { val count = list.adapter?.count ?: return; if (count == 0) return; val next = (list.selectedItemPosition + delta).coerceIn(0, count - 1); list.setSelection(next); filteredChannels().getOrNull(next)?.let { showEpg(it) } }
     private fun play(channel: IptvChannel) {
         val channels = filteredChannels(); val index = channels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0); val windowStart = (index - 50).coerceAtLeast(0); val windowEnd = (index + 51).coerceAtMost(channels.size); val window = channels.subList(windowStart, windowEnd)
@@ -84,14 +109,15 @@ class LiveTvActivity : ComponentActivity() {
         })
     }
     private fun showEpg(channel: IptvChannel) {
-        epg.text = "${channel.name}\nLoading program guide..."
+        val cached = prefs.getString("epg_${channel.id}", null)
+        epg.text = if (cached != null) "${channel.name}\n$cached\nRefreshing guide..." else "${channel.name}\nLoading program guide..."
         executor.execute {
             try {
                 val programs = XtreamClient().loadEpg(config, channel); val now = System.currentTimeMillis(); val current = programs.firstOrNull { now in it.startUtcMs until it.endUtcMs }; val next = programs.firstOrNull { it.startUtcMs > now }
                 val nowText = current?.let { "NOW  ${it.title}  ${formatTime(it.startUtcMs)}–${formatTime(it.endUtcMs)}" } ?: "NOW  No current program"; val nextText = next?.let { "NEXT ${it.title}  ${formatTime(it.startUtcMs)}" } ?: "NEXT No upcoming program"
                 val progress = current?.let { val duration = (it.endUtcMs - it.startUtcMs).coerceAtLeast(1L); ((now - it.startUtcMs).coerceIn(0L, duration) * 100 / duration).toInt() } ?: 0
                 val text = "$nowText\n$nextText\nProgress: $progress%"; prefs.edit().putString("epg_${channel.id}", text).apply(); runOnUiThread { epg.text = "${channel.name}\n$text" }
-            } catch (_: Exception) { prefs.edit().putString("epg_${channel.id}", "NOW  No current program\nNEXT No upcoming program\nProgress: 0%").apply(); runOnUiThread { epg.text = "${channel.name}\nEPG unavailable" } }
+            } catch (_: Exception) { runOnUiThread { epg.text = if (cached != null) "${channel.name}\n$cached" else "${channel.name}\nEPG unavailable" } }
         }
     }
     private fun formatTime(ms: Long): String = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(ms))
