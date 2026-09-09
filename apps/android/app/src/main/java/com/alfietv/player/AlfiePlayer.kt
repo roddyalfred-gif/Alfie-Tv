@@ -16,7 +16,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.ui.PlayerView
 
-/** Native Media3 playback engine optimized for long-running live TV. */
+/** Native Media3 playback engine optimized for long-running live TV and VOD. */
 class AlfiePlayer(context: Context) {
     private val appContext = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
@@ -123,12 +123,26 @@ class AlfiePlayer(context: Context) {
         diagnostics.bitrate = null
         diagnostics.resolution = null
         diagnostics.bufferedSeconds = null
-        val builder = MediaItem.Builder().setUri(url).setMediaId(title ?: "alfie-tv")
-            .setLiveConfiguration(MediaItem.LiveConfiguration.Builder().setTargetOffsetMs(2_000).setMinPlaybackSpeed(0.98f).setMaxPlaybackSpeed(1.02f).build())
+
+        val normalizedPath = url.substringBefore('?').lowercase()
+        val builder = MediaItem.Builder()
+            .setUri(url)
+            .setMediaId(title ?: "alfie-tv")
+            .setLiveConfiguration(MediaItem.LiveConfiguration.Builder()
+                .setTargetOffsetMs(2_000)
+                .setMinPlaybackSpeed(0.98f)
+                .setMaxPlaybackSpeed(1.02f)
+                .build())
+
         when {
-            url.substringBefore('?').endsWith(".m3u8", ignoreCase = true) -> builder.setMimeType(MimeTypes.APPLICATION_M3U8)
-            url.substringBefore('?').endsWith(".mpd", ignoreCase = true) -> builder.setMimeType(MimeTypes.APPLICATION_MPD)
+            normalizedPath.endsWith(".m3u8") -> builder.setMimeType(MimeTypes.APPLICATION_M3U8)
+            normalizedPath.endsWith(".mpd") -> builder.setMimeType(MimeTypes.APPLICATION_MPD)
+            normalizedPath.endsWith(".mp4") || normalizedPath.endsWith(".m4v") -> builder.setMimeType(MimeTypes.VIDEO_MP4)
+            normalizedPath.endsWith(".mkv") -> builder.setMimeType("video/x-matroska")
+            normalizedPath.endsWith(".webm") -> builder.setMimeType(MimeTypes.VIDEO_WEBM)
+            normalizedPath.endsWith(".ts") || normalizedPath.endsWith(".mpegts") -> builder.setMimeType(MimeTypes.VIDEO_MP2T)
         }
+
         player.setMediaItem(builder.build(), if (positionMs == C.TIME_UNSET) C.TIME_UNSET else positionMs)
         player.prepare()
         player.playWhenReady = true
