@@ -1,6 +1,5 @@
 package com.alfietv.player
 
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
@@ -9,105 +8,62 @@ import android.widget.ArrayAdapter
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
-import java.util.concurrent.Executors
 
-/** Dedicated favorites screen for TV-first navigation. */
+/** Unified provider-scoped Favorites and Recently Watched screen. */
 class FavoritesActivity : androidx.activity.ComponentActivity() {
-    private val executor = Executors.newSingleThreadExecutor()
     private lateinit var list: ListView
     private lateinit var status: TextView
     private lateinit var config: XtreamConfig
-    private var favorites = emptySet<String>()
-    private var channels = emptyList<IptvChannel>()
+    private var favorites = emptyList<UserLibraryStore.Item>()
+    private var recent = emptyList<UserLibraryStore.Item>()
+    private var showingRecent = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        config = XtreamConfig(
-            intent.getStringExtra("server") ?: "",
-            intent.getStringExtra("username") ?: "",
-            intent.getStringExtra("password") ?: ""
-        )
-        val prefs = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
-        favorites = prefs.getStringSet("favorites", emptySet()) ?: emptySet()
-
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(24, 20, 24, 20)
-        }
-        root.addView(TextView(this).apply {
-            text = "Favorites"
-            textSize = 28f
-            gravity = Gravity.CENTER_VERTICAL
-        }, LinearLayout.LayoutParams(-1, -2))
-        status = TextView(this).apply { text = "Loading favorites…"; textSize = 14f }
-        list = ListView(this).apply {
-            isFocusable = true
-            isFocusableInTouchMode = true
-            setOnKeyListener { _, keyCode, event ->
-                if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_CHANNEL_UP) {
-                    moveSelection(-1); true
-                } else if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_CHANNEL_DOWN) {
-                    moveSelection(1); true
-                } else false
-            }
-        }
-        root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
-        root.addView(status, LinearLayout.LayoutParams(-1, -2))
-        setContentView(root)
-
-        list.setOnItemClickListener { _, _, position, _ ->
-            play(favoriteChannels().getOrNull(position) ?: return@setOnItemClickListener)
-        }
-        load()
+        config = XtreamConfig(intent.getStringExtra("server") ?: "", intent.getStringExtra("username") ?: "", intent.getStringExtra("password") ?: "")
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 20, 24, 20) }
+        val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        header.addView(TextView(this).apply { text = "Library"; textSize = 28f }, LinearLayout.LayoutParams(0, -2, 1f))
+        val favoritesButton = TextView(this).apply { text = "FAVORITES"; textSize = 15f; isFocusable = true; isFocusableInTouchMode = true; setPadding(16, 12, 16, 12); setOnClickListener { showingRecent = false; render() } }
+        val recentButton = TextView(this).apply { text = "RECENT"; textSize = 15f; isFocusable = true; isFocusableInTouchMode = true; setPadding(16, 12, 16, 12); setOnClickListener { showingRecent = true; render() } }
+        header.addView(favoritesButton); header.addView(recentButton)
+        status = TextView(this).apply { textSize = 14f; setPadding(0, 8, 0, 8) }
+        list = ListView(this).apply { isFocusable = true; isFocusableInTouchMode = true }
+        root.addView(header); root.addView(status, LinearLayout.LayoutParams(-1, -2)); root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f)); setContentView(root)
+        list.setOnItemClickListener { _, _, position, _ -> open((if (showingRecent) recent else favorites).getOrNull(position) ?: return@setOnItemClickListener) }
+        list.setOnItemLongClickListener { _, _, position, _ -> if (!showingRecent) { favorites.getOrNull(position)?.let { UserLibraryStore.toggleFavorite(this, config, it); reload() }; true } else false }
+        reload()
     }
 
-    private fun load() = executor.execute {
-        try {
-            val loaded = XtreamClient().load(config).second
-            channels = loaded
-            runOnUiThread { render() }
-        } catch (e: Exception) {
-            runOnUiThread { status.text = "Unable to load favorites: ${e.message ?: "unknown error"}" }
-        }
-    }
+    override fun onResume() { super.onResume(); if (::list.isInitialized) reload() }
 
-    private fun favoriteChannels(): List<IptvChannel> = channels.filter { favorites.contains(it.id) }
+    private fun reload() {
+        favorites = UserLibraryStore.favorites(this, config)
+        recent = UserLibraryStore.recent(this, config)
+        render()
+    }
 
     private fun render() {
-        val items = favoriteChannels()
-        list.adapter = ArrayAdapter(
-            this,
-            android.R.layout.simple_list_item_1,
-            items.mapIndexed { index, channel -> "${index + 1}. ★ ${channel.name}" }
-        )
-        status.text = if (items.isEmpty()) "No favorites yet • Long-press a Live TV channel to add one" else "${items.size} favorite channels"
+        val items = if (showingRecent) recent else favorites
+        list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.mapIndexed { index, item ->
+            val type = when (item.type) { UserLibraryStore.Type.LIVE -> "LIVE"; UserLibraryStore.Type.MOVIE -> "MOVIE"; UserLibraryStore.Type.SERIES -> "SERIES"; UserLibraryStore.Type.EPISODE -> "EPISODE" }
+            "${index + 1}. ${if (!showingRecent) "★ " else ""}$type • ${item.title}"
+        })
+        status.text = if (items.isEmpty()) if (showingRecent) "Nothing watched yet" else "No favorites yet • Long-press an item to remove it" else if (showingRecent) "${items.size} recently watched" else "${items.size} favorites • Long-press to remove"
         list.requestFocus()
     }
 
-    private fun moveSelection(delta: Int) {
-        val count = list.adapter?.count ?: return
-        if (count == 0) return
-        val next = (list.selectedItemPosition + delta).coerceIn(0, count - 1)
-        list.setSelection(next)
+    private fun open(item: UserLibraryStore.Item) {
+        when (item.type) {
+            UserLibraryStore.Type.SERIES -> startActivity(Intent(this, ContentActivity::class.java).apply { putExtra("server", config.serverUrl); putExtra("username", config.username); putExtra("password", config.password); putExtra("mode", "series") })
+            else -> startActivity(Intent(this, MainActivity::class.java).apply {
+                putExtra("stream_url", item.streamUrl); putExtra("title", item.title); putExtra("content_id", item.id); putExtra("content_type", item.type.name)
+            })
+        }
     }
 
-    private fun play(channel: IptvChannel) {
-        val items = favoriteChannels()
-        val index = items.indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
-        startActivity(Intent(this, MainActivity::class.java).apply {
-            putExtra("stream_url", channel.streamUrl)
-            putExtra("title", channel.name)
-            putExtra("channel_number", (index + 1).toString())
-            putExtra("channel_index", index)
-            putExtra("channel_urls", ArrayList(items.map { it.streamUrl }))
-            putExtra("channel_titles", ArrayList(items.map { it.name }))
-            putExtra("channel_ids", ArrayList(items.map { it.id }))
-            putExtra("channel_numbers", ArrayList(items.mapIndexed { i, _ -> (i + 1).toString() }))
-        })
-    }
-
-    override fun onDestroy() {
-        executor.shutdownNow()
-        super.onDestroy()
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_CHANNEL_UP || keyCode == KeyEvent.KEYCODE_CHANNEL_DOWN) return true
+        return super.onKeyDown(keyCode, event)
     }
 }
