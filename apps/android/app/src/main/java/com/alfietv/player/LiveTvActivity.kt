@@ -26,14 +26,12 @@ class LiveTvActivity : ComponentActivity() {
     private var selectedCategory: String? = null
     private lateinit var config: XtreamConfig
     private lateinit var prefs: android.content.SharedPreferences
-    private val favorites = mutableSetOf<String>()
     private var restoredLastChannel = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         config = XtreamConfig(intent.getStringExtra("server") ?: "", intent.getStringExtra("username") ?: "", intent.getStringExtra("password") ?: "")
         prefs = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
-        favorites.addAll(prefs.getStringSet("favorites", emptySet()) ?: emptySet())
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(20, 16, 20, 16) }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         val title = TextView(this).apply { text = "Live TV"; textSize = 26f }
@@ -57,7 +55,14 @@ class LiveTvActivity : ComponentActivity() {
         setContentView(root)
         search.setOnEditorActionListener { _, _, _ -> render(); false }
         list.setOnItemClickListener { _, _, position, _ -> play(filteredChannels()[position]) }
-        list.setOnItemLongClickListener { _, _, position, _ -> val channel = filteredChannels()[position]; if (!favorites.add(channel.id)) favorites.remove(channel.id); prefs.edit().putStringSet("favorites", favorites).apply(); render(); true }
+        list.setOnItemLongClickListener { _, _, position, _ ->
+            val channel = filteredChannels()[position]
+            val item = channel.toLibraryItem()
+            val added = UserLibraryStore.toggleFavorite(this, config, item)
+            status.text = if (added) "★ Added to favorites: ${channel.name}" else "Removed from favorites: ${channel.name}"
+            render()
+            true
+        }
         load(categoryRow)
     }
 
@@ -66,9 +71,7 @@ class LiveTvActivity : ComponentActivity() {
         if (cached != null) {
             applyChannels(cached.categories, cached.channels, categoryRow)
             status.text = "${cached.channels.size} channels • Cached ${LiveTvCache.ageText(cached)} • Refreshing..."
-        } else {
-            status.text = "Loading channels..."
-        }
+        } else status.text = "Loading channels..."
         executor.execute {
             try {
                 val (categories, channels) = XtreamClient().load(config)
@@ -78,16 +81,14 @@ class LiveTvActivity : ComponentActivity() {
                     status.text = "${channels.size} channels • Updated just now • Long-press to favorite • CH+/CH− supported"
                 }
             } catch (e: Exception) {
-                runOnUiThread {
-                    if (allChannels.isNotEmpty()) status.text = "${allChannels.size} channels • Offline cache • Refresh failed: ${e.message ?: "unknown error"}"
-                    else status.text = "Unable to load channels: ${e.message ?: "unknown error"}"
-                }
+                runOnUiThread { status.text = if (allChannels.isNotEmpty()) "${allChannels.size} channels • Offline cache • Refresh failed: ${e.message ?: "unknown error"}" else "Unable to load channels: ${e.message ?: "unknown error"}" }
             }
         }
     }
 
     private fun applyChannels(categories: List<IptvCategory>, channels: List<IptvChannel>, categoryRow: LinearLayout) {
         allChannels = channels
+        migrateLegacyFavorites(channels)
         while (categoryRow.childCount > 1) categoryRow.removeViewAt(1)
         categories.forEach { category -> categoryRow.addView(Button(this).apply { text = category.name; isAllCaps = false; setOnClickListener { selectedCategory = category.id; render() } }) }
         render()
@@ -97,17 +98,46 @@ class LiveTvActivity : ComponentActivity() {
         }
     }
 
-    private fun filteredChannels(): List<IptvChannel> { val query = search.text.toString().trim().lowercase(); return allChannels.filter { channel -> (selectedCategory == null || channel.categoryId == selectedCategory) && (query.isBlank() || channel.name.lowercase().contains(query)) } }
-    private fun render() { val channels = filteredChannels(); list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, channels.mapIndexed { index, channel -> "${index + 1}  ${if (favorites.contains(channel.id)) "★ " else ""}${channel.name}" }); status.text = status.text.takeIf { it.contains("Updated") || it.contains("Cached") || it.contains("Offline") } ?: "${channels.size} channels • Long-press to favorite • CH+/CH− supported"; list.requestFocus() }
-    private fun moveChannel(delta: Int) { val count = list.adapter?.count ?: return; if (count == 0) return; val next = (list.selectedItemPosition + delta).coerceIn(0, count - 1); list.setSelection(next); filteredChannels().getOrNull(next)?.let { showEpg(it) } }
+    private fun migrateLegacyFavorites(channels: List<IptvChannel>) {
+        if (prefs.getBoolean("favorites_migrated_v2", false)) return
+        val legacy = prefs.getStringSet("favorites", emptySet()).orEmpty()
+        legacy.forEach { id -> channels.firstOrNull { it.id == id }?.let { UserLibraryStore.toggleFavorite(this, config, it.toLibraryItem()) } }
+        prefs.edit().putBoolean("favorites_migrated_v2", true).apply()
+    }
+
+    private fun filteredChannels(): List<IptvChannel> {
+        val query = search.text.toString().trim().lowercase()
+        return allChannels.filter { channel -> (selectedCategory == null || channel.categoryId == selectedCategory) && (query.isBlank() || channel.name.lowercase().contains(query)) }
+    }
+
+    private fun render() {
+        val channels = filteredChannels()
+        list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, channels.mapIndexed { index, channel -> "${index + 1}  ${if (UserLibraryStore.isFavorite(this, config, channel.toLibraryItem())) "★ " else ""}${channel.name}" })
+        status.text = status.text.takeIf { it.contains("Updated") || it.contains("Cached") || it.contains("Offline") || it.contains("Added") || it.contains("Removed") } ?: "${channels.size} channels • Long-press to favorite • CH+/CH− supported"
+        list.requestFocus()
+    }
+
+    private fun moveChannel(delta: Int) {
+        val count = list.adapter?.count ?: return
+        if (count == 0) return
+        val next = (list.selectedItemPosition + delta).coerceIn(0, count - 1)
+        list.setSelection(next)
+        filteredChannels().getOrNull(next)?.let { showEpg(it) }
+    }
+
     private fun play(channel: IptvChannel) {
         val channels = filteredChannels(); val index = channels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0); val windowStart = (index - 50).coerceAtLeast(0); val windowEnd = (index + 51).coerceAtMost(channels.size); val window = channels.subList(windowStart, windowEnd)
         prefs.edit().putString("last_channel_id", channel.id).apply(); showEpg(channel)
+        UserLibraryStore.recordWatched(this, config, channel.toLibraryItem())
         startActivity(android.content.Intent(this, MainActivity::class.java).apply {
-            putExtra("stream_url", channel.streamUrl); putExtra("title", channel.name); putExtra("channel_number", (index + 1).toString()); putExtra("channel_index", index - windowStart)
+            putExtra("stream_url", channel.streamUrl); putExtra("title", channel.name); putExtra("content_id", channel.id); putExtra("content_type", UserLibraryStore.Type.LIVE.name)
+            putExtra("channel_number", (index + 1).toString()); putExtra("channel_index", index - windowStart)
             putExtra("channel_urls", ArrayList(window.map { it.streamUrl })); putExtra("channel_titles", ArrayList(window.map { it.name })); putExtra("channel_ids", ArrayList(window.map { it.id })); putExtra("channel_numbers", ArrayList(window.mapIndexed { i, _ -> (windowStart + i + 1).toString() }))
         })
     }
+
+    private fun IptvChannel.toLibraryItem() = UserLibraryStore.Item(id, UserLibraryStore.Type.LIVE, name, streamUrl, categoryId, logoUrl)
+
     private fun showEpg(channel: IptvChannel) {
         val cached = prefs.getString("epg_${channel.id}", null)
         epg.text = if (cached != null) "${channel.name}\n$cached\nRefreshing guide..." else "${channel.name}\nLoading program guide..."
@@ -120,6 +150,7 @@ class LiveTvActivity : ComponentActivity() {
             } catch (_: Exception) { runOnUiThread { epg.text = if (cached != null) "${channel.name}\n$cached" else "${channel.name}\nEPG unavailable" } }
         }
     }
+
     private fun formatTime(ms: Long): String = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(ms))
     override fun onDestroy() { executor.shutdownNow(); super.onDestroy() }
 }
