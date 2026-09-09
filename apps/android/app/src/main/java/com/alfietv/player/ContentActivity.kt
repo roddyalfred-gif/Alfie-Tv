@@ -20,11 +20,13 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private var episodes = emptyList<SeriesEpisode>()
     private var selectedCategory: String? = null
     private var selectedSeriesId: String? = null
+    private var pendingSeriesId: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         mode = intent.getStringExtra("mode") ?: "vod"
         config = XtreamConfig(intent.getStringExtra("server") ?: "", intent.getStringExtra("username") ?: "", intent.getStringExtra("password") ?: "")
+        pendingSeriesId = intent.getStringExtra("selected_series_id")
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(20, 16, 20, 16) }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         val title = TextView(this).apply { text = if (mode == "series") "Series" else "Movies"; textSize = 26f }
@@ -95,6 +97,9 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         categories.forEach { c -> categoryRow.addView(Button(this).apply { text = c.name; isAllCaps = false; setOnClickListener { selectedCategory = c.id; render() } }) }
         if (selectedCategory != null && categories.none { it.id == selectedCategory }) selectedCategory = null
         render()
+        if (mode == "series" && episodes.isEmpty() && selectedSeriesId == null) {
+            pendingSeriesId?.let { id -> if (series.any { it.id == id }) { pendingSeriesId = null; loadEpisodes(id) } }
+        }
     }
 
     private fun itemCount() = if (mode == "vod") vod.size else series.size
