@@ -14,31 +14,24 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.ui.PlayerView
 
-/**
- * Native Media3 playback engine used by Alfie TV.
- *
- * Designed for long-running live-TV sessions: one ExoPlayer instance is reused,
- * live streams get an explicit target offset, buffering is bounded, and
- * recovery is rate-limited so a bad provider stream cannot cause a restart loop.
- */
+/** Native Media3 playback engine optimized for long-running live TV. */
 class AlfiePlayer(context: Context) {
     private val appContext = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
     private var recoveryAttempts = 0
+    private var audioRecoveryAttempts = 0
     private var lastRecoveryAt = 0L
+    private var lastAudioRecoveryAt = 0L
     private var lastPosition = 0L
     private var currentUrl: String? = null
+    private var currentTitle: String? = null
     private var recovering = false
+    private var lastPlayingPosition = C.TIME_UNSET
 
     val diagnostics = PlaybackDiagnostics()
 
     private val loadControl = DefaultLoadControl.Builder()
-        .setBufferDurationsMs(
-            5_000,  // min buffer
-            30_000, // max buffer
-            1_500,  // buffer for playback
-            3_000   // buffer after rebuffer
-        )
+        .setBufferDurationsMs(5_000, 30_000, 1_500, 3_000)
         .setPrioritizeTimeOverSizeThresholds(true)
         .build()
 
@@ -61,21 +54,20 @@ class AlfiePlayer(context: Context) {
                 override fun onPlayerError(error: PlaybackException) {
                     recover("player-error")
                 }
+
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    if (isPlaying) {
+                        recoveryAttempts = 0
+                        audioRecoveryAttempts = 0
+                    }
+                }
             })
         }
 
-    private val stallCheck = object : Runnable {
+    private val healthCheck = object : Runnable {
         override fun run() {
-            val p = player
-            val stalled = p.playWhenReady &&
-                p.playbackState == Player.STATE_BUFFERING &&
-                p.playbackException == null
-
-            if (stalled) {
-                recover("stall")
-            }
-
-            handler.postDelayed(this, 8_000)
+            checkPlaybackHealth()
+            handler.postDelayed(this, 4_000)
         }
     }
 
@@ -84,21 +76,22 @@ class AlfiePlayer(context: Context) {
         view.useController = true
         view.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
         view.requestFocus()
-        handler.removeCallbacks(stallCheck)
-        handler.postDelayed(stallCheck, 8_000)
+        handler.removeCallbacks(healthCheck)
+        handler.postDelayed(healthCheck, 4_000)
     }
 
     fun play(url: String, title: String? = null, positionMs: Long = C.TIME_UNSET) {
-        require(url.startsWith("http://") || url.startsWith("https://")) {
-            "Unsupported stream URL"
-        }
+        require(url.startsWith("http://") || url.startsWith("https://")) { "Unsupported stream URL" }
 
         currentUrl = url
+        currentTitle = title
         recoveryAttempts = 0
+        audioRecoveryAttempts = 0
         recovering = false
         lastPosition = if (positionMs == C.TIME_UNSET) 0L else positionMs
+        lastPlayingPosition = C.TIME_UNSET
 
-        val mediaItemBuilder = MediaItem.Builder()
+        val builder = MediaItem.Builder()
             .setUri(url)
             .setMediaId(title ?: "alfie-tv")
             .setLiveConfiguration(
@@ -110,27 +103,22 @@ class AlfiePlayer(context: Context) {
             )
 
         when {
-            url.substringBefore('?').endsWith(".m3u8", ignoreCase = true) ->
-                mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
-            url.substringBefore('?').endsWith(".mpd", ignoreCase = true) ->
-                mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_MPD)
+            url.substringBefore('?').endsWith(".m3u8", ignoreCase = true) -> builder.setMimeType(MimeTypes.APPLICATION_M3U8)
+            url.substringBefore('?').endsWith(".mpd", ignoreCase = true) -> builder.setMimeType(MimeTypes.APPLICATION_MPD)
         }
 
-        // Reuse the same player instance for channel changes instead of
-        // creating a new ExoPlayer, which keeps decoder/session state stable.
-        val mediaItem = mediaItemBuilder.build()
-        player.setMediaItem(mediaItem)
+        player.setMediaItem(builder.build(), if (positionMs == C.TIME_UNSET) C.TIME_UNSET else positionMs)
         player.prepare()
         player.playWhenReady = true
     }
 
+    /** Fast channel change using the same player/decoder pipeline. */
+    fun switchChannel(url: String, title: String? = null) = play(url, title)
+
     fun playLastPosition() {
         if (player.currentMediaItem == null) return
-        if (player.isCurrentMediaItemLive) {
-            player.seekToDefaultPosition()
-        } else {
-            player.seekTo(lastPosition.coerceAtLeast(0L))
-        }
+        if (player.isCurrentMediaItemLive) player.seekToDefaultPosition()
+        else player.seekTo(lastPosition.coerceAtLeast(0L))
         player.playWhenReady = true
     }
 
@@ -140,47 +128,89 @@ class AlfiePlayer(context: Context) {
     }
 
     fun release() {
-        handler.removeCallbacks(stallCheck)
+        handler.removeCallbacks(healthCheck)
         lastPosition = player.currentPosition.coerceAtLeast(0L)
         currentUrl = null
         player.release()
     }
 
+    private fun checkPlaybackHealth() {
+        val p = player
+        if (!p.playWhenReady) return
+
+        val videoPlaying = p.isPlaying && diagnostics.videoTrackAvailable
+        val audioAvailable = diagnostics.audioTrackAvailable
+
+        if (videoPlaying && audioAvailable) {
+            val position = p.currentPosition
+            if (lastPlayingPosition != C.TIME_UNSET && position == lastPlayingPosition &&
+                System.currentTimeMillis() - lastAudioRecoveryAt > 5_000) {
+                recoverAudio()
+            }
+            lastPlayingPosition = position
+            return
+        }
+
+        if (p.playbackState == Player.STATE_BUFFERING && p.playbackException == null) {
+            recover("stall")
+        } else if (videoPlaying && !audioAvailable) {
+            recoverAudio()
+        }
+    }
+
+    /**
+     * Resets the audio renderer without destroying the Activity or changing
+     * channels. This targets the failure mode where video continues while
+     * audio silently stops decoding.
+     */
+    private fun recoverAudio() {
+        if (recovering || player.currentMediaItem == null) return
+        val now = System.currentTimeMillis()
+        if (now - lastAudioRecoveryAt < 8_000 || audioRecoveryAttempts >= 3) return
+
+        lastAudioRecoveryAt = now
+        audioRecoveryAttempts++
+        diagnostics.audioRecoveryCount++
+        val wasPlaying = player.isPlaying || player.playWhenReady
+        val position = player.currentPosition.coerceAtLeast(0L)
+        val live = player.isCurrentMediaItemLive
+
+        player.stop()
+        if (live) {
+            player.setMediaItem(player.currentMediaItem!!)
+            player.prepare()
+            player.seekToDefaultPosition()
+        } else {
+            player.setMediaItem(player.currentMediaItem!!, position)
+            player.prepare()
+            player.seekTo(position)
+        }
+        player.playWhenReady = wasPlaying
+    }
+
     private fun recover(reason: String) {
         val url = currentUrl ?: return
         if (recovering) return
-
         val now = System.currentTimeMillis()
-        if (now - lastRecoveryAt < 2_000) return
-        if (recoveryAttempts >= 4) return
+        if (now - lastRecoveryAt < 2_000 || recoveryAttempts >= 4) return
 
         recovering = true
         recoveryAttempts++
         diagnostics.recoveryCount++
         lastRecoveryAt = now
-
         val live = player.isCurrentMediaItemLive
-        val resumePosition = player.currentPosition.coerceAtLeast(0L)
+        val position = player.currentPosition.coerceAtLeast(0L)
 
         handler.postDelayed({
             if (currentUrl != url) {
                 recovering = false
                 return@postDelayed
             }
-
-            // A prolonged live-TV stall is better recovered at the live edge
-            // than by replaying an expired media position.
-            if (live) {
-                player.seekToDefaultPosition()
-                player.prepare()
-                player.playWhenReady = true
-            } else {
-                player.setMediaItem(MediaItem.fromUri(url), resumePosition)
-                player.prepare()
-                player.playWhenReady = true
-                lastPosition = resumePosition
-            }
-
+            val item = player.currentMediaItem ?: MediaItem.Builder().setUri(url).setMediaId(currentTitle ?: "alfie-tv").build()
+            player.setMediaItem(item, if (live) C.TIME_UNSET else position)
+            player.prepare()
+            if (live) player.seekToDefaultPosition()
+            player.playWhenReady = true
             recovering = false
         }, 350L)
     }
