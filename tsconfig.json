@@ -11,7 +11,9 @@
     "moduleResolution": "bundler",
     "ignoreDeprecations": "5.0",
     "paths": {
+      "@alfie-tv/core": ["./packages/core/src/index.ts"],
       "@alfie-tv/core/*": ["./packages/core/src/*"],
+      "@alfie-tv/ui": ["./packages/ui/src/index.ts"],
       "@alfie-tv/ui/*": ["./packages/ui/src/*"]
     }
   }
