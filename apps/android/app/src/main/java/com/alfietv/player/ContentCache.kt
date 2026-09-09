@@ -20,15 +20,19 @@ object ContentCache {
         return File(context.filesDir, "content_$key.json")
     }
 
-    fun read(context: Context, config: XtreamConfig, mode: String): Data? = try {
-        val f = file(context, config, mode)
-        if (!f.exists()) return null
-        val root = JSONObject(f.readText())
-        val categories = root.optJSONArray("categories").toCategories()
-        val savedAt = root.optLong("savedAt", 0L)
-        if (mode == "vod") Data(categories, root.optJSONArray("items").toVod(), emptyList(), savedAt)
-        else Data(categories, emptyList(), root.optJSONArray("items").toSeries(), savedAt)
-    } catch (_: Exception) { null }
+    fun read(context: Context, config: XtreamConfig, mode: String): Data? {
+        return try {
+            val f = file(context, config, mode)
+            if (!f.exists()) return null
+            val root = JSONObject(f.readText())
+            val categories = root.optJSONArray("categories").toCategories()
+            val savedAt = root.optLong("savedAt", 0L)
+            if (mode == "vod") Data(categories, root.optJSONArray("items").toVod(), emptyList(), savedAt)
+            else Data(categories, emptyList(), root.optJSONArray("items").toSeries(), savedAt)
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     fun write(context: Context, config: XtreamConfig, mode: String, categories: List<IptvCategory>, vod: List<VodItem> = emptyList(), series: List<SeriesItem> = emptyList()) {
         try {
