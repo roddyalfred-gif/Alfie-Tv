@@ -29,16 +29,11 @@ object UserLibraryStore {
     private const val RECENT = "recent"
     private const val MAX_RECENT = 30
 
-    private fun prefs(context: Context, config: XtreamConfig) =
-        context.getSharedPreferences("${PREFS}_${providerKey(config)}", Context.MODE_PRIVATE)
-
+    private fun prefs(context: Context, config: XtreamConfig) = context.getSharedPreferences("${PREFS}_${providerKey(config)}", Context.MODE_PRIVATE)
     private fun key(item: Item): String = "${item.type.name}|${item.id}|${item.seriesId.orEmpty()}"
 
-    fun favorites(context: Context, config: XtreamConfig): List<Item> =
-        read(prefs(context, config).getString(FAVORITES, null)).sortedBy { it.title.lowercase() }
-
-    fun isFavorite(context: Context, config: XtreamConfig, item: Item): Boolean =
-        favorites(context, config).any { key(it) == key(item) }
+    fun favorites(context: Context, config: XtreamConfig): List<Item> = read(prefs(context, config).getString(FAVORITES, null)).sortedBy { it.title.lowercase() }
+    fun isFavorite(context: Context, config: XtreamConfig, item: Item): Boolean = favorites(context, config).any { key(it) == key(item) }
 
     fun toggleFavorite(context: Context, config: XtreamConfig, item: Item): Boolean {
         val current = favorites(context, config).toMutableList()
@@ -49,11 +44,9 @@ object UserLibraryStore {
         return added
     }
 
-    fun recent(context: Context, config: XtreamConfig): List<Item> =
-        read(prefs(context, config).getString(RECENT, null)).sortedByDescending { it.watchedAt }
-
-    fun findRecent(context: Context, config: XtreamConfig, item: Item): Item? =
-        recent(context, config).firstOrNull { key(it) == key(item) }
+    fun recent(context: Context, config: XtreamConfig): List<Item> = read(prefs(context, config).getString(RECENT, null)).sortedByDescending { it.watchedAt }
+    fun findRecent(context: Context, config: XtreamConfig, item: Item): Item? = recent(context, config).firstOrNull { key(it) == key(item) }
+    fun findRecentById(context: Context, config: XtreamConfig, type: Type, id: String): Item? = recent(context, config).firstOrNull { it.type == type && it.id == id }
 
     fun recordWatched(context: Context, config: XtreamConfig, item: Item) {
         val current = recent(context, config).filterNot { key(it) == key(item) }.toMutableList()
@@ -65,11 +58,7 @@ object UserLibraryStore {
         if (item.type != Type.MOVIE && item.type != Type.EPISODE) return
         val current = recent(context, config).toMutableList()
         val index = current.indexOfFirst { key(it) == key(item) }
-        val updated = item.copy(
-            watchedAt = System.currentTimeMillis(),
-            positionMs = positionMs.coerceAtLeast(0L),
-            durationMs = durationMs.coerceAtLeast(0L)
-        )
+        val updated = item.copy(watchedAt = System.currentTimeMillis(), positionMs = positionMs.coerceAtLeast(0L), durationMs = durationMs.coerceAtLeast(0L))
         if (index >= 0) current[index] = updated else current.add(0, updated)
         write(prefs(context, config), RECENT, current.take(MAX_RECENT))
     }
@@ -101,17 +90,9 @@ object UserLibraryStore {
             List(array.length()) { i ->
                 val o = array.getJSONObject(i)
                 val type = runCatching { Type.valueOf(o.optString("type", Type.LIVE.name)) }.getOrDefault(Type.LIVE)
-                Item(
-                    o.optString("id"), type, o.optString("title"), o.optString("streamUrl"),
-                    o.optString("categoryId").ifBlank { null }, o.optString("posterUrl").ifBlank { null },
-                    o.optString("seriesId").ifBlank { null }, o.optInt("season", 0).takeIf { it != 0 },
-                    o.optInt("episode", 0).takeIf { it != 0 }, o.optLong("watchedAt", 0L),
-                    o.optLong("positionMs", 0L), o.optLong("durationMs", 0L)
-                )
+                Item(o.optString("id"), type, o.optString("title"), o.optString("streamUrl"), o.optString("categoryId").ifBlank { null }, o.optString("posterUrl").ifBlank { null }, o.optString("seriesId").ifBlank { null }, o.optInt("season", 0).takeIf { it != 0 }, o.optInt("episode", 0).takeIf { it != 0 }, o.optLong("watchedAt", 0L), o.optLong("positionMs", 0L), o.optLong("durationMs", 0L))
             }
-        } catch (_: Exception) {
-            emptyList()
-        }
+        } catch (_: Exception) { emptyList() }
     }
 
     private fun providerKey(config: XtreamConfig): String = sha256("${config.serverUrl.trimEnd('/')}|${config.username}").take(24)
