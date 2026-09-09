@@ -12,6 +12,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private lateinit var list: ListView
     private lateinit var status: TextView
     private lateinit var search: EditText
+    private lateinit var categoryRow: LinearLayout
     private var mode = "vod"
     private var categories = emptyList<IptvCategory>()
     private var vod = emptyList<VodItem>()
@@ -26,35 +27,61 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(20, 16, 20, 16) }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         val title = TextView(this).apply { text = if (mode == "series") "Series" else "Movies"; textSize = 26f }
-        search = EditText(this).apply { hint = "Search"; setSingleLine(true) }
+        search = EditText(this).apply { hint = "Search"; setSingleLine(true); isFocusable = true }
         header.addView(title, LinearLayout.LayoutParams(0, -2, 1f)); header.addView(search, LinearLayout.LayoutParams(0, -2, 2f))
         val cats = HorizontalScrollView(this)
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        row.addView(Button(this).apply { text = "All"; setOnClickListener { selectedCategory = null; render() } })
-        cats.addView(row)
+        categoryRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        categoryRow.addView(Button(this).apply { text = "All"; isAllCaps = false; setOnClickListener { selectedCategory = null; render() } })
+        cats.addView(categoryRow)
         list = ListView(this).apply { isFocusable = true; isFocusableInTouchMode = true }
         status = TextView(this).apply { text = "Loading..." }
         root.addView(header); root.addView(cats, LinearLayout.LayoutParams(-1, -2)); root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f)); root.addView(status)
         setContentView(root)
         search.setOnEditorActionListener { _, _, _ -> render(); false }
         list.setOnItemClickListener { _, _, position, _ -> if (mode == "vod") playVod(filteredVod()[position]) else if (episodes.isNotEmpty()) playEpisode(episodes[position]) else loadEpisodes(filteredSeries()[position].id) }
-        load(row)
+        load()
     }
 
-    private fun load(row: LinearLayout) = executor.execute {
-        try {
-            if (mode == "vod") { val result = XtreamClient().loadVod(config); categories = result.first; vod = result.second }
-            else { val result = XtreamClient().loadSeries(config); categories = result.first; series = result.second }
-            runOnUiThread { categories.forEach { c -> row.addView(Button(this).apply { text = c.name; isAllCaps = false; setOnClickListener { selectedCategory = c.id; render() } }) }; render() }
-        } catch (e: Exception) { runOnUiThread { status.text = "Unable to load content: ${e.message ?: "unknown error"}" } }
+    private fun load() {
+        val cached = ContentCache.read(this, config, mode)
+        if (cached != null) {
+            apply(cached.categories, cached.vod, cached.series)
+            status.text = "${itemCount()} ${label()} • Cached ${ContentCache.ageText(cached)} • Refreshing..."
+        } else status.text = "Loading ${label()}..."
+        executor.execute {
+            try {
+                if (mode == "vod") {
+                    val result = XtreamClient().loadVod(config)
+                    ContentCache.write(this, config, mode, result.first, vod = result.second)
+                    runOnUiThread { apply(result.first, result.second, emptyList()); status.text = "${result.second.size} movies • Updated just now" }
+                } else {
+                    val result = XtreamClient().loadSeries(config)
+                    ContentCache.write(this, config, mode, result.first, series = result.second)
+                    runOnUiThread { apply(result.first, emptyList(), result.second); status.text = "${result.second.size} series • Updated just now" }
+                }
+            } catch (e: Exception) {
+                runOnUiThread { status.text = if (itemCount() > 0) "${itemCount()} ${label()} • Offline cache • Refresh failed" else "Unable to load ${label()}: ${e.message ?: "unknown error"}" }
+            }
+        }
     }
 
+    private fun apply(newCategories: List<IptvCategory>, newVod: List<VodItem>, newSeries: List<SeriesItem>) {
+        categories = newCategories
+        if (mode == "vod") vod = newVod else series = newSeries
+        while (categoryRow.childCount > 1) categoryRow.removeViewAt(1)
+        categories.forEach { c -> categoryRow.addView(Button(this).apply { text = c.name; isAllCaps = false; setOnClickListener { selectedCategory = c.id; render() } }) }
+        if (selectedCategory != null && categories.none { it.id == selectedCategory }) selectedCategory = null
+        render()
+    }
+
+    private fun itemCount() = if (mode == "vod") vod.size else series.size
+    private fun label() = if (mode == "vod") "movies" else "series"
     private fun filteredVod() = vod.filter { (selectedCategory == null || it.categoryId == selectedCategory) && search.text.toString().trim().let { q -> q.isBlank() || it.name.contains(q, true) } }
     private fun filteredSeries() = series.filter { (selectedCategory == null || it.categoryId == selectedCategory) && search.text.toString().trim().let { q -> q.isBlank() || it.name.contains(q, true) } }
 
     private fun render() {
-        if (mode == "vod") { val items = filteredVod(); list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.mapIndexed { i, x -> "${i + 1}. ${x.name}" }); status.text = "${items.size} movies • Select to play" }
-        else if (episodes.isEmpty()) { val items = filteredSeries(); list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.mapIndexed { i, x -> "${i + 1}. ${x.name}" }); status.text = "${items.size} series • Select for episodes" }
+        if (mode == "vod") { val items = filteredVod(); list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.mapIndexed { i, x -> "${i + 1}. ${x.name}" }); if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated")) status.text = "${items.size} movies • Select to play" }
+        else if (episodes.isEmpty()) { val items = filteredSeries(); list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.mapIndexed { i, x -> "${i + 1}. ${x.name}" }); if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated")) status.text = "${items.size} series • Select for episodes" }
         else { list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, episodes.map { e -> "S${e.season ?: 0} E${e.episode ?: 0}  ${e.name}" }); status.text = "${episodes.size} episodes" }
         list.requestFocus()
     }
@@ -65,12 +92,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private fun play(url: String, title: String) { startActivity(Intent(this, MainActivity::class.java).apply { putExtra("stream_url", url); putExtra("title", title) }) }
 
     override fun onBackPressed() {
-        if (mode == "series" && episodes.isNotEmpty()) {
-            episodes = emptyList()
-            render()
-        } else {
-            super.onBackPressed()
-        }
+        if (mode == "series" && episodes.isNotEmpty()) { episodes = emptyList(); render() } else super.onBackPressed()
     }
 
     override fun onDestroy() { executor.shutdownNow(); super.onDestroy() }
