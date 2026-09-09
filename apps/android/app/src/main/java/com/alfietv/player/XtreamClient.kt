@@ -24,7 +24,8 @@ class XtreamClient {
         val items = parseArray(get(api(config, "get_vod_streams"))).mapNotNull { o ->
             val id = o.optString("stream_id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
             val ext = o.optString("container_extension").ifBlank { "mp4" }
-            VodItem(id, o.optString("name"), "$base/movie/${enc(config.username)}/${enc(config.password)}/$id.$ext", o.optString("category_id").ifBlank { null }, o.optString("stream_icon").ifBlank { null }, o.optString("year").ifBlank { null }, o.optString("rating").ifBlank { null }, o.optString("duration").ifBlank { null })
+            val fallback = "$base/movie/${enc(config.username)}/${enc(config.password)}/$id.$ext"
+            VodItem(id, o.optString("name"), o.optString("direct_source").trim().ifBlank { fallback }, o.optString("category_id").ifBlank { null }, o.optString("stream_icon").ifBlank { null }, o.optString("year").ifBlank { null }, o.optString("rating").ifBlank { null }, o.optString("duration").ifBlank { null })
         }
         return categories to items
     }
@@ -50,7 +51,8 @@ class XtreamClient {
                 val id = o.optString("id").ifBlank { o.optString("episode_num") }.takeIf { it.isNotBlank() } ?: continue
                 val episodeNumber = o.optInt("episode_num", 0).takeIf { it > 0 }
                 val ext = o.optString("container_extension").ifBlank { "mp4" }
-                episodes += SeriesEpisode(id, o.optString("title").ifBlank { "Episode $episodeNumber" }, "${checkedBase(config)}/series/${enc(config.username)}/${enc(config.password)}/$id.$ext", seasonNumber, episodeNumber, o.optString("info").ifBlank { null })
+                val fallback = "${checkedBase(config)}/series/${enc(config.username)}/${enc(config.password)}/$id.$ext"
+                episodes += SeriesEpisode(id, o.optString("title").ifBlank { "Episode $episodeNumber" }, o.optString("direct_source").trim().ifBlank { fallback }, seasonNumber, episodeNumber, o.optString("info").ifBlank { null })
             }
         }
         return episodes.sortedWith(compareBy({ it.season ?: 0 }, { it.episode ?: 0 }))
