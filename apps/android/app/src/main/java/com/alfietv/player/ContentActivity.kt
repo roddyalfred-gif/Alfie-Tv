@@ -44,6 +44,24 @@ class ContentActivity : androidx.activity.ComponentActivity() {
             else if (episodes.isNotEmpty()) playEpisode(episodes[position])
             else loadEpisodes(filteredSeries()[position].id)
         }
+        list.setOnItemLongClickListener { _, _, position, _ ->
+            if (mode == "vod") {
+                val item = filteredVod()[position]
+                val added = UserLibraryStore.toggleFavorite(this, config, item.toLibraryItem())
+                status.text = if (added) "★ Added to favorites: ${item.name}" else "Removed from favorites: ${item.name}"
+                render(); true
+            } else if (episodes.isNotEmpty()) {
+                val item = episodes[position]
+                val added = UserLibraryStore.toggleFavorite(this, config, item.toLibraryItem(selectedSeriesId))
+                status.text = if (added) "★ Added to favorites: ${item.name}" else "Removed from favorites: ${item.name}"
+                render(); true
+            } else {
+                val item = filteredSeries()[position]
+                val added = UserLibraryStore.toggleFavorite(this, config, item.toLibraryItem())
+                status.text = if (added) "★ Added to favorites: ${item.name}" else "Removed from favorites: ${item.name}"
+                render(); true
+            }
+        }
         load()
     }
 
@@ -87,15 +105,15 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private fun render() {
         if (mode == "vod") {
             val items = filteredVod()
-            list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.mapIndexed { i, x -> "${i + 1}. ${x.name}" })
-            if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated")) status.text = "${items.size} movies • Select to play"
+            list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.mapIndexed { i, x -> "${i + 1}. ${if (UserLibraryStore.isFavorite(this, config, x.toLibraryItem())) "★ " else ""}${x.name}" })
+            if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} movies • Select to play • Long-press to favorite"
         } else if (episodes.isEmpty()) {
             val items = filteredSeries()
-            list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.mapIndexed { i, x -> "${i + 1}. ${x.name}" })
-            if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated")) status.text = "${items.size} series • Select for episodes"
+            list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.mapIndexed { i, x -> "${i + 1}. ${if (UserLibraryStore.isFavorite(this, config, x.toLibraryItem())) "★ " else ""}${x.name}" })
+            if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} series • Select for episodes • Long-press to favorite"
         } else {
-            list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, episodes.map { e -> "S${e.season ?: 0} E${e.episode ?: 0}  ${e.name}" })
-            if (!status.text.contains("Refreshing") && !status.text.contains("Offline")) status.text = "${episodes.size} episodes"
+            list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, episodes.map { e -> "S${e.season ?: 0} E${e.episode ?: 0}  ${if (UserLibraryStore.isFavorite(this, config, e.toLibraryItem(selectedSeriesId))) "★ " else ""}${e.name}" })
+            if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${episodes.size} episodes • Long-press to favorite"
         }
         list.requestFocus()
     }
@@ -103,46 +121,29 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private fun loadEpisodes(seriesId: String) {
         selectedSeriesId = seriesId
         val cached = ContentCache.readEpisodes(this, config, seriesId)
-        if (cached != null) {
-            episodes = cached.episodes
-            status.text = "${episodes.size} episodes • Cached ${ContentCache.ageText(cached)} • Refreshing..."
-            render()
-        } else {
-            episodes = emptyList()
-            status.text = "Loading episodes..."
-            render()
-        }
+        if (cached != null) { episodes = cached.episodes; status.text = "${episodes.size} episodes • Cached ${ContentCache.ageText(cached)} • Refreshing..."; render() }
+        else { episodes = emptyList(); status.text = "Loading episodes..."; render() }
         executor.execute {
             try {
                 val fresh = XtreamClient().loadSeriesEpisodes(config, seriesId)
                 ContentCache.writeEpisodes(this, config, seriesId, fresh)
-                runOnUiThread {
-                    if (selectedSeriesId == seriesId) {
-                        episodes = fresh
-                        status.text = "${fresh.size} episodes • Updated just now"
-                        render()
-                    }
-                }
+                runOnUiThread { if (selectedSeriesId == seriesId) { episodes = fresh; status.text = "${fresh.size} episodes • Updated just now"; render() } }
             } catch (e: Exception) {
-                runOnUiThread {
-                    if (selectedSeriesId == seriesId) {
-                        status.text = if (episodes.isNotEmpty()) "${episodes.size} episodes • Offline cache • Refresh failed" else "Unable to load episodes: ${e.message ?: "unknown error"}"
-                    }
-                }
+                runOnUiThread { if (selectedSeriesId == seriesId) status.text = if (episodes.isNotEmpty()) "${episodes.size} episodes • Offline cache • Refresh failed" else "Unable to load episodes: ${e.message ?: "unknown error"}" }
             }
         }
     }
 
-    private fun playVod(item: VodItem) = play(item.streamUrl, item.name)
-    private fun playEpisode(item: SeriesEpisode) = play(item.streamUrl, item.name)
-    private fun play(url: String, title: String) { startActivity(Intent(this, MainActivity::class.java).apply { putExtra("stream_url", url); putExtra("title", title) }) }
+    private fun playVod(item: VodItem) { UserLibraryStore.recordWatched(this, config, item.toLibraryItem()); play(item.streamUrl, item.name, item.id, UserLibraryStore.Type.MOVIE.name) }
+    private fun playEpisode(item: SeriesEpisode) { UserLibraryStore.recordWatched(this, config, item.toLibraryItem(selectedSeriesId)); play(item.streamUrl, item.name, item.id, UserLibraryStore.Type.EPISODE.name) }
+    private fun play(url: String, title: String, id: String, type: String) { startActivity(Intent(this, MainActivity::class.java).apply { putExtra("stream_url", url); putExtra("title", title); putExtra("content_id", id); putExtra("content_type", type) }) }
+
+    private fun VodItem.toLibraryItem() = UserLibraryStore.Item(id, UserLibraryStore.Type.MOVIE, name, streamUrl, categoryId, posterUrl)
+    private fun SeriesItem.toLibraryItem() = UserLibraryStore.Item(id, UserLibraryStore.Type.SERIES, name, "", categoryId, posterUrl)
+    private fun SeriesEpisode.toLibraryItem(seriesId: String?) = UserLibraryStore.Item(id, UserLibraryStore.Type.EPISODE, name, streamUrl, seriesId = seriesId, season = season, episode = episode)
 
     override fun onBackPressed() {
-        if (mode == "series" && episodes.isNotEmpty()) {
-            episodes = emptyList()
-            selectedSeriesId = null
-            render()
-        } else super.onBackPressed()
+        if (mode == "series" && episodes.isNotEmpty()) { episodes = emptyList(); selectedSeriesId = null; render() } else super.onBackPressed()
     }
 
     override fun onDestroy() { executor.shutdownNow(); super.onDestroy() }
