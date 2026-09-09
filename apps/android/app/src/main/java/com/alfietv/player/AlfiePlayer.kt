@@ -14,6 +14,7 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.session.MediaSession
 import androidx.media3.ui.PlayerView
 
 /** Native Media3 playback engine optimized for long-running live TV and VOD. */
@@ -93,6 +94,18 @@ class AlfiePlayer(context: Context) {
             })
         }
 
+    /** MediaSession exposes the same player to Android/TV system media controls and remote transports. */
+    private val mediaSession: MediaSession by lazy {
+        MediaSession.Builder(appContext, player)
+            .setId("alfie-tv")
+            .build()
+    }
+
+    init {
+        // Initialize the session with the player so system media controls are available immediately.
+        mediaSession
+    }
+
     private val healthCheck = object : Runnable {
         override fun run() { checkPlaybackHealth(); handler.postDelayed(this, 4_000) }
     }
@@ -139,6 +152,11 @@ class AlfiePlayer(context: Context) {
         val builder = MediaItem.Builder()
             .setUri(url)
             .setMediaId(title ?: "alfie-tv")
+            .setMediaMetadata(
+                androidx.media3.common.MediaMetadata.Builder()
+                    .setTitle(title ?: "Alfie TV")
+                    .build()
+            )
 
         when (sourceType) {
             SourceType.HLS -> builder.setMimeType(MimeTypes.APPLICATION_M3U8)
@@ -193,6 +211,7 @@ class AlfiePlayer(context: Context) {
         pendingChannelTitle = null
         lastPositionMs = player.currentPosition.coerceAtLeast(0L)
         currentUrl = null
+        mediaSession.release()
         player.release()
     }
 
