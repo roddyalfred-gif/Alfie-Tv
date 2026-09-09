@@ -3,6 +3,7 @@ package com.alfietv.player
 import android.content.Context
 import android.os.Bundle
 import android.view.Gravity
+import android.view.KeyEvent
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
@@ -43,9 +44,22 @@ class LiveTvActivity : ComponentActivity() {
 
         val categoryScroll = HorizontalScrollView(this)
         val categoryRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        categoryRow.addView(Button(this).apply {
+            text = "All"
+            isAllCaps = false
+            setOnClickListener { selectedCategory = null; render() }
+        })
         categoryScroll.addView(categoryRow)
         epg = TextView(this).apply { text = "Select a channel to view program information"; textSize = 16f; setPadding(8, 10, 8, 10) }
-        list = ListView(this).apply { isFocusable = true; isFocusableInTouchMode = true }
+        list = ListView(this).apply {
+            isFocusable = true
+            isFocusableInTouchMode = true
+            setOnKeyListener { _, keyCode, event ->
+                if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_CHANNEL_UP) { moveChannel(-1); true }
+                else if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_CHANNEL_DOWN) { moveChannel(1); true }
+                else false
+            }
+        }
         status = TextView(this).apply { text = "Loading channels..."; textSize = 14f }
 
         root.addView(header)
@@ -82,9 +96,7 @@ class LiveTvActivity : ComponentActivity() {
                     render()
                     if (!restoredLastChannel) {
                         restoredLastChannel = true
-                        prefs.getString("last_channel_id", null)?.let { id ->
-                            channels.firstOrNull { it.id == id }?.let { showEpg(it) }
-                        }
+                        prefs.getString("last_channel_id", null)?.let { id -> channels.firstOrNull { it.id == id }?.let { showEpg(it) } }
                     }
                 }
             } catch (e: Exception) {
@@ -104,12 +116,19 @@ class LiveTvActivity : ComponentActivity() {
     private fun render() {
         val channels = filteredChannels()
         list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, channels.mapIndexed { index, channel ->
-            val number = index + 1
             val star = if (favorites.contains(channel.id)) "★ " else ""
-            "$number  $star${channel.name}"
+            "${index + 1}  $star${channel.name}"
         })
-        status.text = "${channels.size} channels • Long-press to favorite"
+        status.text = "${channels.size} channels • Long-press to favorite • CH+/CH− supported"
         list.requestFocus()
+    }
+
+    private fun moveChannel(delta: Int) {
+        val count = list.adapter?.count ?: return
+        if (count == 0) return
+        val next = (list.selectedItemPosition + delta).coerceIn(0, count - 1)
+        list.setSelection(next)
+        filteredChannels().getOrNull(next)?.let { showEpg(it) }
     }
 
     private fun play(channel: IptvChannel) {
@@ -135,9 +154,14 @@ class LiveTvActivity : ComponentActivity() {
                     append(current?.let { "NOW  ${it.title}  ${formatTime(it.startUtcMs)}–${formatTime(it.endUtcMs)}" } ?: "NOW  No current program")
                     append("\n")
                     append(next?.let { "NEXT ${it.title}  ${formatTime(it.startUtcMs)}" } ?: "NEXT No upcoming program")
+                    current?.let {
+                        val duration = (it.endUtcMs - it.startUtcMs).coerceAtLeast(1L)
+                        val elapsed = (now - it.startUtcMs).coerceIn(0L, duration)
+                        append("\nProgress: ${(elapsed * 100 / duration).toInt()}%")
+                    }
                 }
                 runOnUiThread { epg.text = text }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 runOnUiThread { epg.text = "${channel.name}\nEPG unavailable" }
             }
         }
