@@ -3,6 +3,7 @@ package com.alfietv.player
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -59,6 +60,13 @@ class AlfiePlayer(context: Context) {
         .setLoadControl(loadControl)
         .setMediaSourceFactory(mediaSourceFactory)
         .build().apply {
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(androidx.media3.common.C.USAGE_MEDIA)
+                    .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MOVIE)
+                    .build(),
+                true
+            )
             setHandleAudioBecomingNoisy(true)
             setSeekBackIncrementMs(10_000)
             setSeekForwardIncrementMs(10_000)
@@ -173,7 +181,6 @@ class AlfiePlayer(context: Context) {
         player.playWhenReady = true
     }
 
-    /** Retries the currently selected stream instead of falling back to the Activity's original stream. */
     fun retryCurrent() {
         val url = currentUrl ?: return
         val wasLive = player.isCurrentMediaItemLive
@@ -181,7 +188,6 @@ class AlfiePlayer(context: Context) {
         play(url, currentTitle, if (wasLive) C.TIME_UNSET else position)
     }
 
-    /** Coalesces rapid CH+/CH− input so only the final requested channel starts loading. */
     fun switchChannel(url: String, title: String? = null) {
         require(url.startsWith("http://") || url.startsWith("https://")) { "Unsupported stream URL" }
         handler.removeCallbacks(channelSwitchRunnable)
@@ -246,7 +252,6 @@ class AlfiePlayer(context: Context) {
         return if (message == null) "$category • $code" else "$category • $code • $message"
     }
 
-    /** Compact runtime telemetry for the TV overlay; values are safe when a track has not rendered yet. */
     fun diagnosticsText(): String {
         val buffer = diagnostics.bufferedSeconds?.let { "BUF ${it}s" } ?: "BUF —"
         val tracks = when {
@@ -304,21 +309,14 @@ class AlfiePlayer(context: Context) {
         val now = System.currentTimeMillis()
         diagnostics.bufferedSeconds = ((p.bufferedPosition - p.currentPosition).coerceAtLeast(0L) / 1000L)
         updateVideoDiagnostics()
-
-        // Some IPTV endpoints expose a video track but never render the first frame.
-        // Recover after the same bounded startup window instead of leaving the TV stuck.
         if (startupStartedAt != 0L && !diagnostics.firstFrameRendered && now - startupStartedAt >= 15_000L) {
             recover()
             return
         }
-
-        // A live playlist can end temporarily when an upstream endpoint rolls over.
-        // Re-open the current live source, but never restart normal VOD at EOF.
         if (p.playbackState == Player.STATE_ENDED && p.isCurrentMediaItemLive) {
             recover()
             return
         }
-
         val videoPlaying = p.isPlaying && diagnostics.videoTrackAvailable
         val audioAvailable = diagnostics.audioTrackAvailable
         if (videoPlaying && audioAvailable) {
@@ -394,9 +392,9 @@ class AlfiePlayer(context: Context) {
         val path = url.substringBefore('?').lowercase()
         val query = url.substringAfter('?', "").lowercase()
         return when {
-            path.endsWith(".m3u8") || query.contains("format=m3u8") || query.contains("type=m3u8") -> SourceType.HLS
-            path.endsWith(".mpd") || query.contains("format=mpd") || query.contains("type=mpd") -> SourceType.DASH
-            path.endsWith(".mp4") || path.endsWith(".m4v") -> SourceType.MP4
+            path.endsWith(".m3u8") || query.contains(".m3u8") -> SourceType.HLS
+            path.endsWith(".mpd") || query.contains(".mpd") -> SourceType.DASH
+            path.endsWith(".mp4") -> SourceType.MP4
             path.endsWith(".mkv") -> SourceType.MKV
             path.endsWith(".webm") -> SourceType.WEBM
             path.endsWith(".ts") || path.endsWith(".mpegts") -> SourceType.MPEG_TS
@@ -406,5 +404,3 @@ class AlfiePlayer(context: Context) {
 
     private enum class SourceType { HLS, DASH, MP4, MKV, WEBM, MPEG_TS, UNKNOWN }
 }
-
-data class TrackOption(val label: String, val mediaTrackGroup: TrackGroup, val trackIndex: Int)
