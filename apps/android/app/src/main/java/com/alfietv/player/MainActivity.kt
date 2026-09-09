@@ -143,7 +143,11 @@ class MainActivity : ComponentActivity() {
         } else {
             "${number?.let { "CH $it" } ?: "LIVE TV"}  •  ${alfiePlayer.statusText()}"
         }
-        formatView.text = if (error != null) "${alfiePlayer.videoFormatText()}\nERROR: $error" else alfiePlayer.videoFormatText()
+        formatView.text = if (error != null) {
+            "${alfiePlayer.videoFormatText()}\n${alfiePlayer.diagnosticsText()}\nERROR: $error"
+        } else {
+            "${alfiePlayer.videoFormatText()}\n${alfiePlayer.diagnosticsText()}"
+        }
         val id = channelIds.getOrNull(channelIndex) ?: intent.getStringExtra("channel_id")
         epgView.text = id?.let { preferences.getString("epg_$it", null) }
             ?: "NOW  Program guide loading…\nNEXT  —"
