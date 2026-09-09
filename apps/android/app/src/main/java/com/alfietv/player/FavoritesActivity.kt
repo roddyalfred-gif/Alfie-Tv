@@ -55,9 +55,21 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
 
     private fun open(item: UserLibraryStore.Item) {
         when (item.type) {
-            UserLibraryStore.Type.SERIES -> startActivity(Intent(this, ContentActivity::class.java).apply { putExtra("server", config.serverUrl); putExtra("username", config.username); putExtra("password", config.password); putExtra("mode", "series") })
+            UserLibraryStore.Type.SERIES -> startActivity(Intent(this, ContentActivity::class.java).apply {
+                putExtra("server", config.serverUrl)
+                putExtra("username", config.username)
+                putExtra("password", config.password)
+                putExtra("mode", "series")
+                putExtra("selected_series_id", item.id)
+            })
             else -> startActivity(Intent(this, MainActivity::class.java).apply {
-                putExtra("stream_url", item.streamUrl); putExtra("title", item.title); putExtra("content_id", item.id); putExtra("content_type", item.type.name)
+                putExtra("stream_url", item.streamUrl)
+                putExtra("title", item.title)
+                putExtra("content_id", item.id)
+                putExtra("content_type", item.type.name)
+                putExtra("server", config.serverUrl)
+                putExtra("username", config.username)
+                putExtra("password", config.password)
             })
         }
     }
