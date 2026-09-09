@@ -29,6 +29,15 @@ class AlfiePlayer(context: Context) {
     private var currentUrl: String? = null
     private var currentTitle: String? = null
     private var recovering = false
+    private var pendingChannelUrl: String? = null
+    private var pendingChannelTitle: String? = null
+    private val channelSwitchRunnable = Runnable {
+        val url = pendingChannelUrl ?: return@Runnable
+        val title = pendingChannelTitle
+        pendingChannelUrl = null
+        pendingChannelTitle = null
+        play(url, title)
+    }
     val diagnostics = PlaybackDiagnostics()
 
     private val loadControl = DefaultLoadControl.Builder()
@@ -85,6 +94,9 @@ class AlfiePlayer(context: Context) {
 
     fun play(url: String, title: String? = null, positionMs: Long = C.TIME_UNSET) {
         require(url.startsWith("http://") || url.startsWith("https://")) { "Unsupported stream URL" }
+        handler.removeCallbacks(channelSwitchRunnable)
+        pendingChannelUrl = null
+        pendingChannelTitle = null
         currentUrl = url
         currentTitle = title
         recoveryAttempts = 0
@@ -103,7 +115,14 @@ class AlfiePlayer(context: Context) {
         player.playWhenReady = true
     }
 
-    fun switchChannel(url: String, title: String? = null) = play(url, title)
+    /** Coalesces rapid CH+/CH− input so only the final requested channel starts loading. */
+    fun switchChannel(url: String, title: String? = null) {
+        require(url.startsWith("http://") || url.startsWith("https://")) { "Unsupported stream URL" }
+        handler.removeCallbacks(channelSwitchRunnable)
+        pendingChannelUrl = url
+        pendingChannelTitle = title
+        handler.postDelayed(channelSwitchRunnable, 150L)
+    }
 
     fun playLastPosition() {
         if (player.currentMediaItem == null) return
@@ -112,12 +131,18 @@ class AlfiePlayer(context: Context) {
     }
 
     fun stop() {
+        handler.removeCallbacks(channelSwitchRunnable)
+        pendingChannelUrl = null
+        pendingChannelTitle = null
         lastPositionMs = player.currentPosition.coerceAtLeast(0L)
         player.stop()
     }
 
     fun release() {
         handler.removeCallbacks(healthCheck)
+        handler.removeCallbacks(channelSwitchRunnable)
+        pendingChannelUrl = null
+        pendingChannelTitle = null
         lastPositionMs = player.currentPosition.coerceAtLeast(0L)
         currentUrl = null
         player.release()
