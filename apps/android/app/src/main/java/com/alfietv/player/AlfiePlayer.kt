@@ -225,6 +225,22 @@ class AlfiePlayer(context: Context) {
         return if (message == null) "$category • $code" else "$category • $code • $message"
     }
 
+    /** Compact runtime telemetry for the TV overlay; values are safe when a track has not rendered yet. */
+    fun diagnosticsText(): String {
+        val buffer = diagnostics.bufferedSeconds?.let { "BUF ${it}s" } ?: "BUF —"
+        val tracks = when {
+            diagnostics.audioTrackAvailable && diagnostics.videoTrackAvailable -> "A/V ✓"
+            diagnostics.videoTrackAvailable -> "AUDIO —"
+            diagnostics.audioTrackAvailable -> "VIDEO —"
+            else -> "A/V —"
+        }
+        val startup = diagnostics.startupLatencyMs?.let { "START ${it}ms" } ?: "START —"
+        val recovery = if (diagnostics.recoveryCount > 0 || diagnostics.audioRecoveryCount > 0) {
+            "REC ${diagnostics.recoveryCount}/${diagnostics.audioRecoveryCount}"
+        } else null
+        return listOfNotNull(buffer, tracks, startup, recovery).joinToString("  •  ")
+    }
+
     fun videoFormatText(): String {
         val format = player.videoFormat ?: return "Video —"
         val resolution = if (format.width > 0 && format.height > 0) "${format.width}×${format.height}" else "Video"
