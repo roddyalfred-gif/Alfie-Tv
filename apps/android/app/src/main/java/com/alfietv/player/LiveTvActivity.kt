@@ -2,6 +2,8 @@ package com.alfietv.player
 
 import android.content.Context
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.KeyEvent
 import android.widget.ArrayAdapter
@@ -22,6 +24,7 @@ class LiveTvActivity : ComponentActivity() {
     private lateinit var status: TextView
     private lateinit var epg: TextView
     private lateinit var search: EditText
+    private lateinit var categoryRow: LinearLayout
     private var allChannels = emptyList<IptvChannel>()
     private var selectedCategory: String? = null
     private lateinit var config: XtreamConfig
@@ -34,14 +37,14 @@ class LiveTvActivity : ComponentActivity() {
         prefs = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(20, 16, 20, 16) }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        val title = TextView(this).apply { text = "Live TV"; textSize = 26f }
-        search = EditText(this).apply { hint = "Search channels"; setSingleLine(true); isFocusable = true }
+        val title = TextView(this).apply { text = "Live TV"; textSize = 26f; isFocusable = false }
+        search = EditText(this).apply { hint = "Search channels"; setSingleLine(true); isFocusable = true; isFocusableInTouchMode = true }
         header.addView(title, LinearLayout.LayoutParams(0, -2, 1f)); header.addView(search, LinearLayout.LayoutParams(0, -2, 2f))
-        val categoryScroll = HorizontalScrollView(this)
-        val categoryRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        categoryRow.addView(Button(this).apply { text = "All"; isAllCaps = false; setOnClickListener { selectedCategory = null; render() } })
+        val categoryScroll = HorizontalScrollView(this).apply { isFocusable = false }
+        categoryRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isFocusable = false }
+        categoryRow.addView(Button(this).apply { text = "All"; isAllCaps = false; isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { selectedCategory = null; render() } })
         categoryScroll.addView(categoryRow)
-        epg = TextView(this).apply { text = "Select a channel to view program information"; textSize = 16f; setPadding(8, 10, 8, 10) }
+        epg = TextView(this).apply { text = "Select a channel to view program information"; textSize = 16f; setPadding(8, 10, 8, 10); isFocusable = false }
         list = ListView(this).apply {
             isFocusable = true; isFocusableInTouchMode = true
             setOnKeyListener { _, keyCode, event ->
@@ -50,10 +53,15 @@ class LiveTvActivity : ComponentActivity() {
                 else false
             }
         }
-        status = TextView(this).apply { text = "Loading channels..."; textSize = 14f }
+        status = TextView(this).apply { text = "Loading channels..."; textSize = 14f; isFocusable = false }
         root.addView(header); root.addView(categoryScroll, LinearLayout.LayoutParams(-1, -2)); root.addView(epg, LinearLayout.LayoutParams(-1, -2)); root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f)); root.addView(status)
         setContentView(root)
-        search.setOnEditorActionListener { _, _, _ -> render(); false }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { render() }
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
+        search.setOnEditorActionListener { _, _, _ -> list.requestFocus(); false }
         list.setOnItemClickListener { _, _, position, _ -> play(filteredChannels()[position]) }
         list.setOnItemLongClickListener { _, _, position, _ ->
             val channel = filteredChannels()[position]
@@ -90,7 +98,8 @@ class LiveTvActivity : ComponentActivity() {
         allChannels = channels
         migrateLegacyFavorites(channels)
         while (categoryRow.childCount > 1) categoryRow.removeViewAt(1)
-        categories.forEach { category -> categoryRow.addView(Button(this).apply { text = category.name; isAllCaps = false; setOnClickListener { selectedCategory = category.id; render() } }) }
+        categories.forEach { category -> categoryRow.addView(Button(this).apply { text = category.name; isAllCaps = false; isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { selectedCategory = category.id; render() } }) }
+        if (selectedCategory != null && categories.none { it.id == selectedCategory }) selectedCategory = null
         render()
         if (!restoredLastChannel) {
             restoredLastChannel = true
@@ -114,13 +123,14 @@ class LiveTvActivity : ComponentActivity() {
         val channels = filteredChannels()
         list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, channels.mapIndexed { index, channel -> "${index + 1}  ${if (UserLibraryStore.isFavorite(this, config, channel.toLibraryItem())) "★ " else ""}${channel.name}" })
         status.text = status.text.takeIf { it.contains("Updated") || it.contains("Cached") || it.contains("Offline") || it.contains("Added") || it.contains("Removed") } ?: "${channels.size} channels • Long-press to favorite • CH+/CH− supported"
-        list.requestFocus()
+        list.post { if (!search.hasFocus()) list.requestFocus() }
     }
 
     private fun moveChannel(delta: Int) {
         val count = list.adapter?.count ?: return
         if (count == 0) return
-        val next = (list.selectedItemPosition + delta).coerceIn(0, count - 1)
+        val current = list.selectedItemPosition.takeIf { it >= 0 } ?: 0
+        val next = (current + delta).coerceIn(0, count - 1)
         list.setSelection(next)
         filteredChannels().getOrNull(next)?.let { showEpg(it) }
     }
