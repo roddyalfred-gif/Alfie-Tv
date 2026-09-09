@@ -24,11 +24,11 @@ class AlfiePlayer(context: Context) {
     private var audioRecoveryAttempts = 0
     private var lastRecoveryAt = 0L
     private var lastAudioRecoveryAt = 0L
-    private var lastPosition = 0L
+    private var lastPlayingPosition = C.TIME_UNSET
+    private var bufferingSince = 0L
     private var currentUrl: String? = null
     private var currentTitle: String? = null
     private var recovering = false
-    private var lastPlayingPosition = C.TIME_UNSET
     val diagnostics = PlaybackDiagnostics()
 
     private val loadControl = DefaultLoadControl.Builder()
@@ -52,9 +52,20 @@ class AlfiePlayer(context: Context) {
             setSeekForwardIncrementMs(10_000)
             addListener(DiagnosticsListener(diagnostics))
             addListener(object : Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_BUFFERING) {
+                        if (bufferingSince == 0L) bufferingSince = System.currentTimeMillis()
+                    } else if (playbackState == Player.STATE_READY) {
+                        bufferingSince = 0L
+                    }
+                }
                 override fun onPlayerError(error: PlaybackException) { recover() }
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    if (isPlaying) { recoveryAttempts = 0; audioRecoveryAttempts = 0 }
+                    if (isPlaying) {
+                        recoveryAttempts = 0
+                        audioRecoveryAttempts = 0
+                        bufferingSince = 0L
+                    }
                 }
             })
         }
@@ -74,9 +85,12 @@ class AlfiePlayer(context: Context) {
 
     fun play(url: String, title: String? = null, positionMs: Long = C.TIME_UNSET) {
         require(url.startsWith("http://") || url.startsWith("https://")) { "Unsupported stream URL" }
-        currentUrl = url; currentTitle = title
-        recoveryAttempts = 0; audioRecoveryAttempts = 0; recovering = false
-        lastPosition = if (positionMs == C.TIME_UNSET) 0L else positionMs
+        currentUrl = url
+        currentTitle = title
+        recoveryAttempts = 0
+        audioRecoveryAttempts = 0
+        recovering = false
+        bufferingSince = 0L
         lastPlayingPosition = C.TIME_UNSET
         val builder = MediaItem.Builder().setUri(url).setMediaId(title ?: "alfie-tv")
             .setLiveConfiguration(MediaItem.LiveConfiguration.Builder().setTargetOffsetMs(2_000).setMinPlaybackSpeed(0.98f).setMaxPlaybackSpeed(1.02f).build())
@@ -85,27 +99,41 @@ class AlfiePlayer(context: Context) {
             url.substringBefore('?').endsWith(".mpd", ignoreCase = true) -> builder.setMimeType(MimeTypes.APPLICATION_MPD)
         }
         player.setMediaItem(builder.build(), if (positionMs == C.TIME_UNSET) C.TIME_UNSET else positionMs)
-        player.prepare(); player.playWhenReady = true
+        player.prepare()
+        player.playWhenReady = true
     }
 
     fun switchChannel(url: String, title: String? = null) = play(url, title)
+
     fun playLastPosition() {
         if (player.currentMediaItem == null) return
-        if (player.isCurrentMediaItemLive) player.seekToDefaultPosition() else player.seekTo(lastPosition.coerceAtLeast(0L))
+        if (player.isCurrentMediaItemLive) player.seekToDefaultPosition() else player.seekTo(lastPosition().coerceAtLeast(0L))
         player.playWhenReady = true
     }
-    fun stop() { lastPosition = player.currentPosition.coerceAtLeast(0L); player.stop() }
-    fun release() { handler.removeCallbacks(healthCheck); lastPosition = player.currentPosition.coerceAtLeast(0L); currentUrl = null; player.release() }
+
+    fun stop() {
+        lastPosition()
+        player.stop()
+    }
+
+    fun release() {
+        handler.removeCallbacks(healthCheck)
+        lastPosition()
+        currentUrl = null
+        player.release()
+    }
 
     fun audioTracks(): List<TrackOption> = trackOptions(C.TRACK_TYPE_AUDIO)
     fun subtitleTracks(): List<TrackOption> = trackOptions(C.TRACK_TYPE_TEXT)
     fun selectAudio(track: TrackOption?) = selectTrack(C.TRACK_TYPE_AUDIO, track)
+
     fun selectSubtitle(track: TrackOption?) {
         val builder = player.trackSelectionParameters.buildUpon()
         if (track == null) builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
         else builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).setOverrideForType(TrackSelectionOverride(track.mediaTrackGroup, track.trackIndex))
         player.trackSelectionParameters = builder.build()
     }
+
     fun statusText(): String {
         if (player.playbackState == Player.STATE_BUFFERING) return "BUFFERING"
         if (player.playbackState == Player.STATE_ENDED) return "ENDED"
@@ -113,11 +141,18 @@ class AlfiePlayer(context: Context) {
         if (player.isPlaying) return "LIVE"
         return "PAUSED"
     }
+
     fun videoFormatText(): String {
         val format = player.videoFormat ?: return "Video —"
         val resolution = if (format.width > 0 && format.height > 0) "${format.width}×${format.height}" else "Video"
         val bitrate = if (format.bitrate > 0) " ${(format.bitrate / 1000)} kbps" else ""
         return resolution + bitrate
+    }
+
+    private var lastPositionMs = 0L
+    private fun lastPosition(): Long {
+        lastPositionMs = player.currentPosition.coerceAtLeast(0L)
+        return lastPositionMs
     }
 
     private fun trackOptions(trackType: Int): List<TrackOption> {
@@ -143,29 +178,43 @@ class AlfiePlayer(context: Context) {
 
     private fun checkPlaybackHealth() {
         val p = player
-        if (!p.playWhenReady) return
+        if (!p.playWhenReady || p.currentMediaItem == null || recovering) return
+        val now = System.currentTimeMillis()
         val videoPlaying = p.isPlaying && diagnostics.videoTrackAvailable
         val audioAvailable = diagnostics.audioTrackAvailable
         if (videoPlaying && audioAvailable) {
             val position = p.currentPosition
-            if (lastPlayingPosition != C.TIME_UNSET && position == lastPlayingPosition && System.currentTimeMillis() - lastAudioRecoveryAt > 5_000) recoverAudio()
+            if (lastPlayingPosition != C.TIME_UNSET && position == lastPlayingPosition && now - lastAudioRecoveryAt > 5_000) recoverAudio()
             lastPlayingPosition = position
             return
         }
-        if (p.playbackState == Player.STATE_BUFFERING && p.playerError == null) recover()
-        else if (videoPlaying && !audioAvailable) recoverAudio()
+        if (p.playbackState == Player.STATE_BUFFERING && p.playerError == null) {
+            if (bufferingSince == 0L) bufferingSince = now
+            if (now - bufferingSince >= 10_000L) recover()
+        } else if (videoPlaying && !audioAvailable) recoverAudio()
     }
 
     private fun recoverAudio() {
         if (recovering || player.currentMediaItem == null) return
         val now = System.currentTimeMillis()
         if (now - lastAudioRecoveryAt < 8_000 || audioRecoveryAttempts >= 3) return
-        lastAudioRecoveryAt = now; audioRecoveryAttempts++; diagnostics.audioRecoveryCount++
+        lastAudioRecoveryAt = now
+        audioRecoveryAttempts++
+        diagnostics.audioRecoveryCount++
         val wasPlaying = player.isPlaying || player.playWhenReady
-        val position = player.currentPosition.coerceAtLeast(0L); val live = player.isCurrentMediaItemLive
+        val item = player.currentMediaItem ?: return
+        val live = player.isCurrentMediaItemLive
+        val position = player.currentPosition.coerceAtLeast(0L)
         player.stop()
-        if (live) { player.setMediaItem(player.currentMediaItem!!); player.prepare(); player.seekToDefaultPosition() }
-        else { player.setMediaItem(player.currentMediaItem!!, position); player.prepare(); player.seekTo(position) }
+        if (live) {
+            player.setMediaItem(item)
+            player.prepare()
+            player.seekToDefaultPosition()
+        } else {
+            player.setMediaItem(item, position)
+            player.prepare()
+            player.seekTo(position)
+        }
         player.playWhenReady = wasPlaying
     }
 
@@ -174,14 +223,21 @@ class AlfiePlayer(context: Context) {
         if (recovering) return
         val now = System.currentTimeMillis()
         if (now - lastRecoveryAt < 2_000 || recoveryAttempts >= 4) return
-        recovering = true; recoveryAttempts++; diagnostics.recoveryCount++; lastRecoveryAt = now
-        val live = player.isCurrentMediaItemLive; val position = player.currentPosition.coerceAtLeast(0L)
+        recovering = true
+        recoveryAttempts++
+        diagnostics.recoveryCount++
+        lastRecoveryAt = now
+        bufferingSince = 0L
+        val live = player.isCurrentMediaItemLive
+        val position = player.currentPosition.coerceAtLeast(0L)
         handler.postDelayed({
-            if (currentUrl != url) { recovering = false; return@postDelayed }
+            if (currentUrl != url || player.isReleased) { recovering = false; return@postDelayed }
             val item = player.currentMediaItem ?: MediaItem.Builder().setUri(url).setMediaId(currentTitle ?: "alfie-tv").build()
-            player.setMediaItem(item, if (live) C.TIME_UNSET else position); player.prepare()
+            player.setMediaItem(item, if (live) C.TIME_UNSET else position)
+            player.prepare()
             if (live) player.seekToDefaultPosition()
-            player.playWhenReady = true; recovering = false
+            player.playWhenReady = true
+            recovering = false
         }, 350L)
     }
 }
