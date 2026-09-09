@@ -269,17 +269,27 @@ class MainActivity : ComponentActivity() {
         trackPanel.addView(button, LinearLayout.LayoutParams(0, FrameLayout.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(6, 0, 6, 0) })
     }
 
+    private fun seekBy(deltaMs: Long) {
+        if (alfiePlayer.player.currentMediaItem == null || alfiePlayer.player.isCurrentMediaItemLive) return
+        if (deltaMs < 0) alfiePlayer.player.seekBack() else alfiePlayer.player.seekForward()
+        playerView.showController()
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) when (event.keyCode) {
-            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { if (alfiePlayer.player.isPlaying) alfiePlayer.player.pause() else alfiePlayer.player.play(); return true }
-            KeyEvent.KEYCODE_MEDIA_PLAY -> { alfiePlayer.player.play(); return true }
-            KeyEvent.KEYCODE_MEDIA_PAUSE -> { alfiePlayer.player.pause(); return true }
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { if (alfiePlayer.player.isPlaying) alfiePlayer.player.pause() else alfiePlayer.player.play(); playerView.showController(); return true }
+            KeyEvent.KEYCODE_MEDIA_PLAY -> { alfiePlayer.player.play(); playerView.showController(); return true }
+            KeyEvent.KEYCODE_MEDIA_PAUSE -> { alfiePlayer.player.pause(); playerView.showController(); return true }
+            KeyEvent.KEYCODE_MEDIA_REWIND -> { seekBy(-10_000L); return true }
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> { seekBy(10_000L); return true }
             KeyEvent.KEYCODE_CHANNEL_UP -> { if (numericBuffer.isNotEmpty()) commitNumericChannel() else switchChannel(-1); return true }
             KeyEvent.KEYCODE_CHANNEL_DOWN -> { if (numericBuffer.isNotEmpty()) commitNumericChannel() else switchChannel(1); return true }
-            KeyEvent.KEYCODE_DPAD_UP -> { if (trackPanel.visibility == View.GONE) showTrackPanel(); return true }
+            KeyEvent.KEYCODE_DPAD_UP -> { if (trackPanel.visibility == View.GONE) { showTrackPanel(); return true } }
+            KeyEvent.KEYCODE_DPAD_LEFT -> { if (trackPanel.visibility == View.GONE) { seekBy(-10_000L); return true } }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> { if (trackPanel.visibility == View.GONE) { seekBy(10_000L); return true } }
             KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_INFO -> { showTrackPanel(); return true }
             KeyEvent.KEYCODE_BACK -> {
-                if (trackPanel.visibility == View.VISIBLE) { showingPlaybackRetry = false; trackPanel.visibility = View.GONE; playerView.requestFocus() } else finish()
+                if (trackPanel.visibility == View.VISIBLE) { showingPlaybackRetry = false; trackPanel.visibility = View.GONE; playerView.requestFocus() } else if (playerView.isControllerFullyVisible) { playerView.hideController(); playerView.requestFocus() } else finish()
                 return true
             }
             KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER -> if (numericBuffer.isNotEmpty()) { commitNumericChannel(); return true }
@@ -289,7 +299,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onBackPressed() {
-        if (trackPanel.visibility == View.VISIBLE) { showingPlaybackRetry = false; trackPanel.visibility = View.GONE; playerView.requestFocus() } else finish()
+        if (trackPanel.visibility == View.VISIBLE) { showingPlaybackRetry = false; trackPanel.visibility = View.GONE; playerView.requestFocus() } else if (playerView.isControllerFullyVisible) { playerView.hideController(); playerView.requestFocus() } else finish()
     }
 
     override fun onStart() {
