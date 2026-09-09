@@ -20,8 +20,8 @@ class XtreamClient {
     }
 
     fun loadVod(config: XtreamConfig): Pair<List<IptvCategory>, List<VodItem>> {
-        val categories = parseArray(get(api(config, "get_vod_categories"))).map { IptvCategory(it.optString("category_id"), it.optString("category_name"), "vod") }
         val base = checkedBase(config)
+        val categories = parseArray(get(api(config, "get_vod_categories"))).map { IptvCategory(it.optString("category_id"), it.optString("category_name"), "vod") }
         val items = parseArray(get(api(config, "get_vod_streams"))).mapNotNull { o ->
             val id = o.optString("stream_id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
             val ext = o.optString("container_extension").ifBlank { "mp4" }
@@ -60,26 +60,53 @@ class XtreamClient {
     }
 
     fun loadEpg(config: XtreamConfig, channel: IptvChannel, limit: Int = 8): List<EpgProgram> {
-        val url = api(config, "get_short_epg", "stream_id" to channel.id, "limit" to limit.toString())
+        val safeLimit = limit.coerceIn(1, 50)
+        val url = api(config, "get_short_epg", "stream_id" to channel.id, "limit" to safeLimit.toString())
         return parseArray(get(url)).mapNotNull { o ->
             val start = parseXtreamTime(o.optString("start")) ?: return@mapNotNull null
             val end = parseXtreamTime(o.optString("end")) ?: return@mapNotNull null
+            if (end <= start) return@mapNotNull null
             EpgProgram(channel.id, o.optString("title").ifBlank { "Program" }, start, end, o.optString("description").ifBlank { null })
         }.sortedBy { it.startUtcMs }
     }
 
-    private fun checkedBase(config: XtreamConfig): String = config.serverUrl.trimEnd('/').also { require(URI(it).scheme in listOf("http", "https")) { "Invalid server URL" } }
+    private fun checkedBase(config: XtreamConfig): String = config.serverUrl.trimEnd('/').also {
+        require(URI(it).scheme in listOf("http", "https")) { "Invalid server URL" }
+        require(config.username.isNotBlank()) { "Provider username is required" }
+        require(config.password.isNotBlank()) { "Provider password is required" }
+    }
+
     private fun api(config: XtreamConfig, action: String, vararg params: Pair<String, String>): String {
         val base = checkedBase(config)
-        val query = buildList { add("username=${enc(config.username)}"); add("password=${enc(config.password)}"); add("action=${enc(action)}"); params.forEach { add("${enc(it.first)}=${enc(it.second)}") } }.joinToString("&")
+        val query = buildList {
+            add("username=${enc(config.username)}")
+            add("password=${enc(config.password)}")
+            add("action=${enc(action)}")
+            params.forEach { add("${enc(it.first)}=${enc(it.second)}") }
+        }.joinToString("&")
         return "$base/player_api.php?$query"
     }
-    private fun parseXtreamTime(value: String): Long? = try { java.time.LocalDateTime.parse(value.replace(" ", "T")).toInstant(java.time.ZoneOffset.UTC).toEpochMilli() } catch (_: Exception) { null }
+
+    private fun parseXtreamTime(value: String): Long? = try {
+        java.time.LocalDateTime.parse(value.replace(" ", "T"))
+            .toInstant(java.time.ZoneOffset.UTC).toEpochMilli()
+    } catch (_: Exception) { null }
+
     private fun get(url: String): String {
         val c = URI(url).toURL().openConnection() as HttpURLConnection
-        c.connectTimeout = 10_000; c.readTimeout = 20_000; c.requestMethod = "GET"
-        return try { if (c.responseCode !in 200..299) throw IllegalStateException("Provider returned HTTP ${c.responseCode}"); c.inputStream.bufferedReader().use { it.readText() } } finally { c.disconnect() }
+        c.connectTimeout = 10_000
+        c.readTimeout = 20_000
+        c.requestMethod = "GET"
+        return try {
+            if (c.responseCode !in 200..299) throw IllegalStateException("Provider returned HTTP ${c.responseCode}")
+            c.inputStream.bufferedReader().use { it.readText() }
+        } finally { c.disconnect() }
     }
-    private fun parseArray(text: String): List<JSONObject> { val a = JSONArray(text); return List(a.length()) { a.getJSONObject(it) } }
+
+    private fun parseArray(text: String): List<JSONObject> {
+        val a = JSONArray(text)
+        return List(a.length()) { a.getJSONObject(it) }
+    }
+
     private fun enc(value: String): String = java.net.URLEncoder.encode(value, Charsets.UTF_8.name())
 }
