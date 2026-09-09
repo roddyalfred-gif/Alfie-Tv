@@ -77,6 +77,9 @@ class MainActivity : ComponentActivity() {
         root = FrameLayout(this)
         playerView = PlayerView(this).apply {
             useController = true
+            controllerAutoShow = false
+            controllerHideOnTouch = true
+            controllerShowTimeoutMs = 5000
             setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
             resizeMode = loadResizeMode()
             isFocusable = true
@@ -187,6 +190,7 @@ class MainActivity : ComponentActivity() {
         if (next == channelIndex) return
         saveProgress()
         channelIndex = next; showingPlaybackRetry = false; trackPanel.visibility = View.GONE
+        playerView.hideController()
         alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle())
         channelIds.getOrNull(channelIndex)?.let { preferences.edit().putString("last_channel_id", it).apply() }
         showZapOverlay(); refreshOverlay()
@@ -196,6 +200,7 @@ class MainActivity : ComponentActivity() {
         if (index !in channelUrls.indices || index == channelIndex) return
         saveProgress()
         channelIndex = index; showingPlaybackRetry = false; trackPanel.visibility = View.GONE
+        playerView.hideController()
         alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle())
         channelIds.getOrNull(channelIndex)?.let { preferences.edit().putString("last_channel_id", it).apply() }
         showZapOverlay(); refreshOverlay()
@@ -219,14 +224,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showPlaybackRetry() {
-        showingPlaybackRetry = true; trackPanel.removeAllViews()
+        playerView.hideController(); showingPlaybackRetry = true; trackPanel.removeAllViews()
         addTrackButton("RETRY PLAYBACK") { alfiePlayer.retryCurrent(); showingPlaybackRetry = true; trackPanel.visibility = View.GONE; playerView.requestFocus() }
         addTrackButton("BACK") { showingPlaybackRetry = false; trackPanel.visibility = View.GONE; playerView.requestFocus() }
         trackPanel.visibility = View.VISIBLE; trackPanel.getChildAt(0)?.requestFocus()
     }
 
     private fun showTrackPanel() {
-        showingPlaybackRetry = false; trackPanel.removeAllViews()
+        playerView.hideController(); showingPlaybackRetry = false; trackPanel.removeAllViews()
         addTrackButton("VIDEO") { showVideoOptions() }
         addTrackButton("AUDIO") { showAudioOptions(alfiePlayer.audioTracks()) }
         addTrackButton("SUBTITLES") { showSubtitleOptions(alfiePlayer.subtitleTracks()) }
@@ -293,27 +298,45 @@ class MainActivity : ComponentActivity() {
                 return true
             }
             KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER -> if (numericBuffer.isNotEmpty()) { commitNumericChannel(); return true }
-            KeyEvent.KEYCODE_0 -> { enterNumericDigit(0); return true }; KeyEvent.KEYCODE_1 -> { enterNumericDigit(1); return true }; KeyEvent.KEYCODE_2 -> { enterNumericDigit(2); return true }; KeyEvent.KEYCODE_3 -> { enterNumericDigit(3); return true }; KeyEvent.KEYCODE_4 -> { enterNumericDigit(4); return true }; KeyEvent.KEYCODE_5 -> { enterNumericDigit(5); return true }; KeyEvent.KEYCODE_6 -> { enterNumericDigit(6); return true }; KeyEvent.KEYCODE_7 -> { enterNumericDigit(7); return true }; KeyEvent.KEYCODE_8 -> { enterNumericDigit(8); return true }; KeyEvent.KEYCODE_9 -> { enterNumericDigit(9); return true }
+            KeyEvent.KEYCODE_0 -> enterNumericDigit(0)
+            KeyEvent.KEYCODE_1 -> enterNumericDigit(1)
+            KeyEvent.KEYCODE_2 -> enterNumericDigit(2)
+            KeyEvent.KEYCODE_3 -> enterNumericDigit(3)
+            KeyEvent.KEYCODE_4 -> enterNumericDigit(4)
+            KeyEvent.KEYCODE_5 -> enterNumericDigit(5)
+            KeyEvent.KEYCODE_6 -> enterNumericDigit(6)
+            KeyEvent.KEYCODE_7 -> enterNumericDigit(7)
+            KeyEvent.KEYCODE_8 -> enterNumericDigit(8)
+            KeyEvent.KEYCODE_9 -> enterNumericDigit(9)
         }
         return super.dispatchKeyEvent(event)
     }
 
+    @Deprecated("Deprecated in Android API 33")
     override fun onBackPressed() {
         if (trackPanel.visibility == View.VISIBLE) { showingPlaybackRetry = false; trackPanel.visibility = View.GONE; playerView.requestFocus() } else if (playerView.isControllerFullyVisible) { playerView.hideController(); playerView.requestFocus() } else finish()
     }
 
     override fun onStart() {
-        super.onStart(); playerView.requestFocus()
-        if (alfiePlayer.player.currentMediaItem != null && alfiePlayer.player.playbackState == Player.STATE_IDLE) alfiePlayer.player.prepare()
-        alfiePlayer.player.playWhenReady = true; scheduleRefresh()
+        super.onStart()
+        if (::alfiePlayer.isInitialized) {
+            playerView.requestFocus()
+            if (alfiePlayer.player.playbackState == Player.STATE_IDLE) alfiePlayer.prepare()
+            alfiePlayer.player.playWhenReady = true
+        }
     }
 
     override fun onStop() {
-        root.removeCallbacks(refreshRunnable); mainHandler.removeCallbacks(numericCommit); mainHandler.removeCallbacks(progressSaver); numericBuffer = ""
-        saveProgress(); alfiePlayer.stop(); super.onStop()
+        saveProgress()
+        if (::alfiePlayer.isInitialized) alfiePlayer.player.stop()
+        super.onStop()
     }
 
     override fun onDestroy() {
-        root.removeCallbacks(refreshRunnable); mainHandler.removeCallbacks(numericCommit); mainHandler.removeCallbacks(progressSaver); alfiePlayer.release(); super.onDestroy()
+        mainHandler.removeCallbacks(numericCommit)
+        mainHandler.removeCallbacks(progressSaver)
+        root.removeCallbacks(refreshRunnable)
+        if (::alfiePlayer.isInitialized) alfiePlayer.release()
+        super.onDestroy()
     }
 }
