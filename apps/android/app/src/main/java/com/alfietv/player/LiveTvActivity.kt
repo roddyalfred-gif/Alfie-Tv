@@ -28,13 +28,11 @@ class LiveTvActivity : ComponentActivity() {
     private var allChannels = emptyList<IptvChannel>()
     private var selectedCategory: String? = null
     private lateinit var config: XtreamConfig
-    private lateinit var prefs: android.content.SharedPreferences
     private var restoredLastChannel = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         config = XtreamConfig(intent.getStringExtra("server") ?: "", intent.getStringExtra("username") ?: "", intent.getStringExtra("password") ?: "")
-        prefs = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(20, 16, 20, 16) }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         val title = TextView(this).apply { text = "Live TV"; textSize = 26f; isFocusable = false }
@@ -107,6 +105,9 @@ class LiveTvActivity : ComponentActivity() {
         }
     }
 
+    private val prefs: android.content.SharedPreferences
+        get() = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
+
     private fun migrateLegacyFavorites(channels: List<IptvChannel>) {
         if (prefs.getBoolean("favorites_migrated_v2", false)) return
         val legacy = prefs.getStringSet("favorites", emptySet()).orEmpty()
@@ -149,16 +150,33 @@ class LiveTvActivity : ComponentActivity() {
     private fun IptvChannel.toLibraryItem() = UserLibraryStore.Item(id, UserLibraryStore.Type.LIVE, name, streamUrl, categoryId, logoUrl)
 
     private fun showEpg(channel: IptvChannel) {
-        val cached = prefs.getString("epg_${channel.id}", null)
-        epg.text = if (cached != null) "${channel.name}\n$cached\nRefreshing guide..." else "${channel.name}\nLoading program guide..."
+        val cached = EpgCache.read(this, config, channel)
+        val cachedText = cached?.let { formatPrograms(channel, it.programs, it.savedAt) }
+        epg.text = cachedText?.let { if (EpgCache.isFresh(cached)) it else "$it\nRefreshing guide..." }
+            ?: "${channel.name}\nLoading program guide..."
+
+        if (cached != null && EpgCache.isFresh(cached)) return
         executor.execute {
             try {
-                val programs = XtreamClient().loadEpg(config, channel); val now = System.currentTimeMillis(); val current = programs.firstOrNull { now in it.startUtcMs until it.endUtcMs }; val next = programs.firstOrNull { it.startUtcMs > now }
-                val nowText = current?.let { "NOW  ${it.title}  ${formatTime(it.startUtcMs)}–${formatTime(it.endUtcMs)}" } ?: "NOW  No current program"; val nextText = next?.let { "NEXT ${it.title}  ${formatTime(it.startUtcMs)}" } ?: "NEXT No upcoming program"
-                val progress = current?.let { val duration = (it.endUtcMs - it.startUtcMs).coerceAtLeast(1L); ((now - it.startUtcMs).coerceIn(0L, duration) * 100 / duration).toInt() } ?: 0
-                val text = "$nowText\n$nextText\nProgress: $progress%"; prefs.edit().putString("epg_${channel.id}", text).apply(); runOnUiThread { epg.text = "${channel.name}\n$text" }
-            } catch (_: Exception) { runOnUiThread { epg.text = if (cached != null) "${channel.name}\n$cached" else "${channel.name}\nEPG unavailable" } }
+                val programs = XtreamClient().loadEpg(config, channel)
+                EpgCache.write(this, config, channel, programs)
+                val text = formatPrograms(channel, programs, System.currentTimeMillis())
+                runOnUiThread { epg.text = text }
+            } catch (_: Exception) {
+                runOnUiThread { if (cached == null) epg.text = "${channel.name}\nEPG unavailable" }
+            }
         }
+    }
+
+    private fun formatPrograms(channel: IptvChannel, programs: List<EpgProgram>, savedAt: Long): String {
+        val now = System.currentTimeMillis()
+        val current = programs.firstOrNull { now in it.startUtcMs until it.endUtcMs }
+        val next = programs.firstOrNull { it.startUtcMs > now }
+        val nowText = current?.let { "NOW  ${it.title}  ${formatTime(it.startUtcMs)}–${formatTime(it.endUtcMs)}" } ?: "NOW  No current program"
+        val nextText = next?.let { "NEXT ${it.title}  ${formatTime(it.startUtcMs)}" } ?: "NEXT No upcoming program"
+        val progress = current?.let { val duration = (it.endUtcMs - it.startUtcMs).coerceAtLeast(1L); ((now - it.startUtcMs).coerceIn(0L, duration) * 100 / duration).toInt() } ?: 0
+        val age = if (savedAt > 0L) " • Guide ${EpgCache.ageText(EpgCache.Snapshot(programs, savedAt))}" else ""
+        return "${channel.name}\n$nowText\n$nextText\nProgress: $progress%$age"
     }
 
     private fun formatTime(ms: Long): String = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(ms))
