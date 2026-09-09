@@ -56,6 +56,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         addButton(root, "Favorites") { open(FavoritesActivity::class.java) }
         addButton(root, "Refresh Provider") { refreshProvider() }
         addButton(root, "Change Provider / Logout") {
+            LiveTvCache.clear(this)
             SessionStore.clear(this)
             goToLogin()
         }
@@ -67,8 +68,9 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         status?.text = "Refreshing provider..."
         executor.execute {
             try {
-                XtreamClient().load(config)
-                runOnUiThread { status?.text = "Provider refreshed successfully" }
+                val (categories, channels) = XtreamClient().load(config)
+                LiveTvCache.write(this, config, categories, channels)
+                runOnUiThread { status?.text = "Provider refreshed successfully • ${channels.size} live channels cached" }
             } catch (e: Exception) {
                 runOnUiThread { status?.text = "Refresh failed: ${e.message ?: "unknown error"}" }
             }
@@ -102,6 +104,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_MENU) {
+            LiveTvCache.clear(this)
             SessionStore.clear(this)
             goToLogin()
             return true
