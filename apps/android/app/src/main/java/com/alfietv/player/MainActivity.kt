@@ -12,6 +12,7 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.media3.common.Player
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 
@@ -50,7 +51,13 @@ class MainActivity : ComponentActivity() {
         channelNumbers = intent.getStringArrayListExtra("channel_numbers") ?: emptyList()
         channelIndex = intent.getIntExtra("channel_index", 0).coerceIn(0, (channelUrls.size - 1).coerceAtLeast(0))
         root = FrameLayout(this)
-        playerView = PlayerView(this).apply { useController = true; setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING); resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT; isFocusable = true; isFocusableInTouchMode = true }
+        playerView = PlayerView(this).apply {
+            useController = true
+            setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            isFocusable = true
+            isFocusableInTouchMode = true
+        }
         root.addView(playerView, FrameLayout.LayoutParams(-1, -1)); buildOverlay(); setContentView(root)
         alfiePlayer = AlfiePlayer(this); alfiePlayer.attach(playerView)
         intent.getStringExtra("stream_url")?.takeIf { it.isNotBlank() }?.let { alfiePlayer.play(it, currentTitle()) }
@@ -101,13 +108,47 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showTrackPanel() {
-        trackPanel.removeAllViews(); val audio = alfiePlayer.audioTracks(); val subtitles = alfiePlayer.subtitleTracks()
-        addTrackButton("AUDIO") { showAudioOptions(audio) }; addTrackButton("SUBTITLES") { showSubtitleOptions(subtitles) }; addTrackButton("CLOSE") { trackPanel.visibility = View.GONE; playerView.requestFocus() }
+        trackPanel.removeAllViews()
+        addTrackButton("VIDEO") { showVideoOptions() }
+        addTrackButton("AUDIO") { showAudioOptions(alfiePlayer.audioTracks()) }
+        addTrackButton("SUBTITLES") { showSubtitleOptions(alfiePlayer.subtitleTracks()) }
+        addTrackButton("CLOSE") { trackPanel.visibility = View.GONE; playerView.requestFocus() }
         trackPanel.visibility = View.VISIBLE; trackPanel.getChildAt(0)?.requestFocus()
     }
-    private fun showAudioOptions(options: List<TrackOption>) { trackPanel.removeAllViews(); if (options.isEmpty()) addTrackButton("No audio tracks") { showTrackPanel() }; options.forEach { option -> addTrackButton(option.label) { alfiePlayer.selectAudio(option); trackPanel.visibility = View.GONE; playerView.requestFocus() } }; addTrackButton("BACK") { showTrackPanel() }; trackPanel.getChildAt(0)?.requestFocus() }
-    private fun showSubtitleOptions(options: List<TrackOption>) { trackPanel.removeAllViews(); addTrackButton("OFF") { alfiePlayer.selectSubtitle(null); trackPanel.visibility = View.GONE; playerView.requestFocus() }; options.forEach { option -> addTrackButton(option.label) { alfiePlayer.selectSubtitle(option); trackPanel.visibility = View.GONE; playerView.requestFocus() } }; addTrackButton("BACK") { showTrackPanel() }; trackPanel.getChildAt(0)?.requestFocus() }
-    private fun addTrackButton(label: String, action: () -> Unit) { val button = Button(this).apply { text = label; isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { action() } }; trackPanel.addView(button, LinearLayout.LayoutParams(0, FrameLayout.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(6, 0, 6, 0) }) }
+
+    private fun showVideoOptions() {
+        trackPanel.removeAllViews()
+        addTrackButton("FIT") { setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
+        addTrackButton("FILL") { setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL) }
+        addTrackButton("ZOOM") { setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM) }
+        addTrackButton("BACK") { showTrackPanel() }
+        trackPanel.visibility = View.VISIBLE; trackPanel.getChildAt(0)?.requestFocus()
+    }
+
+    private fun setResizeMode(mode: Int) {
+        playerView.resizeMode = mode
+        trackPanel.visibility = View.GONE
+        playerView.requestFocus()
+    }
+
+    private fun showAudioOptions(options: List<TrackOption>) {
+        trackPanel.removeAllViews()
+        if (options.isEmpty()) addTrackButton("No audio tracks") { showTrackPanel() }
+        options.forEach { option -> addTrackButton(option.label) { alfiePlayer.selectAudio(option); trackPanel.visibility = View.GONE; playerView.requestFocus() } }
+        addTrackButton("BACK") { showTrackPanel() }; trackPanel.getChildAt(0)?.requestFocus()
+    }
+
+    private fun showSubtitleOptions(options: List<TrackOption>) {
+        trackPanel.removeAllViews()
+        addTrackButton("OFF") { alfiePlayer.selectSubtitle(null); trackPanel.visibility = View.GONE; playerView.requestFocus() }
+        options.forEach { option -> addTrackButton(option.label) { alfiePlayer.selectSubtitle(option); trackPanel.visibility = View.GONE; playerView.requestFocus() } }
+        addTrackButton("BACK") { showTrackPanel() }; trackPanel.getChildAt(0)?.requestFocus()
+    }
+
+    private fun addTrackButton(label: String, action: () -> Unit) {
+        val button = Button(this).apply { text = label; isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { action() } }
+        trackPanel.addView(button, LinearLayout.LayoutParams(0, FrameLayout.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(6, 0, 6, 0) })
+    }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) when (event.keyCode) {
@@ -122,7 +163,15 @@ class MainActivity : ComponentActivity() {
         }
         return super.dispatchKeyEvent(event)
     }
-    override fun onStart() { super.onStart(); playerView.requestFocus(); alfiePlayer.player.playWhenReady = true }
+
+    override fun onStart() {
+        super.onStart()
+        playerView.requestFocus()
+        if (alfiePlayer.player.currentMediaItem != null && alfiePlayer.player.playbackState == Player.STATE_IDLE) alfiePlayer.player.prepare()
+        alfiePlayer.player.playWhenReady = true
+        root.postDelayed(refreshRunnable, 1000L)
+    }
+
     override fun onStop() { root.removeCallbacks(refreshRunnable); alfiePlayer.stop(); super.onStop() }
     override fun onDestroy() { root.removeCallbacks(refreshRunnable); alfiePlayer.release(); super.onDestroy() }
 }
