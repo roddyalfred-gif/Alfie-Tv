@@ -2,6 +2,8 @@ package com.alfietv.player
 
 import android.content.Intent
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.Gravity
 import android.widget.*
 import java.util.concurrent.Executors
@@ -21,6 +23,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private var selectedCategory: String? = null
     private var selectedSeriesId: String? = null
     private var pendingSeriesId: String? = null
+    private var sortMode = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,7 +34,18 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         val title = TextView(this).apply { text = if (mode == "series") "Series" else "Movies"; textSize = 26f }
         search = EditText(this).apply { hint = "Search"; setSingleLine(true); isFocusable = true }
-        header.addView(title, LinearLayout.LayoutParams(0, -2, 1f)); header.addView(search, LinearLayout.LayoutParams(0, -2, 2f))
+        val sort = Button(this).apply {
+            text = "A-Z"
+            isAllCaps = false
+            setOnClickListener {
+                sortMode = (sortMode + 1) % 3
+                text = when (sortMode) { 0 -> "A-Z"; 1 -> "Z-A"; else -> "Recent" }
+                render()
+            }
+        }
+        header.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
+        header.addView(search, LinearLayout.LayoutParams(0, -2, 2f))
+        header.addView(sort, LinearLayout.LayoutParams(0, -2, 0.8f))
         val cats = HorizontalScrollView(this)
         categoryRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         categoryRow.addView(Button(this).apply { text = "All"; isAllCaps = false; setOnClickListener { selectedCategory = null; render() } })
@@ -40,6 +54,11 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         status = TextView(this).apply { text = "Loading..." }
         root.addView(header); root.addView(cats, LinearLayout.LayoutParams(-1, -2)); root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f)); root.addView(status)
         setContentView(root)
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { render() }
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
         search.setOnEditorActionListener { _, _, _ -> render(); false }
         list.setOnItemClickListener { _, _, position, _ ->
             if (mode == "vod") playVod(filteredVod()[position])
@@ -104,8 +123,11 @@ class ContentActivity : androidx.activity.ComponentActivity() {
 
     private fun itemCount() = if (mode == "vod") vod.size else series.size
     private fun label() = if (mode == "vod") "movies" else "series"
-    private fun filteredVod() = vod.filter { (selectedCategory == null || it.categoryId == selectedCategory) && search.text.toString().trim().let { q -> q.isBlank() || it.name.contains(q, true) } }
-    private fun filteredSeries() = series.filter { (selectedCategory == null || it.categoryId == selectedCategory) && search.text.toString().trim().let { q -> q.isBlank() || it.name.contains(q, true) } }
+    private fun query() = search.text.toString().trim()
+    private fun filteredVod() = sortVod(vod.filter { (selectedCategory == null || it.categoryId == selectedCategory) && query().let { q -> q.isBlank() || it.name.contains(q, true) } })
+    private fun filteredSeries() = sortSeries(series.filter { (selectedCategory == null || it.categoryId == selectedCategory) && query().let { q -> q.isBlank() || it.name.contains(q, true) } })
+    private fun sortVod(items: List<VodItem>) = when (sortMode) { 1 -> items.sortedByDescending { it.name.lowercase() }; 2 -> items.sortedByDescending { it.year ?: "" }; else -> items.sortedBy { it.name.lowercase() } }
+    private fun sortSeries(items: List<SeriesItem>) = when (sortMode) { 1 -> items.sortedByDescending { it.name.lowercase() }; 2 -> items.sortedByDescending { it.year ?: "" }; else -> items.sortedBy { it.name.lowercase() } }
 
     private fun render() {
         if (mode == "vod") {
@@ -117,8 +139,9 @@ class ContentActivity : androidx.activity.ComponentActivity() {
             list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.mapIndexed { i, x -> "${i + 1}. ${if (UserLibraryStore.isFavorite(this, config, x.toLibraryItem())) "★ " else ""}${x.name}" })
             if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} series • Select for episodes • Long-press to favorite"
         } else {
-            list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, episodes.map { e -> "S${e.season ?: 0} E${e.episode ?: 0}  ${if (UserLibraryStore.isFavorite(this, config, e.toLibraryItem(selectedSeriesId))) "★ " else ""}${e.name}" })
-            if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${episodes.size} episodes • Long-press to favorite"
+            val items = episodes.sortedWith(compareBy<SeriesEpisode> { it.season ?: 0 }.thenBy { it.episode ?: 0 })
+            list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.map { e -> "S${e.season ?: 0} E${e.episode ?: 0}  ${if (UserLibraryStore.isFavorite(this, config, e.toLibraryItem(selectedSeriesId))) "★ " else ""}${e.name}" })
+            if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} episodes • Long-press to favorite"
         }
         list.requestFocus()
     }
