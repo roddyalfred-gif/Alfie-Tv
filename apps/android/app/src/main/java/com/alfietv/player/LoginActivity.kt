@@ -20,24 +20,14 @@ class LoginActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         title = "Alfie TV"
-
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(48, 32, 48, 32)
-        }
-        val title = TextView(this).apply {
-            text = "Alfie TV"
-            textSize = 32f
-            gravity = Gravity.CENTER
-        }
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(48, 32, 48, 32) }
+        val title = TextView(this).apply { text = "Alfie TV"; textSize = 32f; gravity = Gravity.CENTER }
         val server = EditText(this).apply { hint = "Provider URL (https://...)"; inputType = 33 }
         val username = EditText(this).apply { hint = "Username"; inputType = 33 }
         val password = EditText(this).apply { hint = "Password"; inputType = 129 }
         button = Button(this).apply { text = "Connect"; isAllCaps = false }
         status = TextView(this).apply { gravity = Gravity.CENTER; textSize = 15f }
         val spinner = ProgressBar(this).apply { visibility = ProgressBar.GONE }
-
         root.addView(title, LinearLayout.LayoutParams(-1, -2))
         root.addView(server, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 24 })
         root.addView(username, LinearLayout.LayoutParams(-1, -2))
@@ -61,21 +51,16 @@ class LoginActivity : ComponentActivity() {
             executor.execute {
                 try {
                     val config = XtreamConfig(url, user, pass)
-                    val (categories, channels) = XtreamClient().load(config)
+                    val (_, channels) = XtreamClient().load(config)
                     runOnUiThread {
                         spinner.visibility = ProgressBar.GONE
                         button.isEnabled = true
-                        if (channels.isEmpty()) {
-                            status.text = "Connected, but no live channels were returned."
-                        } else {
-                            startActivity(Intent(this, LiveTvActivity::class.java).apply {
-                                putExtra("server", config.serverUrl)
-                                putExtra("username", config.username)
-                                putExtra("password", config.password)
-                                putParcelableArrayListExtra("categories", ArrayList(categories.map { it.toParcelable() }))
-                                putParcelableArrayListExtra("channels", ArrayList(channels.map { it.toParcelable() }))
-                            })
-                        }
+                        if (channels.isEmpty()) status.text = "Connected, but no live channels were returned."
+                        else startActivity(Intent(this, LiveTvActivity::class.java).apply {
+                            putExtra("server", config.serverUrl)
+                            putExtra("username", config.username)
+                            putExtra("password", config.password)
+                        })
                     }
                 } catch (e: Exception) {
                     runOnUiThread {
@@ -88,12 +73,6 @@ class LoginActivity : ComponentActivity() {
         }
     }
 
-    private fun isValid(url: String): Boolean = try {
-        URI(url).scheme in listOf("http", "https") && URI(url).host != null
-    } catch (_: Exception) { false }
-
-    override fun onDestroy() {
-        executor.shutdownNow()
-        super.onDestroy()
-    }
+    private fun isValid(url: String): Boolean = try { URI(url).scheme in listOf("http", "https") && URI(url).host != null } catch (_: Exception) { false }
+    override fun onDestroy() { executor.shutdownNow(); super.onDestroy() }
 }
