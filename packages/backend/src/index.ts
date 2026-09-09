@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { randomUUID } from 'node:crypto';
 import { createToken, verifyToken } from './auth';
 import { FileStore } from './store';
 import { InMemoryCache } from './cache';
@@ -53,6 +54,12 @@ app.use(cors({
   credentials: !configuredOrigins.includes('*'),
 }));
 
+app.use((req, res, next) => {
+  const requestId = req.header('x-request-id')?.trim() || randomUUID();
+  res.setHeader('x-request-id', requestId);
+  next();
+});
+
 // Health check: intentionally unauthenticated for load balancers and uptime monitors.
 app.get('/api/health', (_req, res) => {
   res.status(200).json({
@@ -61,6 +68,21 @@ app.get('/api/health', (_req, res) => {
     uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
     timestamp: new Date().toISOString(),
   });
+});
+
+// Readiness check for deployments. Storage initialization is performed at startup,
+// so a successful response means the API process is ready to accept traffic.
+app.get('/api/ready', (_req, res) => {
+  res.status(200).json({
+    status: 'ready',
+    service: 'alfie-tv-backend',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Versioned health aliases make deployment probes easier to standardize.
+app.get('/api/v1/health', (_req, res) => {
+  res.redirect(307, '/api/health');
 });
 
 // Channels endpoint
@@ -97,7 +119,8 @@ app.get('/api/epg/:channelId', (req, res) => {
 
 // Auth endpoint
 app.post('/api/auth/login', (req, res) => {
-  const { username, password } = req.body;
+  const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
   if (!username || !password) {
     res.status(400).json({ error: 'Username and password are required' });
     return;
@@ -163,6 +186,11 @@ app.get('/api/users/:userId', (req, res) => {
   }
 
   res.json(profile);
+});
+
+// Consistent JSON response for unknown API routes.
+app.use('/api', (_req, res) => {
+  res.status(404).json({ error: 'Not Found' });
 });
 
 // Error handling
