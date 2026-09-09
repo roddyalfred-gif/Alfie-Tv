@@ -3,7 +3,7 @@
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <application android:theme="@style/Theme.AlfieTV" android:label="Alfie TV" android:allowBackup="false" android:supportsRtl="true">
-        <activity android:name=".MainActivity" android:screenOrientation="landscape" android:exported="false" />
+        <activity android:name=".MainActivity" android:screenOrientation="landscape" android:exported="false" android:supportsPictureInPicture="true" />
         <activity android:name=".LiveTvActivity" android:screenOrientation="landscape" android:exported="false" />
         <activity android:name=".ContentActivity" android:screenOrientation="landscape" android:exported="false" />
         <activity android:name=".FavoritesActivity" android:screenOrientation="landscape" android:exported="false" />
