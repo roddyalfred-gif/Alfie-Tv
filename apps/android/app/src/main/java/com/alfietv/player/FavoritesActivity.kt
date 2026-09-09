@@ -14,6 +14,8 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
     private lateinit var list: ListView
     private lateinit var status: TextView
     private lateinit var config: XtreamConfig
+    private lateinit var favoritesButton: TextView
+    private lateinit var recentButton: TextView
     private var favorites = emptyList<UserLibraryStore.Item>()
     private var recent = emptyList<UserLibraryStore.Item>()
     private var showingRecent = false
@@ -23,11 +25,11 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
         config = XtreamConfig(intent.getStringExtra("server") ?: "", intent.getStringExtra("username") ?: "", intent.getStringExtra("password") ?: "")
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24, 20, 24, 20) }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        header.addView(TextView(this).apply { text = "Library"; textSize = 28f }, LinearLayout.LayoutParams(0, -2, 1f))
-        val favoritesButton = TextView(this).apply { text = "FAVORITES"; textSize = 15f; isFocusable = true; isFocusableInTouchMode = true; setPadding(16, 12, 16, 12); setOnClickListener { showingRecent = false; render() } }
-        val recentButton = TextView(this).apply { text = "RECENT"; textSize = 15f; isFocusable = true; isFocusableInTouchMode = true; setPadding(16, 12, 16, 12); setOnClickListener { showingRecent = true; render() } }
+        header.addView(TextView(this).apply { text = "Library"; textSize = 28f; isFocusable = false }, LinearLayout.LayoutParams(0, -2, 1f))
+        favoritesButton = TextView(this).apply { text = "FAVORITES"; textSize = 15f; isFocusable = true; isFocusableInTouchMode = true; setPadding(16, 12, 16, 12); setOnClickListener { showingRecent = false; render() } }
+        recentButton = TextView(this).apply { text = "RECENT"; textSize = 15f; isFocusable = true; isFocusableInTouchMode = true; setPadding(16, 12, 16, 12); setOnClickListener { showingRecent = true; render() } }
         header.addView(favoritesButton); header.addView(recentButton)
-        status = TextView(this).apply { textSize = 14f; setPadding(0, 8, 0, 8) }
+        status = TextView(this).apply { textSize = 14f; setPadding(0, 8, 0, 8); isFocusable = false }
         list = ListView(this).apply { isFocusable = true; isFocusableInTouchMode = true }
         root.addView(header); root.addView(status, LinearLayout.LayoutParams(-1, -2)); root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f)); setContentView(root)
         list.setOnItemClickListener { _, _, position, _ -> open((if (showingRecent) recent else favorites).getOrNull(position) ?: return@setOnItemClickListener) }
@@ -50,7 +52,7 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
             "${index + 1}. ${if (!showingRecent) "★ " else ""}$type • ${item.title}"
         })
         status.text = if (items.isEmpty()) if (showingRecent) "Nothing watched yet" else "No favorites yet • Long-press an item to remove it" else if (showingRecent) "${items.size} recently watched" else "${items.size} favorites • Long-press to remove"
-        list.requestFocus()
+        list.post { list.requestFocus() }
     }
 
     private fun open(item: UserLibraryStore.Item) {
@@ -76,6 +78,7 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_CHANNEL_UP || keyCode == KeyEvent.KEYCODE_CHANNEL_DOWN) return true
+        if (keyCode == KeyEvent.KEYCODE_BACK && list.hasFocus()) return super.onKeyDown(keyCode, event)
         return super.onKeyDown(keyCode, event)
     }
 }
