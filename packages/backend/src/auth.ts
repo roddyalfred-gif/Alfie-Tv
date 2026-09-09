@@ -61,9 +61,15 @@ export function verifyToken(token: string, secret: string): JwtPayload | null {
     if (!payload || typeof payload.sub !== 'string' || !payload.sub) {
       return null;
     }
-    if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp) || payload.exp <= Math.floor(Date.now() / 1000)) {
+
+    const now = Math.floor(Date.now() / 1000);
+    if (typeof payload.iat !== 'number' || !Number.isFinite(payload.iat) || payload.iat > now) {
       return null;
     }
+    if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp) || payload.exp <= now || payload.exp <= payload.iat) {
+      return null;
+    }
+
     return payload;
   } catch {
     return null;
