@@ -11,6 +11,7 @@ dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
+const startedAt = Date.now();
 const store = new FileStore(process.env.DATA_FILE || './data/channels.json');
 const database = new JsonDatabase(process.env.DATABASE_FILE || './data/database.json');
 const profileStore = new ProfileStore(process.env.PROFILE_FILE || './data/profiles.json');
@@ -22,36 +23,9 @@ function createUserId(prefix: string): string {
 
 export function buildSeedChannels() {
   return [
-    {
-      id: 'ch-1',
-      name: 'Alfie News',
-      number: 1,
-      logo: '',
-      streamUrl: 'https://example.com/stream1.m3u8',
-      category: 'News',
-      isFavorite: false,
-      quality: '1080p',
-    },
-    {
-      id: 'ch-2',
-      name: 'Alfie Sports',
-      number: 2,
-      logo: '',
-      streamUrl: 'https://example.com/stream2.m3u8',
-      category: 'Sports',
-      isFavorite: false,
-      quality: '4K',
-    },
-    {
-      id: 'ch-3',
-      name: 'Alfie Movies',
-      number: 3,
-      logo: '',
-      streamUrl: 'https://example.com/stream3.m3u8',
-      category: 'Movies',
-      isFavorite: false,
-      quality: '1080p',
-    },
+    { id: 'ch-1', name: 'Alfie News', number: 1, logo: '', streamUrl: 'https://example.com/stream1.m3u8', category: 'News', isFavorite: false, quality: '1080p' },
+    { id: 'ch-2', name: 'Alfie Sports', number: 2, logo: '', streamUrl: 'https://example.com/stream2.m3u8', category: 'Sports', isFavorite: false, quality: '4K' },
+    { id: 'ch-3', name: 'Alfie Movies', number: 3, logo: '', streamUrl: 'https://example.com/stream3.m3u8', category: 'Movies', isFavorite: false, quality: '1080p' },
   ];
 }
 
@@ -59,41 +33,38 @@ export function buildSeedPrograms(channelId: string) {
   const now = Date.now();
 
   return [
-    {
-      id: 'prog-1',
-      channelId,
-      title: 'Live Headlines',
-      description: 'Current stories from around the globe.',
-      startTime: now - 3600000,
-      endTime: now,
-      duration: 3600000,
-      genre: 'News',
-    },
-    {
-      id: 'prog-2',
-      channelId,
-      title: 'Next Up',
-      description: 'A preview of what is coming next on the channel.',
-      startTime: now,
-      endTime: now + 3600000,
-      duration: 3600000,
-      genre: 'News',
-    },
+    { id: 'prog-1', channelId, title: 'Live Headlines', description: 'Current stories from around the globe.', startTime: now - 3600000, endTime: now, duration: 3600000, genre: 'News' },
+    { id: 'prog-2', channelId, title: 'Next Up', description: 'A preview of what is coming next on the channel.', startTime: now, endTime: now + 3600000, duration: 3600000, genre: 'News' },
   ];
 }
 
 // Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cors());
+app.disable('x-powered-by');
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: process.env.JSON_BODY_LIMIT || '1mb' }));
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Alfie TV API is running', timestamp: new Date().toISOString() });
+const configuredOrigins = (process.env.CORS_ORIGINS || '*')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin: configuredOrigins.includes('*') ? true : configuredOrigins,
+  credentials: !configuredOrigins.includes('*'),
+}));
+
+// Health check: intentionally unauthenticated for load balancers and uptime monitors.
+app.get('/api/health', (_req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    service: 'alfie-tv-backend',
+    uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // Channels endpoint
-app.get('/api/channels', (req, res) => {
+app.get('/api/channels', (_req, res) => {
   const cached = cache.get('channels');
   if (cached) {
     res.json(cached);
@@ -195,7 +166,7 @@ app.get('/api/users/:userId', (req, res) => {
 });
 
 // Error handling
-app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
   const message = err instanceof Error ? err.message : 'Unknown error';
   res.status(500).json({ error: 'Internal Server Error', message });
@@ -205,6 +176,21 @@ const server = app.listen(PORT, () => {
   console.log(`🚀 Alfie TV API listening on port ${PORT}`);
   console.log(`📡 Health check: http://localhost:${PORT}/api/health`);
 });
+
+function shutdown(signal: string) {
+  console.log(`Received ${signal}; shutting down Alfie TV API`);
+  server.close((error) => {
+    if (error) {
+      console.error('Failed to close server cleanly:', error);
+      process.exitCode = 1;
+      return;
+    }
+    process.exit(0);
+  });
+}
+
+process.once('SIGINT', () => shutdown('SIGINT'));
+process.once('SIGTERM', () => shutdown('SIGTERM'));
 
 server.on('error', (error: Error & { code?: string }) => {
   console.error('Failed to start server:', error.message);
