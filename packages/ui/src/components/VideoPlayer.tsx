@@ -90,18 +90,28 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       setStatus(`Recovering stream… (${attempt}/${MAX_RECOVERY_ATTEMPTS})`);
       clearStallTimer();
 
+      const wasPlaying = !video.paused;
+      const position = Number.isFinite(video.currentTime) ? video.currentTime : 0;
       const hls = hlsRef.current;
       if (hls && kind === 'network') {
         hls.startLoad(-1);
+        if (wasPlaying) void video.play().catch(() => undefined);
         return;
       }
       if (hls && kind === 'media') {
         hls.recoverMediaError();
+        if (wasPlaying) void video.play().catch(() => undefined);
+        return;
+      }
+      if (hls && kind === 'stall') {
+        // Keep the MediaSource attached. Re-starting HLS loading is less disruptive
+        // than video.load(), which can unnecessarily reset a healthy media element.
+        hls.startLoad(-1);
+        if (Number.isFinite(position)) video.currentTime = position;
+        if (wasPlaying) void video.play().catch(() => undefined);
         return;
       }
 
-      const wasPlaying = !video.paused;
-      const position = Number.isFinite(video.currentTime) ? video.currentTime : 0;
       video.load();
       video.currentTime = position;
       if (wasPlaying) {
