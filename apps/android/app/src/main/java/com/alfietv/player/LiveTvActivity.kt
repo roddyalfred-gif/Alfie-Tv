@@ -14,6 +14,7 @@ import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import java.security.MessageDigest
 import java.text.DateFormat
 import java.util.Date
 import java.util.concurrent.Executors
@@ -101,12 +102,19 @@ class LiveTvActivity : ComponentActivity() {
         render()
         if (!restoredLastChannel) {
             restoredLastChannel = true
-            prefs.getString("last_channel_id", null)?.let { id -> channels.firstOrNull { it.id == id }?.let { showEpg(it) } }
+            prefs.getString(lastChannelKey(), null)?.let { id -> channels.firstOrNull { it.id == id }?.let { showEpg(it) } }
         }
     }
 
     private val prefs: android.content.SharedPreferences
         get() = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
+
+    private fun lastChannelKey(): String = "last_channel_${providerKey()}"
+
+    private fun providerKey(): String = sha256(config.serverUrl.trimEnd('/') + "\n" + config.username)
+
+    private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
+        .digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
 
     private fun migrateLegacyFavorites(channels: List<IptvChannel>) {
         if (prefs.getBoolean("favorites_migrated_v2", false)) return
@@ -138,7 +146,7 @@ class LiveTvActivity : ComponentActivity() {
 
     private fun play(channel: IptvChannel) {
         val channels = filteredChannels(); val index = channels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0); val windowStart = (index - 50).coerceAtLeast(0); val windowEnd = (index + 51).coerceAtMost(channels.size); val window = channels.subList(windowStart, windowEnd)
-        prefs.edit().putString("last_channel_id", channel.id).apply(); showEpg(channel)
+        prefs.edit().putString(lastChannelKey(), channel.id).apply(); showEpg(channel)
         UserLibraryStore.recordWatched(this, config, channel.toLibraryItem())
         startActivity(android.content.Intent(this, MainActivity::class.java).apply {
             putExtra("stream_url", channel.streamUrl); putExtra("title", channel.name); putExtra("content_id", channel.id); putExtra("content_type", UserLibraryStore.Type.LIVE.name)
