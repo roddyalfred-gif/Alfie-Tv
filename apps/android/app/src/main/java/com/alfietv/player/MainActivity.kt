@@ -9,6 +9,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -22,14 +23,20 @@ class MainActivity : ComponentActivity() {
     private lateinit var statusView: TextView
     private lateinit var formatView: TextView
     private lateinit var epgView: TextView
+    private lateinit var zapView: TextView
+    private lateinit var zapProgress: ProgressBar
     private lateinit var trackPanel: LinearLayout
     private var channelUrls = emptyList<String>()
     private var channelTitles = emptyList<String>()
+    private var channelIds = emptyList<String>()
+    private var channelNumbers = emptyList<String>()
     private var channelIndex = 0
+    private var zapHideAt = 0L
 
     private val refreshRunnable = object : Runnable {
         override fun run() {
             refreshOverlay()
+            if (zapView.visibility == View.VISIBLE && System.currentTimeMillis() >= zapHideAt) zapView.visibility = View.GONE
             root.postDelayed(this, 1000L)
         }
     }
@@ -40,6 +47,8 @@ class MainActivity : ComponentActivity() {
 
         channelUrls = intent.getStringArrayListExtra("channel_urls") ?: emptyList()
         channelTitles = intent.getStringArrayListExtra("channel_titles") ?: emptyList()
+        channelIds = intent.getStringArrayListExtra("channel_ids") ?: emptyList()
+        channelNumbers = intent.getStringArrayListExtra("channel_numbers") ?: emptyList()
         channelIndex = intent.getIntExtra("channel_index", 0).coerceIn(0, (channelUrls.size - 1).coerceAtLeast(0))
 
         root = FrameLayout(this)
@@ -58,7 +67,8 @@ class MainActivity : ComponentActivity() {
         alfiePlayer.attach(playerView)
 
         val url = intent.getStringExtra("stream_url")
-        if (!url.isNullOrBlank()) alfiePlayer.play(url, intent.getStringExtra("title") ?: "Alfie TV")
+        if (!url.isNullOrBlank()) alfiePlayer.play(url, currentTitle())
+        showZapOverlay()
         refreshOverlay()
         root.postDelayed(refreshRunnable, 1000L)
     }
@@ -73,38 +83,42 @@ class MainActivity : ComponentActivity() {
         statusView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 14f; setPadding(0, 6, 0, 0) }
         formatView = TextView(this).apply { setTextColor(Color.LTGRAY); textSize = 13f; setPadding(0, 3, 0, 0) }
         epgView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 14f; setPadding(0, 8, 0, 0) }
-        top.addView(titleView)
-        top.addView(statusView)
-        top.addView(formatView)
-        top.addView(epgView)
+        top.addView(titleView); top.addView(statusView); top.addView(formatView); top.addView(epgView)
         root.addView(top, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP))
 
-        trackPanel = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+        zapView = TextView(this).apply {
+            setTextColor(Color.WHITE)
+            textSize = 26f
             gravity = Gravity.CENTER
-            setPadding(18, 12, 18, 18)
-            setBackgroundColor(Color.argb(200, 0, 0, 0))
+            setPadding(32, 22, 32, 12)
+            setBackgroundColor(Color.argb(205, 0, 0, 0))
             visibility = View.GONE
+        }
+        root.addView(zapView, FrameLayout.LayoutParams(-2, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
+        zapProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; progress = 0; visibility = View.GONE }
+        root.addView(zapProgress, FrameLayout.LayoutParams(500, 10, Gravity.CENTER).apply { topMargin = 100 })
+
+        trackPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(18, 12, 18, 18)
+            setBackgroundColor(Color.argb(200, 0, 0, 0)); visibility = View.GONE
         }
         root.addView(trackPanel, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
     }
 
     private fun refreshOverlay() {
         if (!::alfiePlayer.isInitialized) return
-        val title = currentTitle()
-        titleView.text = title
-        val number = intent.getStringExtra("channel_number")
-        val channelText = if (channelUrls.isNotEmpty()) "CH ${channelIndex + 1}" else number?.let { "CH $it" } ?: "LIVE TV"
+        titleView.text = currentTitle()
+        val number = channelNumbers.getOrNull(channelIndex) ?: intent.getStringExtra("channel_number")
+        val channelText = number?.let { "CH $it" } ?: "LIVE TV"
         statusView.text = "$channelText  •  ${alfiePlayer.statusText()}"
         formatView.text = alfiePlayer.videoFormatText()
-        val prefs = getSharedPreferences("alfie_tv", MODE_PRIVATE)
-        epgView.text = prefs.getString("epg_${intent.getStringExtra("channel_id")}", null)
+        val id = channelIds.getOrNull(channelIndex) ?: intent.getStringExtra("channel_id")
+        epgView.text = id?.let { getSharedPreferences("alfie_tv", MODE_PRIVATE).getString("epg_$it", null) }
             ?: "NOW  Program guide loading…\nNEXT  —"
     }
 
     private fun currentTitle(): String = channelTitles.getOrNull(channelIndex)
-        ?: intent.getStringExtra("title")
-        ?: "Alfie TV"
+        ?: intent.getStringExtra("title") ?: "Alfie TV"
 
     private fun switchChannel(delta: Int) {
         if (channelUrls.isEmpty()) return
@@ -113,35 +127,38 @@ class MainActivity : ComponentActivity() {
         channelIndex = next
         val title = currentTitle()
         alfiePlayer.switchChannel(channelUrls[channelIndex], title)
-        getSharedPreferences("alfie_tv", MODE_PRIVATE).edit().putString("last_player_title", title).apply()
+        getSharedPreferences("alfie_tv", MODE_PRIVATE).edit().putString("last_channel_id", channelIds.getOrNull(channelIndex)).apply()
+        showZapOverlay()
         refreshOverlay()
+    }
+
+    private fun showZapOverlay() {
+        zapView.text = "CH ${channelNumbers.getOrNull(channelIndex) ?: (channelIndex + 1)}\n$currentTitle()"
+        zapView.visibility = View.VISIBLE
+        zapHideAt = System.currentTimeMillis() + 2500L
     }
 
     private fun showTrackPanel() {
         trackPanel.removeAllViews()
-        val audio = alfiePlayer.audioTracks()
-        val subtitles = alfiePlayer.subtitleTracks()
+        val audio = alfiePlayer.audioTracks(); val subtitles = alfiePlayer.subtitleTracks()
         addTrackButton("AUDIO") { showAudioOptions(audio) }
         addTrackButton("SUBTITLES") { showSubtitleOptions(subtitles) }
         addTrackButton("CLOSE") { trackPanel.visibility = View.GONE; playerView.requestFocus() }
-        trackPanel.visibility = View.VISIBLE
-        trackPanel.getChildAt(0)?.requestFocus()
+        trackPanel.visibility = View.VISIBLE; trackPanel.getChildAt(0)?.requestFocus()
     }
 
     private fun showAudioOptions(options: List<TrackOption>) {
         trackPanel.removeAllViews()
         if (options.isEmpty()) addTrackButton("No audio tracks") { showTrackPanel() }
         options.forEach { option -> addTrackButton(option.label) { alfiePlayer.selectAudio(option); trackPanel.visibility = View.GONE; playerView.requestFocus() } }
-        addTrackButton("BACK") { showTrackPanel() }
-        trackPanel.getChildAt(0)?.requestFocus()
+        addTrackButton("BACK") { showTrackPanel() }; trackPanel.getChildAt(0)?.requestFocus()
     }
 
     private fun showSubtitleOptions(options: List<TrackOption>) {
         trackPanel.removeAllViews()
         addTrackButton("OFF") { alfiePlayer.selectSubtitle(null); trackPanel.visibility = View.GONE; playerView.requestFocus() }
         options.forEach { option -> addTrackButton(option.label) { alfiePlayer.selectSubtitle(option); trackPanel.visibility = View.GONE; playerView.requestFocus() } }
-        addTrackButton("BACK") { showTrackPanel() }
-        trackPanel.getChildAt(0)?.requestFocus()
+        addTrackButton("BACK") { showTrackPanel() }; trackPanel.getChildAt(0)?.requestFocus()
     }
 
     private fun addTrackButton(label: String, action: () -> Unit) {
@@ -150,26 +167,20 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action == KeyEvent.ACTION_DOWN) {
-            when (event.keyCode) {
-                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { if (alfiePlayer.player.isPlaying) alfiePlayer.player.pause() else alfiePlayer.player.play(); return true }
-                KeyEvent.KEYCODE_MEDIA_PLAY -> { alfiePlayer.player.play(); return true }
-                KeyEvent.KEYCODE_MEDIA_PAUSE -> { alfiePlayer.player.pause(); return true }
-                KeyEvent.KEYCODE_CHANNEL_UP -> { switchChannel(1); return true }
-                KeyEvent.KEYCODE_CHANNEL_DOWN -> { switchChannel(-1); return true }
-                KeyEvent.KEYCODE_DPAD_UP -> { if (trackPanel.visibility == View.GONE) showTrackPanel(); return true }
-                KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_INFO -> { showTrackPanel(); return true }
-                KeyEvent.KEYCODE_BACK -> {
-                    if (trackPanel.visibility == View.VISIBLE) { trackPanel.visibility = View.GONE; playerView.requestFocus(); return true }
-                }
-            }
+        if (event.action == KeyEvent.ACTION_DOWN) when (event.keyCode) {
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { if (alfiePlayer.player.isPlaying) alfiePlayer.player.pause() else alfiePlayer.player.play(); return true }
+            KeyEvent.KEYCODE_MEDIA_PLAY -> { alfiePlayer.player.play(); return true }
+            KeyEvent.KEYCODE_MEDIA_PAUSE -> { alfiePlayer.player.pause(); return true }
+            KeyEvent.KEYCODE_CHANNEL_UP -> { switchChannel(-1); return true }
+            KeyEvent.KEYCODE_CHANNEL_DOWN -> { switchChannel(1); return true }
+            KeyEvent.KEYCODE_DPAD_UP -> { if (trackPanel.visibility == View.GONE) showTrackPanel(); return true }
+            KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_INFO -> { showTrackPanel(); return true }
+            KeyEvent.KEYCODE_BACK -> if (trackPanel.visibility == View.VISIBLE) { trackPanel.visibility = View.GONE; playerView.requestFocus(); return true }
         }
         return super.dispatchKeyEvent(event)
     }
 
     override fun onStart() { super.onStart(); playerView.requestFocus(); alfiePlayer.player.playWhenReady = true }
-
     override fun onStop() { root.removeCallbacks(refreshRunnable); alfiePlayer.stop(); super.onStop() }
-
     override fun onDestroy() { root.removeCallbacks(refreshRunnable); alfiePlayer.release(); super.onDestroy() }
 }
