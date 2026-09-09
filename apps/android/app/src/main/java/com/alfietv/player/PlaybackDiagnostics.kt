@@ -3,7 +3,7 @@ package com.alfietv.player
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 
-/** Runtime metrics used to diagnose long-running live-TV and VOD playback. */
+/** Runtime metrics used to diagnose long-running live TV and VOD playback. */
 data class PlaybackDiagnostics(
     var startupLatencyMs: Long? = null,
     var bitrate: Int? = null,
@@ -20,6 +20,7 @@ data class PlaybackDiagnostics(
     var lastErrorAt: Long? = null,
     var audioTrackAvailable: Boolean = false,
     var videoTrackAvailable: Boolean = false,
+    var firstFrameRendered: Boolean = false,
     var audioSessionId: Int? = null,
     var lastAudioTrackChangeAt: Long? = null,
     var lastVideoTrackChangeAt: Long? = null
