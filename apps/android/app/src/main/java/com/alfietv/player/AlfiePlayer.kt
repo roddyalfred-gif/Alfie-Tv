@@ -171,6 +171,12 @@ class AlfiePlayer(context: Context) {
     fun subtitleTracks(): List<TrackOption> = trackOptions(C.TRACK_TYPE_TEXT)
     fun selectAudio(track: TrackOption?) = selectTrack(C.TRACK_TYPE_AUDIO, track)
 
+    /** User-triggered audio pipeline refresh without changing the selected channel. */
+    fun refreshAudio() {
+        if (player.currentMediaItem == null || recovering) return
+        recoverAudio(force = true)
+    }
+
     fun selectSubtitle(track: TrackOption?) {
         val builder = player.trackSelectionParameters.buildUpon()
         if (track == null) builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
@@ -249,12 +255,12 @@ class AlfiePlayer(context: Context) {
         }
     }
 
-    private fun recoverAudio() {
+    private fun recoverAudio(force: Boolean = false) {
         if (recovering || player.currentMediaItem == null) return
         val now = System.currentTimeMillis()
-        if (now - lastAudioRecoveryAt < 12_000 || audioRecoveryAttempts >= 3) return
+        if (!force && (now - lastAudioRecoveryAt < 12_000 || audioRecoveryAttempts >= 3)) return
         lastAudioRecoveryAt = now
-        audioRecoveryAttempts++
+        if (!force) audioRecoveryAttempts++
         diagnostics.audioRecoveryCount++
         val wasPlaying = player.isPlaying || player.playWhenReady
         val item = player.currentMediaItem ?: return
