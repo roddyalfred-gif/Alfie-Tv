@@ -146,6 +146,8 @@ class LiveTvActivity : ComponentActivity() {
             putExtra("channel_index", index - windowStart)
             putExtra("channel_urls", ArrayList(window.map { it.streamUrl }))
             putExtra("channel_titles", ArrayList(window.map { it.name }))
+            putExtra("channel_ids", ArrayList(window.map { it.id }))
+            putExtra("channel_numbers", ArrayList(window.mapIndexed { i, _ -> (windowStart + i + 1).toString() }))
         })
     }
 
