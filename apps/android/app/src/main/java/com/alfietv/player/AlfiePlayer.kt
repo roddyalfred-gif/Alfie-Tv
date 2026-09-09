@@ -71,6 +71,7 @@ class AlfiePlayer(context: Context) {
                     }
                 }
                 override fun onRenderedFirstFrame() {
+                    diagnostics.firstFrameRendered = true
                     if (startupStartedAt != 0L) {
                         diagnostics.startupLatencyMs = (System.currentTimeMillis() - startupStartedAt).coerceAtLeast(0L)
                         startupStartedAt = 0L
@@ -129,6 +130,7 @@ class AlfiePlayer(context: Context) {
         diagnostics.lastErrorMessage = null
         diagnostics.audioTrackAvailable = false
         diagnostics.videoTrackAvailable = false
+        diagnostics.firstFrameRendered = false
         diagnostics.audioSessionId = null
         diagnostics.lastAudioTrackChangeAt = null
         diagnostics.lastVideoTrackChangeAt = null
@@ -284,9 +286,16 @@ class AlfiePlayer(context: Context) {
         diagnostics.bufferedSeconds = ((p.bufferedPosition - p.currentPosition).coerceAtLeast(0L) / 1000L)
         updateVideoDiagnostics()
 
-        // Some IPTV endpoints connect successfully but never produce a video track/frame.
-        // Recover the source instead of leaving the TV stuck on an indefinite spinner.
-        if (startupStartedAt != 0L && !diagnostics.videoTrackAvailable && now - startupStartedAt >= 15_000L) {
+        // Some IPTV endpoints expose a video track but never render the first frame.
+        // Recover after the same bounded startup window instead of leaving the TV stuck.
+        if (startupStartedAt != 0L && !diagnostics.firstFrameRendered && now - startupStartedAt >= 15_000L) {
+            recover()
+            return
+        }
+
+        // A live playlist can end temporarily when an upstream endpoint rolls over.
+        // Re-open the current live source, but never restart normal VOD at EOF.
+        if (p.playbackState == Player.STATE_ENDED && p.isCurrentMediaItemLive) {
             recover()
             return
         }
@@ -347,6 +356,7 @@ class AlfiePlayer(context: Context) {
         lastRecoveryAt = now
         bufferingSince = 0L
         startupStartedAt = now
+        diagnostics.firstFrameRendered = false
         val live = player.isCurrentMediaItemLive
         val position = player.currentPosition.coerceAtLeast(0L)
         val originalItem = player.currentMediaItem
