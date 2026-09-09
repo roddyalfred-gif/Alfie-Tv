@@ -27,6 +27,7 @@ class AlfiePlayer(context: Context) {
     private var lastPlayingPosition = C.TIME_UNSET
     private var stagnantSince = 0L
     private var bufferingSince = 0L
+    private var startupStartedAt = 0L
     private var currentUrl: String? = null
     private var currentTitle: String? = null
     private var recovering = false
@@ -69,6 +70,16 @@ class AlfiePlayer(context: Context) {
                         bufferingSince = 0L
                     }
                 }
+                override fun onRenderedFirstFrame() {
+                    if (startupStartedAt != 0L) {
+                        diagnostics.startupLatencyMs = (System.currentTimeMillis() - startupStartedAt).coerceAtLeast(0L)
+                        startupStartedAt = 0L
+                    }
+                    updateVideoDiagnostics()
+                }
+                override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                    updateVideoDiagnostics()
+                }
                 override fun onPlayerError(error: PlaybackException) { recover() }
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     if (isPlaying) {
@@ -107,6 +118,11 @@ class AlfiePlayer(context: Context) {
         bufferingSince = 0L
         stagnantSince = 0L
         lastPlayingPosition = C.TIME_UNSET
+        startupStartedAt = System.currentTimeMillis()
+        diagnostics.startupLatencyMs = null
+        diagnostics.bitrate = null
+        diagnostics.resolution = null
+        diagnostics.bufferedSeconds = null
         val builder = MediaItem.Builder().setUri(url).setMediaId(title ?: "alfie-tv")
             .setLiveConfiguration(MediaItem.LiveConfiguration.Builder().setTargetOffsetMs(2_000).setMinPlaybackSpeed(0.98f).setMaxPlaybackSpeed(1.02f).build())
         when {
@@ -179,6 +195,12 @@ class AlfiePlayer(context: Context) {
 
     private var lastPositionMs = 0L
 
+    private fun updateVideoDiagnostics() {
+        val format = player.videoFormat ?: return
+        if (format.width > 0 && format.height > 0) diagnostics.resolution = "${format.width}×${format.height}"
+        if (format.bitrate > 0) diagnostics.bitrate = format.bitrate
+    }
+
     private fun trackOptions(trackType: Int): List<TrackOption> {
         val result = mutableListOf<TrackOption>()
         player.currentTracks.groups.forEach { group ->
@@ -204,6 +226,8 @@ class AlfiePlayer(context: Context) {
         val p = player
         if (!p.playWhenReady || p.currentMediaItem == null || recovering) return
         val now = System.currentTimeMillis()
+        diagnostics.bufferedSeconds = ((p.bufferedPosition - p.currentPosition).coerceAtLeast(0L) / 1000L)
+        updateVideoDiagnostics()
         val videoPlaying = p.isPlaying && diagnostics.videoTrackAvailable
         val audioAvailable = diagnostics.audioTrackAvailable
         if (videoPlaying && audioAvailable) {
