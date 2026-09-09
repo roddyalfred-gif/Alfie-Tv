@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity() {
     private var numericBuffer = ""
     private val mainHandler = Handler(Looper.getMainLooper())
     private val numericCommit = Runnable { commitNumericChannel() }
+    private val preferences by lazy { getSharedPreferences("alfie_tv", MODE_PRIVATE) }
 
     private val refreshRunnable = object : Runnable {
         override fun run() {
@@ -64,7 +65,7 @@ class MainActivity : ComponentActivity() {
         playerView = PlayerView(this).apply {
             useController = true
             setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            resizeMode = loadResizeMode()
             isFocusable = true
             isFocusableInTouchMode = true
         }
@@ -77,6 +78,12 @@ class MainActivity : ComponentActivity() {
         showZapOverlay()
         refreshOverlay()
         scheduleRefresh()
+    }
+
+    private fun loadResizeMode(): Int = when (preferences.getString("aspect_ratio", "fit")) {
+        "fill" -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+        "zoom" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
     }
 
     private fun buildOverlay() {
@@ -126,7 +133,7 @@ class MainActivity : ComponentActivity() {
         statusView.text = "${number?.let { "CH $it" } ?: "LIVE TV"}  •  ${alfiePlayer.statusText()}"
         formatView.text = alfiePlayer.videoFormatText()
         val id = channelIds.getOrNull(channelIndex) ?: intent.getStringExtra("channel_id")
-        epgView.text = id?.let { getSharedPreferences("alfie_tv", MODE_PRIVATE).getString("epg_$it", null) }
+        epgView.text = id?.let { preferences.getString("epg_$it", null) }
             ?: "NOW  Program guide loading…\nNEXT  —"
     }
 
@@ -138,7 +145,7 @@ class MainActivity : ComponentActivity() {
         if (next == channelIndex) return
         channelIndex = next
         alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle())
-        channelIds.getOrNull(channelIndex)?.let { getSharedPreferences("alfie_tv", MODE_PRIVATE).edit().putString("last_channel_id", it).apply() }
+        channelIds.getOrNull(channelIndex)?.let { preferences.edit().putString("last_channel_id", it).apply() }
         showZapOverlay()
         refreshOverlay()
     }
@@ -147,7 +154,7 @@ class MainActivity : ComponentActivity() {
         if (index !in channelUrls.indices || index == channelIndex) return
         channelIndex = index
         alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle())
-        channelIds.getOrNull(channelIndex)?.let { getSharedPreferences("alfie_tv", MODE_PRIVATE).edit().putString("last_channel_id", it).apply() }
+        channelIds.getOrNull(channelIndex)?.let { preferences.edit().putString("last_channel_id", it).apply() }
         showZapOverlay()
         refreshOverlay()
     }
@@ -198,6 +205,12 @@ class MainActivity : ComponentActivity() {
 
     private fun setResizeMode(mode: Int) {
         playerView.resizeMode = mode
+        val value = when (mode) {
+            AspectRatioFrameLayout.RESIZE_MODE_FILL -> "fill"
+            AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> "zoom"
+            else -> "fit"
+        }
+        preferences.edit().putString("aspect_ratio", value).apply()
         trackPanel.visibility = View.GONE
         playerView.requestFocus()
     }
