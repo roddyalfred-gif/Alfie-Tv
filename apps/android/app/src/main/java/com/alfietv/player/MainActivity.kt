@@ -37,6 +37,7 @@ class MainActivity : ComponentActivity() {
     private var channelIndex = 0
     private var zapHideAt = 0L
     private var numericBuffer = ""
+    private var showingPlaybackRetry = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private val numericCommit = Runnable { commitNumericChannel() }
     private val preferences by lazy { getSharedPreferences("alfie_tv", MODE_PRIVATE) }
@@ -79,6 +80,14 @@ class MainActivity : ComponentActivity() {
             override fun onPlayerError(error: PlaybackException) {
                 statusView.text = "PLAYBACK ERROR • ${error.errorCodeName}"
                 showPlaybackRetry()
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY && showingPlaybackRetry) {
+                    showingPlaybackRetry = false
+                    trackPanel.visibility = View.GONE
+                    playerView.requestFocus()
+                }
             }
         })
         intent.getStringExtra("stream_url")?.takeIf { it.isNotBlank() }?.let { alfiePlayer.play(it, currentTitle()) }
@@ -160,6 +169,8 @@ class MainActivity : ComponentActivity() {
         val next = (channelIndex + delta).coerceIn(0, channelUrls.lastIndex)
         if (next == channelIndex) return
         channelIndex = next
+        showingPlaybackRetry = false
+        trackPanel.visibility = View.GONE
         alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle())
         channelIds.getOrNull(channelIndex)?.let { preferences.edit().putString("last_channel_id", it).apply() }
         showZapOverlay()
@@ -169,6 +180,8 @@ class MainActivity : ComponentActivity() {
     private fun switchToChannel(index: Int) {
         if (index !in channelUrls.indices || index == channelIndex) return
         channelIndex = index
+        showingPlaybackRetry = false
+        trackPanel.visibility = View.GONE
         alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle())
         channelIds.getOrNull(channelIndex)?.let { preferences.edit().putString("last_channel_id", it).apply() }
         showZapOverlay()
@@ -200,18 +213,25 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showPlaybackRetry() {
+        showingPlaybackRetry = true
         trackPanel.removeAllViews()
         addTrackButton("RETRY PLAYBACK") {
             alfiePlayer.retryCurrent()
+            showingPlaybackRetry = true
             trackPanel.visibility = View.GONE
             playerView.requestFocus()
         }
-        addTrackButton("BACK") { trackPanel.visibility = View.GONE; playerView.requestFocus() }
+        addTrackButton("BACK") {
+            showingPlaybackRetry = false
+            trackPanel.visibility = View.GONE
+            playerView.requestFocus()
+        }
         trackPanel.visibility = View.VISIBLE
         trackPanel.getChildAt(0)?.requestFocus()
     }
 
     private fun showTrackPanel() {
+        showingPlaybackRetry = false
         trackPanel.removeAllViews()
         addTrackButton("VIDEO") { showVideoOptions() }
         addTrackButton("AUDIO") { showAudioOptions(alfiePlayer.audioTracks()) }
@@ -281,6 +301,7 @@ class MainActivity : ComponentActivity() {
             KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_INFO -> { showTrackPanel(); return true }
             KeyEvent.KEYCODE_BACK -> {
                 if (trackPanel.visibility == View.VISIBLE) {
+                    showingPlaybackRetry = false
                     trackPanel.visibility = View.GONE
                     playerView.requestFocus()
                 } else {
@@ -305,6 +326,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onBackPressed() {
         if (trackPanel.visibility == View.VISIBLE) {
+            showingPlaybackRetry = false
             trackPanel.visibility = View.GONE
             playerView.requestFocus()
         } else {
