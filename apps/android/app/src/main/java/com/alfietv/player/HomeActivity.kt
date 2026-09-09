@@ -61,7 +61,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         addButton(root, "Favorites") { open(FavoritesActivity::class.java) }
         addButton(root, "Refresh Provider") { refreshProvider() }
         addButton(root, "Change Provider / Logout") {
-            LiveTvCache.clear(this)
+            clearProviderCache()
             SessionStore.clear(this)
             goToLogin()
         }
@@ -102,6 +102,11 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         })
     }
 
+    private fun clearProviderCache() {
+        LiveTvCache.clear(this)
+        EpgCache.clear(this)
+    }
+
     private fun goToLogin() {
         startActivity(Intent(this, LoginActivity::class.java).apply { putExtra("forceLogin", true) })
         finish()
@@ -109,7 +114,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_MENU) {
-            LiveTvCache.clear(this)
+            clearProviderCache()
             SessionStore.clear(this)
             goToLogin()
             return true
