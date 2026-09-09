@@ -198,8 +198,7 @@ class MainActivity : ComponentActivity() {
     private fun showPlaybackRetry() {
         trackPanel.removeAllViews()
         addTrackButton("RETRY PLAYBACK") {
-            val url = intent.getStringExtra("stream_url")
-            if (!url.isNullOrBlank()) alfiePlayer.play(url, currentTitle())
+            alfiePlayer.retryCurrent()
             trackPanel.visibility = View.GONE
             playerView.requestFocus()
         }
