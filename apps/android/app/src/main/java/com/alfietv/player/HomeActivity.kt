@@ -14,6 +14,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     private lateinit var config: XtreamConfig
     private val executor = Executors.newSingleThreadExecutor()
     private var status: TextView? = null
+    private var homeRoot: LinearLayout? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,19 +36,23 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(64, 36, 64, 36)
+            isFocusable = false
         }
+        homeRoot = root
         root.addView(TextView(this).apply {
             text = "Alfie TV"
             textSize = 38f
             gravity = Gravity.CENTER
+            isFocusable = false
         }, LinearLayout.LayoutParams(-1, -2))
         root.addView(TextView(this).apply {
             text = "Your IPTV entertainment hub"
             textSize = 18f
             gravity = Gravity.CENTER
             setPadding(0, 8, 0, 16)
+            isFocusable = false
         }, LinearLayout.LayoutParams(-1, -2))
-        status = TextView(this).apply { gravity = Gravity.CENTER; textSize = 14f; text = "Provider connected" }
+        status = TextView(this).apply { gravity = Gravity.CENTER; textSize = 14f; text = "Provider connected"; isFocusable = false }
         root.addView(status, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 8 })
 
         addButton(root, "Live TV") { open(LiveTvActivity::class.java) }
@@ -114,6 +119,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
 
     override fun onDestroy() {
         executor.shutdownNow()
+        homeRoot = null
         super.onDestroy()
     }
 }
