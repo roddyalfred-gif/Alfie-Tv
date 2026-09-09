@@ -1,9 +1,12 @@
 package com.alfietv.player
 
+import android.app.PictureInPictureParams
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Rational
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
@@ -219,34 +222,22 @@ class MainActivity : ComponentActivity() {
         if (exact >= 0) switchToChannel(exact) else showZapOverlay()
     }
 
-    private fun showZapOverlay() {
-        zapView.text = "CH ${channelNumbers.getOrNull(channelIndex) ?: (channelIndex + 1)}\n${currentTitle()}"; zapView.visibility = View.VISIBLE; zapHideAt = System.currentTimeMillis() + 2500L
-    }
-
-    private fun showPlaybackRetry() {
-        playerView.hideController(); showingPlaybackRetry = true; trackPanel.removeAllViews()
-        addTrackButton("RETRY PLAYBACK") { alfiePlayer.retryCurrent(); showingPlaybackRetry = true; trackPanel.visibility = View.GONE; playerView.requestFocus() }
-        addTrackButton("BACK") { showingPlaybackRetry = false; trackPanel.visibility = View.GONE; playerView.requestFocus() }
-        trackPanel.visibility = View.VISIBLE; trackPanel.getChildAt(0)?.requestFocus()
-    }
-
     private fun showTrackPanel() {
-        playerView.hideController(); showingPlaybackRetry = false; trackPanel.removeAllViews()
-        addTrackButton("VIDEO") { showVideoOptions() }
+        trackPanel.visibility = View.VISIBLE
+        trackPanel.removeAllViews()
         addTrackButton("AUDIO") { showAudioOptions(alfiePlayer.audioTracks()) }
         addTrackButton("SUBTITLES") { showSubtitleOptions(alfiePlayer.subtitleTracks()) }
-        addTrackButton("REFRESH AUDIO") { alfiePlayer.refreshAudio(); trackPanel.visibility = View.GONE; playerView.requestFocus() }
-        addTrackButton("CLOSE") { trackPanel.visibility = View.GONE; playerView.requestFocus() }
-        trackPanel.visibility = View.VISIBLE; trackPanel.getChildAt(0)?.requestFocus()
-    }
-
-    private fun showVideoOptions() {
-        trackPanel.removeAllViews()
         addTrackButton("FIT") { setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
         addTrackButton("FILL") { setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL) }
         addTrackButton("ZOOM") { setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM) }
-        addTrackButton("BACK") { showTrackPanel() }
-        trackPanel.visibility = View.VISIBLE; trackPanel.getChildAt(0)?.requestFocus()
+        addTrackButton("REFRESH AUDIO") { alfiePlayer.refreshAudio(); trackPanel.visibility = View.GONE; playerView.requestFocus() }
+        if (showingPlaybackRetry) addTrackButton("RETRY PLAYBACK") { showingPlaybackRetry = false; alfiePlayer.retryCurrent() }
+        trackPanel.getChildAt(0)?.requestFocus()
+    }
+
+    private fun showPlaybackRetry() {
+        showingPlaybackRetry = true
+        showTrackPanel()
     }
 
     private fun setResizeMode(mode: Int) {
@@ -317,6 +308,13 @@ class MainActivity : ComponentActivity() {
         if (trackPanel.visibility == View.VISIBLE) { showingPlaybackRetry = false; trackPanel.visibility = View.GONE; playerView.requestFocus() } else if (playerView.isControllerFullyVisible) { playerView.hideController(); playerView.requestFocus() } else finish()
     }
 
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && ::alfiePlayer.isInitialized && alfiePlayer.player.isPlaying && !isInPictureInPictureMode) {
+            enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build())
+        }
+    }
+
     override fun onStart() {
         super.onStart()
         if (::alfiePlayer.isInitialized) {
@@ -328,7 +326,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         saveProgress()
-        if (::alfiePlayer.isInitialized) alfiePlayer.player.stop()
+        if (::alfiePlayer.isInitialized && !isInPictureInPictureMode) alfiePlayer.player.stop()
         super.onStop()
     }
 
