@@ -37,7 +37,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         root.addView(header); root.addView(cats, LinearLayout.LayoutParams(-1, -2)); root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f)); root.addView(status)
         setContentView(root)
         search.setOnEditorActionListener { _, _, _ -> render(); false }
-        list.setOnItemClickListener { _, _, position, _ -> if (mode == "vod") playVod(filteredVod()[position]) else if (episodes.isNotEmpty()) playEpisode(episodes[position]) else loadEpisodes(series[position].id) }
+        list.setOnItemClickListener { _, _, position, _ -> if (mode == "vod") playVod(filteredVod()[position]) else if (episodes.isNotEmpty()) playEpisode(episodes[position]) else loadEpisodes(filteredSeries()[position].id) }
         load(row)
     }
 
@@ -63,5 +63,15 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private fun playVod(item: VodItem) = play(item.streamUrl, item.name)
     private fun playEpisode(item: SeriesEpisode) = play(item.streamUrl, item.name)
     private fun play(url: String, title: String) { startActivity(Intent(this, MainActivity::class.java).apply { putExtra("stream_url", url); putExtra("title", title) }) }
+
+    override fun onBackPressed() {
+        if (mode == "series" && episodes.isNotEmpty()) {
+            episodes = emptyList()
+            render()
+        } else {
+            super.onBackPressed()
+        }
+    }
+
     override fun onDestroy() { executor.shutdownNow(); super.onDestroy() }
 }
