@@ -283,6 +283,14 @@ class AlfiePlayer(context: Context) {
         val now = System.currentTimeMillis()
         diagnostics.bufferedSeconds = ((p.bufferedPosition - p.currentPosition).coerceAtLeast(0L) / 1000L)
         updateVideoDiagnostics()
+
+        // Some IPTV endpoints connect successfully but never produce a video track/frame.
+        // Recover the source instead of leaving the TV stuck on an indefinite spinner.
+        if (startupStartedAt != 0L && !diagnostics.videoTrackAvailable && now - startupStartedAt >= 15_000L) {
+            recover()
+            return
+        }
+
         val videoPlaying = p.isPlaying && diagnostics.videoTrackAvailable
         val audioAvailable = diagnostics.audioTrackAvailable
         if (videoPlaying && audioAvailable) {
@@ -338,6 +346,7 @@ class AlfiePlayer(context: Context) {
         diagnostics.recoveryCount++
         lastRecoveryAt = now
         bufferingSince = 0L
+        startupStartedAt = now
         val live = player.isCurrentMediaItemLive
         val position = player.currentPosition.coerceAtLeast(0L)
         val originalItem = player.currentMediaItem
