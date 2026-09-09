@@ -8,6 +8,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -134,6 +136,65 @@ class AlfiePlayer(context: Context) {
         player.release()
     }
 
+    fun audioTracks(): List<TrackOption> = trackOptions(C.TRACK_TYPE_AUDIO)
+
+    fun subtitleTracks(): List<TrackOption> = trackOptions(C.TRACK_TYPE_TEXT)
+
+    fun selectAudio(track: TrackOption?) = selectTrack(C.TRACK_TYPE_AUDIO, track)
+
+    fun selectSubtitle(track: TrackOption?) {
+        val builder = player.trackSelectionParameters.buildUpon()
+        if (track == null) {
+            builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+        } else {
+            builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                .setOverrideForType(
+                    TrackSelectionOverride(track.mediaTrackGroup, listOf(track.trackIndex))
+                )
+        }
+        player.trackSelectionParameters = builder.build()
+    }
+
+    fun statusText(): String {
+        if (player.playbackState == Player.STATE_BUFFERING) return "BUFFERING"
+        if (player.playbackState == Player.STATE_ENDED) return "ENDED"
+        if (player.playbackException != null) return "RECOVERING"
+        if (player.isPlaying) return "LIVE"
+        return "PAUSED"
+    }
+
+    fun videoFormatText(): String {
+        val format = player.videoFormat ?: return "Video —"
+        val resolution = if (format.width > 0 && format.height > 0) "${format.width}×${format.height}" else "Video"
+        val bitrate = if (format.bitrate > 0) " ${(format.bitrate / 1000)} kbps" else ""
+        return resolution + bitrate
+    }
+
+    private fun trackOptions(trackType: Int): List<TrackOption> {
+        val result = mutableListOf<TrackOption>()
+        player.currentTracks.groups.forEach { group ->
+            if (group.type != trackType || !group.isSupported) return@forEach
+            for (index in 0 until group.length) {
+                if (!group.isTrackSupported(index)) continue
+                val format = group.getTrackFormat(index)
+                val label = format.label?.takeIf { it.isNotBlank() }
+                    ?: format.language?.takeIf { it.isNotBlank() }
+                    ?: if (trackType == C.TRACK_TYPE_AUDIO) "Audio ${index + 1}" else "Subtitle ${index + 1}"
+                result += TrackOption(label, group.mediaTrackGroup, index)
+            }
+        }
+        return result
+    }
+
+    private fun selectTrack(trackType: Int, track: TrackOption?) {
+        val builder = player.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(trackType, track == null)
+        if (track != null) {
+            builder.setOverrideForType(TrackSelectionOverride(track.mediaTrackGroup, listOf(track.trackIndex)))
+        }
+        player.trackSelectionParameters = builder.build()
+    }
+
     private fun checkPlaybackHealth() {
         val p = player
         if (!p.playWhenReady) return
@@ -158,11 +219,7 @@ class AlfiePlayer(context: Context) {
         }
     }
 
-    /**
-     * Resets the audio renderer without destroying the Activity or changing
-     * channels. This targets the failure mode where video continues while
-     * audio silently stops decoding.
-     */
+    /** Resets the audio renderer without destroying the Activity or changing channels. */
     private fun recoverAudio() {
         if (recovering || player.currentMediaItem == null) return
         val now = System.currentTimeMillis()
@@ -215,3 +272,9 @@ class AlfiePlayer(context: Context) {
         }, 350L)
     }
 }
+
+data class TrackOption(
+    val label: String,
+    val mediaTrackGroup: Tracks.Group,
+    val trackIndex: Int
+)
