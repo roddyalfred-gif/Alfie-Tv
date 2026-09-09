@@ -77,9 +77,10 @@ object UserLibraryStore {
             val array = JSONArray(raw)
             List(array.length()) { i ->
                 val o = array.getJSONObject(i)
+                val type = runCatching { Type.valueOf(o.optString("type", Type.LIVE.name)) }.getOrDefault(Type.LIVE)
                 Item(
                     o.optString("id"),
-                    Type.valueOf(o.optString("type", Type.LIVE.name)),
+                    type,
                     o.optString("title"),
                     o.optString("streamUrl"),
                     o.optString("categoryId").ifBlank { null },
