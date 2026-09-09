@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build -w @alfie-tv/core && npm run build -w @alfie-tv/ui && npm run build -w @alfie-tv/backend && npm run build -w @alfie-tv/desktop && npm run build -w @alfie-tv/mobile && npm run build -w @alfie-tv/tv && npm run build -w @alfie-tv/web",
     "pretest": "npm run build -w @alfie-tv/core",
     "test": "vitest run",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
