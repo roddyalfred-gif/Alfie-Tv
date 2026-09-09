@@ -127,9 +127,6 @@ class AlfiePlayer(context: Context) {
         diagnostics.lastErrorCode = null
         diagnostics.lastErrorCodeName = null
         diagnostics.lastErrorMessage = null
-        // Clear track state from the previous item. A channel switch can reuse the
-        // same player instance, and stale availability could otherwise trigger an
-        // audio recovery before the new stream has exposed its tracks.
         diagnostics.audioTrackAvailable = false
         diagnostics.videoTrackAvailable = false
         diagnostics.audioSessionId = null
@@ -151,12 +148,17 @@ class AlfiePlayer(context: Context) {
             SourceType.UNKNOWN -> Unit
         }
 
-        // Do not force a LiveConfiguration onto VOD. Media3 determines live/VOD
-        // from the actual media timeline; forcing live behavior can interfere with
-        // seeking and playback of provider direct-source VOD URLs.
         player.setMediaItem(builder.build(), if (positionMs == C.TIME_UNSET) C.TIME_UNSET else positionMs)
         player.prepare()
         player.playWhenReady = true
+    }
+
+    /** Retries the currently selected stream instead of falling back to the Activity's original stream. */
+    fun retryCurrent() {
+        val url = currentUrl ?: return
+        val wasLive = player.isCurrentMediaItemLive
+        val position = player.currentPosition.coerceAtLeast(0L)
+        play(url, currentTitle, if (wasLive) C.TIME_UNSET else position)
     }
 
     /** Coalesces rapid CH+/CH− input so only the final requested channel starts loading. */
