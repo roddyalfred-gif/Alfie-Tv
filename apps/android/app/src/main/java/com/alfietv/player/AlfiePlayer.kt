@@ -107,18 +107,18 @@ class AlfiePlayer(context: Context) {
 
     fun playLastPosition() {
         if (player.currentMediaItem == null) return
-        if (player.isCurrentMediaItemLive) player.seekToDefaultPosition() else player.seekTo(lastPosition().coerceAtLeast(0L))
+        if (player.isCurrentMediaItemLive) player.seekToDefaultPosition() else player.seekTo(lastPositionMs.coerceAtLeast(0L))
         player.playWhenReady = true
     }
 
     fun stop() {
-        lastPosition()
+        lastPositionMs = player.currentPosition.coerceAtLeast(0L)
         player.stop()
     }
 
     fun release() {
         handler.removeCallbacks(healthCheck)
-        lastPosition()
+        lastPositionMs = player.currentPosition.coerceAtLeast(0L)
         currentUrl = null
         player.release()
     }
@@ -150,10 +150,6 @@ class AlfiePlayer(context: Context) {
     }
 
     private var lastPositionMs = 0L
-    private fun lastPosition(): Long {
-        lastPositionMs = player.currentPosition.coerceAtLeast(0L)
-        return lastPositionMs
-    }
 
     private fun trackOptions(trackType: Int): List<TrackOption> {
         val result = mutableListOf<TrackOption>()
@@ -231,7 +227,7 @@ class AlfiePlayer(context: Context) {
         val live = player.isCurrentMediaItemLive
         val position = player.currentPosition.coerceAtLeast(0L)
         handler.postDelayed({
-            if (currentUrl != url || player.isReleased) { recovering = false; return@postDelayed }
+            if (currentUrl != url) { recovering = false; return@postDelayed }
             val item = player.currentMediaItem ?: MediaItem.Builder().setUri(url).setMediaId(currentTitle ?: "alfie-tv").build()
             player.setMediaItem(item, if (live) C.TIME_UNSET else position)
             player.prepare()
