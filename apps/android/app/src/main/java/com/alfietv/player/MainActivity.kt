@@ -14,6 +14,7 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -74,6 +75,12 @@ class MainActivity : ComponentActivity() {
         setContentView(root)
         alfiePlayer = AlfiePlayer(this)
         alfiePlayer.attach(playerView)
+        alfiePlayer.player.addListener(object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) {
+                statusView.text = "PLAYBACK ERROR • ${error.errorCodeName}"
+                showPlaybackRetry()
+            }
+        })
         intent.getStringExtra("stream_url")?.takeIf { it.isNotBlank() }?.let { alfiePlayer.play(it, currentTitle()) }
         showZapOverlay()
         refreshOverlay()
@@ -183,11 +190,25 @@ class MainActivity : ComponentActivity() {
         zapHideAt = System.currentTimeMillis() + 2500L
     }
 
+    private fun showPlaybackRetry() {
+        trackPanel.removeAllViews()
+        addTrackButton("RETRY PLAYBACK") {
+            val url = intent.getStringExtra("stream_url")
+            if (!url.isNullOrBlank()) alfiePlayer.play(url, currentTitle())
+            trackPanel.visibility = View.GONE
+            playerView.requestFocus()
+        }
+        addTrackButton("BACK") { trackPanel.visibility = View.GONE; playerView.requestFocus() }
+        trackPanel.visibility = View.VISIBLE
+        trackPanel.getChildAt(0)?.requestFocus()
+    }
+
     private fun showTrackPanel() {
         trackPanel.removeAllViews()
         addTrackButton("VIDEO") { showVideoOptions() }
         addTrackButton("AUDIO") { showAudioOptions(alfiePlayer.audioTracks()) }
         addTrackButton("SUBTITLES") { showSubtitleOptions(alfiePlayer.subtitleTracks()) }
+        addTrackButton("REFRESH AUDIO") { alfiePlayer.refreshAudio(); trackPanel.visibility = View.GONE; playerView.requestFocus() }
         addTrackButton("CLOSE") { trackPanel.visibility = View.GONE; playerView.requestFocus() }
         trackPanel.visibility = View.VISIBLE
         trackPanel.getChildAt(0)?.requestFocus()
@@ -250,7 +271,15 @@ class MainActivity : ComponentActivity() {
             KeyEvent.KEYCODE_CHANNEL_DOWN -> { if (numericBuffer.isNotEmpty()) commitNumericChannel() else switchChannel(1); return true }
             KeyEvent.KEYCODE_DPAD_UP -> { if (trackPanel.visibility == View.GONE) showTrackPanel(); return true }
             KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_INFO -> { showTrackPanel(); return true }
-            KeyEvent.KEYCODE_BACK -> if (trackPanel.visibility == View.VISIBLE) { trackPanel.visibility = View.GONE; playerView.requestFocus(); return true }
+            KeyEvent.KEYCODE_BACK -> {
+                if (trackPanel.visibility == View.VISIBLE) {
+                    trackPanel.visibility = View.GONE
+                    playerView.requestFocus()
+                } else {
+                    finish()
+                }
+                return true
+            }
             KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER -> if (numericBuffer.isNotEmpty()) { commitNumericChannel(); return true }
             KeyEvent.KEYCODE_0 -> { enterNumericDigit(0); return true }
             KeyEvent.KEYCODE_1 -> { enterNumericDigit(1); return true }
@@ -264,6 +293,15 @@ class MainActivity : ComponentActivity() {
             KeyEvent.KEYCODE_9 -> { enterNumericDigit(9); return true }
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    override fun onBackPressed() {
+        if (trackPanel.visibility == View.VISIBLE) {
+            trackPanel.visibility = View.GONE
+            playerView.requestFocus()
+        } else {
+            finish()
+        }
     }
 
     override fun onStart() {
