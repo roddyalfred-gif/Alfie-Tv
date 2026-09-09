@@ -47,6 +47,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun scheduleRefresh() {
+        root.removeCallbacks(refreshRunnable)
+        root.postDelayed(refreshRunnable, 1000L)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -71,7 +76,7 @@ class MainActivity : ComponentActivity() {
         intent.getStringExtra("stream_url")?.takeIf { it.isNotBlank() }?.let { alfiePlayer.play(it, currentTitle()) }
         showZapOverlay()
         refreshOverlay()
-        root.postDelayed(refreshRunnable, 1000L)
+        scheduleRefresh()
     }
 
     private fun buildOverlay() {
@@ -253,7 +258,7 @@ class MainActivity : ComponentActivity() {
         playerView.requestFocus()
         if (alfiePlayer.player.currentMediaItem != null && alfiePlayer.player.playbackState == Player.STATE_IDLE) alfiePlayer.player.prepare()
         alfiePlayer.player.playWhenReady = true
-        root.postDelayed(refreshRunnable, 1000L)
+        scheduleRefresh()
     }
 
     override fun onStop() {
