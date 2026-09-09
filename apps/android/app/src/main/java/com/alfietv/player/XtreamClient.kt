@@ -38,12 +38,36 @@ class XtreamClient {
         return categories to channels
     }
 
+    fun loadEpg(config: XtreamConfig, channel: IptvChannel, limit: Int = 8): List<EpgProgram> {
+        val base = config.serverUrl.trimEnd('/')
+        val url = "$base/player_api.php?username=${enc(config.username)}&password=${enc(config.password)}&action=get_short_epg&stream_id=${enc(channel.id)}&limit=$limit"
+        return parseArray(get(url)).mapNotNull { o ->
+            val start = parseXtreamTime(o.optString("start")) ?: return@mapNotNull null
+            val end = parseXtreamTime(o.optString("end")) ?: return@mapNotNull null
+            EpgProgram(
+                channelId = channel.id,
+                title = o.optString("title").ifBlank { "Program" },
+                startUtcMs = start,
+                endUtcMs = end,
+                description = o.optString("description").ifBlank { null }
+            )
+        }.sortedBy { it.startUtcMs }
+    }
+
+    private fun parseXtreamTime(value: String): Long? = try {
+        java.time.LocalDateTime.parse(value.replace(" ", "T"))
+            .toInstant(java.time.ZoneOffset.UTC).toEpochMilli()
+    } catch (_: Exception) { null }
+
     private fun get(url: String): String {
         val c = URI(url).toURL().openConnection() as HttpURLConnection
         c.connectTimeout = 10_000
         c.readTimeout = 20_000
         c.requestMethod = "GET"
-        return c.inputStream.bufferedReader().use { it.readText() }.also { c.disconnect() }
+        return try {
+            if (c.responseCode !in 200..299) throw IllegalStateException("Provider returned HTTP ${c.responseCode}")
+            c.inputStream.bufferedReader().use { it.readText() }
+        } finally { c.disconnect() }
     }
 
     private fun parseArray(text: String): List<JSONObject> {
