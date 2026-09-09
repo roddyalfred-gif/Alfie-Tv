@@ -5,7 +5,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.security.MessageDigest
 
-/** Provider-scoped favorites and recently-watched library. Passwords are never stored. */
+/** Provider-scoped favorites, recently-watched items, and VOD playback progress. Passwords are never stored. */
 object UserLibraryStore {
     enum class Type { LIVE, MOVIE, SERIES, EPISODE }
 
@@ -19,7 +19,9 @@ object UserLibraryStore {
         val seriesId: String? = null,
         val season: Int? = null,
         val episode: Int? = null,
-        val watchedAt: Long = System.currentTimeMillis()
+        val watchedAt: Long = System.currentTimeMillis(),
+        val positionMs: Long = 0L,
+        val durationMs: Long = 0L
     )
 
     private const val PREFS = "alfie_tv_library"
@@ -50,10 +52,31 @@ object UserLibraryStore {
     fun recent(context: Context, config: XtreamConfig): List<Item> =
         read(prefs(context, config).getString(RECENT, null)).sortedByDescending { it.watchedAt }
 
+    fun findRecent(context: Context, config: XtreamConfig, item: Item): Item? =
+        recent(context, config).firstOrNull { key(it) == key(item) }
+
     fun recordWatched(context: Context, config: XtreamConfig, item: Item) {
         val current = recent(context, config).filterNot { key(it) == key(item) }.toMutableList()
         current.add(0, item.copy(watchedAt = System.currentTimeMillis()))
         write(prefs(context, config), RECENT, current.take(MAX_RECENT))
+    }
+
+    fun updateProgress(context: Context, config: XtreamConfig, item: Item, positionMs: Long, durationMs: Long) {
+        if (item.type != Type.MOVIE && item.type != Type.EPISODE) return
+        val current = recent(context, config).toMutableList()
+        val index = current.indexOfFirst { key(it) == key(item) }
+        val updated = item.copy(
+            watchedAt = System.currentTimeMillis(),
+            positionMs = positionMs.coerceAtLeast(0L),
+            durationMs = durationMs.coerceAtLeast(0L)
+        )
+        if (index >= 0) current[index] = updated else current.add(0, updated)
+        write(prefs(context, config), RECENT, current.take(MAX_RECENT))
+    }
+
+    fun clearProgress(context: Context, config: XtreamConfig, item: Item) {
+        val current = recent(context, config).map { if (key(it) == key(item)) it.copy(positionMs = 0L, durationMs = 0L) else it }
+        write(prefs(context, config), RECENT, current)
     }
 
     fun clear(context: Context, config: XtreamConfig) = prefs(context, config).edit().clear().apply()
@@ -65,7 +88,7 @@ object UserLibraryStore {
                 put("id", item.id); put("type", item.type.name); put("title", item.title); put("streamUrl", item.streamUrl)
                 item.categoryId?.let { put("categoryId", it) }; item.posterUrl?.let { put("posterUrl", it) }
                 item.seriesId?.let { put("seriesId", it) }; item.season?.let { put("season", it) }; item.episode?.let { put("episode", it) }
-                put("watchedAt", item.watchedAt)
+                put("watchedAt", item.watchedAt); put("positionMs", item.positionMs); put("durationMs", item.durationMs)
             })
         }
         prefs.edit().putString(name, array.toString()).apply()
@@ -79,16 +102,11 @@ object UserLibraryStore {
                 val o = array.getJSONObject(i)
                 val type = runCatching { Type.valueOf(o.optString("type", Type.LIVE.name)) }.getOrDefault(Type.LIVE)
                 Item(
-                    o.optString("id"),
-                    type,
-                    o.optString("title"),
-                    o.optString("streamUrl"),
-                    o.optString("categoryId").ifBlank { null },
-                    o.optString("posterUrl").ifBlank { null },
-                    o.optString("seriesId").ifBlank { null },
-                    o.optInt("season", 0).takeIf { it != 0 },
-                    o.optInt("episode", 0).takeIf { it != 0 },
-                    o.optLong("watchedAt", 0L)
+                    o.optString("id"), type, o.optString("title"), o.optString("streamUrl"),
+                    o.optString("categoryId").ifBlank { null }, o.optString("posterUrl").ifBlank { null },
+                    o.optString("seriesId").ifBlank { null }, o.optInt("season", 0).takeIf { it != 0 },
+                    o.optInt("episode", 0).takeIf { it != 0 }, o.optLong("watchedAt", 0L),
+                    o.optLong("positionMs", 0L), o.optLong("durationMs", 0L)
                 )
             }
         } catch (_: Exception) {
