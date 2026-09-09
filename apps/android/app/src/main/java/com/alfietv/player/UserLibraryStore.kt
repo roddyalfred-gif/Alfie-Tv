@@ -71,18 +71,29 @@ object UserLibraryStore {
         prefs.edit().putString(name, array.toString()).apply()
     }
 
-    private fun read(raw: String?): List<Item> = try {
+    private fun read(raw: String?): List<Item> {
         if (raw.isNullOrBlank()) return emptyList()
-        val array = JSONArray(raw)
-        List(array.length()) { i ->
-            val o = array.getJSONObject(i)
-            Item(
-                o.optString("id"), Type.valueOf(o.optString("type", Type.LIVE.name)), o.optString("title"), o.optString("streamUrl"),
-                o.optString("categoryId").ifBlank { null }, o.optString("posterUrl").ifBlank { null }, o.optString("seriesId").ifBlank { null },
-                o.optInt("season", 0).takeIf { it != 0 }, o.optInt("episode", 0).takeIf { it != 0 }, o.optLong("watchedAt", 0L)
-            )
+        return try {
+            val array = JSONArray(raw)
+            List(array.length()) { i ->
+                val o = array.getJSONObject(i)
+                Item(
+                    o.optString("id"),
+                    Type.valueOf(o.optString("type", Type.LIVE.name)),
+                    o.optString("title"),
+                    o.optString("streamUrl"),
+                    o.optString("categoryId").ifBlank { null },
+                    o.optString("posterUrl").ifBlank { null },
+                    o.optString("seriesId").ifBlank { null },
+                    o.optInt("season", 0).takeIf { it != 0 },
+                    o.optInt("episode", 0).takeIf { it != 0 },
+                    o.optLong("watchedAt", 0L)
+                )
+            }
+        } catch (_: Exception) {
+            emptyList()
         }
-    } catch (_: Exception) { emptyList() }
+    }
 
     private fun providerKey(config: XtreamConfig): String = sha256("${config.serverUrl.trimEnd('/')}|${config.username}").take(24)
     private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString("") { "%02x".format(it) }
