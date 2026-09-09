@@ -132,11 +132,20 @@ class LiveTvActivity : ComponentActivity() {
     }
 
     private fun play(channel: IptvChannel) {
+        val channels = filteredChannels()
+        val index = channels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
+        val windowStart = (index - 50).coerceAtLeast(0)
+        val windowEnd = (index + 51).coerceAtMost(channels.size)
+        val window = channels.subList(windowStart, windowEnd)
         prefs.edit().putString("last_channel_id", channel.id).apply()
         showEpg(channel)
         startActivity(android.content.Intent(this, MainActivity::class.java).apply {
             putExtra("stream_url", channel.streamUrl)
             putExtra("title", channel.name)
+            putExtra("channel_number", (index + 1).toString())
+            putExtra("channel_index", index - windowStart)
+            putExtra("channel_urls", ArrayList(window.map { it.streamUrl }))
+            putExtra("channel_titles", ArrayList(window.map { it.name }))
         })
     }
 
@@ -148,20 +157,18 @@ class LiveTvActivity : ComponentActivity() {
                 val now = System.currentTimeMillis()
                 val current = programs.firstOrNull { now in it.startUtcMs until it.endUtcMs }
                 val next = programs.firstOrNull { it.startUtcMs > now }
-                val text = buildString {
-                    append(channel.name)
-                    append("\n")
-                    append(current?.let { "NOW  ${it.title}  ${formatTime(it.startUtcMs)}–${formatTime(it.endUtcMs)}" } ?: "NOW  No current program")
-                    append("\n")
-                    append(next?.let { "NEXT ${it.title}  ${formatTime(it.startUtcMs)}" } ?: "NEXT No upcoming program")
-                    current?.let {
-                        val duration = (it.endUtcMs - it.startUtcMs).coerceAtLeast(1L)
-                        val elapsed = (now - it.startUtcMs).coerceIn(0L, duration)
-                        append("\nProgress: ${(elapsed * 100 / duration).toInt()}%")
-                    }
-                }
-                runOnUiThread { epg.text = text }
+                val nowText = current?.let { "NOW  ${it.title}  ${formatTime(it.startUtcMs)}–${formatTime(it.endUtcMs)}" } ?: "NOW  No current program"
+                val nextText = next?.let { "NEXT ${it.title}  ${formatTime(it.startUtcMs)}" } ?: "NEXT No upcoming program"
+                val progress = current?.let {
+                    val duration = (it.endUtcMs - it.startUtcMs).coerceAtLeast(1L)
+                    ((now - it.startUtcMs).coerceIn(0L, duration) * 100 / duration).toInt()
+                } ?: 0
+                val text = "$nowText\n$nextText\nProgress: $progress%"
+                prefs.edit().putString("epg_${channel.id}", text).apply()
+                runOnUiThread { epg.text = "${channel.name}\n$text" }
             } catch (_: Exception) {
+                val text = "NOW  No current program\nNEXT No upcoming program\nProgress: 0%"
+                prefs.edit().putString("epg_${channel.id}", text).apply()
                 runOnUiThread { epg.text = "${channel.name}\nEPG unavailable" }
             }
         }
