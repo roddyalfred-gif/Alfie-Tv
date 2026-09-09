@@ -123,6 +123,10 @@ class AlfiePlayer(context: Context) {
         diagnostics.bitrate = null
         diagnostics.resolution = null
         diagnostics.bufferedSeconds = null
+        diagnostics.lastErrorCategory = null
+        diagnostics.lastErrorCode = null
+        diagnostics.lastErrorCodeName = null
+        diagnostics.lastErrorMessage = null
 
         val normalizedPath = url.substringBefore('?').lowercase()
         val builder = MediaItem.Builder()
@@ -185,7 +189,6 @@ class AlfiePlayer(context: Context) {
     fun subtitleTracks(): List<TrackOption> = trackOptions(C.TRACK_TYPE_TEXT)
     fun selectAudio(track: TrackOption?) = selectTrack(C.TRACK_TYPE_AUDIO, track)
 
-    /** User-triggered audio pipeline refresh without changing the selected channel. */
     fun refreshAudio() {
         if (player.currentMediaItem == null || recovering) return
         recoverAudio(force = true)
@@ -201,9 +204,16 @@ class AlfiePlayer(context: Context) {
     fun statusText(): String {
         if (player.playbackState == Player.STATE_BUFFERING) return "BUFFERING"
         if (player.playbackState == Player.STATE_ENDED) return "ENDED"
-        if (player.playerError != null) return "RECOVERING"
-        if (player.isPlaying) return "LIVE"
+        if (player.playerError != null) return "ERROR ${diagnostics.lastErrorCategory ?: "unknown"}"
+        if (player.isPlaying) return "PLAYING"
         return "PAUSED"
+    }
+
+    fun errorText(): String? {
+        val category = diagnostics.lastErrorCategory ?: return null
+        val code = diagnostics.lastErrorCodeName ?: "UNKNOWN"
+        val message = diagnostics.lastErrorMessage?.takeIf { it.isNotBlank() }
+        return if (message == null) "$category • $code" else "$category • $code • $message"
     }
 
     fun videoFormatText(): String {
@@ -305,9 +315,10 @@ class AlfiePlayer(context: Context) {
         bufferingSince = 0L
         val live = player.isCurrentMediaItemLive
         val position = player.currentPosition.coerceAtLeast(0L)
+        val originalItem = player.currentMediaItem
         handler.postDelayed({
             if (currentUrl != url) { recovering = false; return@postDelayed }
-            val item = player.currentMediaItem ?: MediaItem.Builder().setUri(url).setMediaId(currentTitle ?: "alfie-tv").build()
+            val item = originalItem ?: MediaItem.Builder().setUri(url).setMediaId(currentTitle ?: "alfie-tv").build()
             player.setMediaItem(item, if (live) C.TIME_UNSET else position)
             player.prepare()
             if (live) player.seekToDefaultPosition()
