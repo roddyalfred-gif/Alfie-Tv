@@ -3,7 +3,7 @@ package com.alfietv.player
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 
-/** Runtime metrics used to diagnose long-running live-TV playback. */
+/** Runtime metrics used to diagnose long-running live-TV and VOD playback. */
 data class PlaybackDiagnostics(
     var startupLatencyMs: Long? = null,
     var bitrate: Int? = null,
@@ -14,6 +14,9 @@ data class PlaybackDiagnostics(
     var audioRecoveryCount: Int = 0,
     var droppedFrames: Int? = null,
     var lastErrorCategory: String? = null,
+    var lastErrorCode: Int? = null,
+    var lastErrorCodeName: String? = null,
+    var lastErrorMessage: String? = null,
     var lastErrorAt: Long? = null,
     var audioTrackAvailable: Boolean = false,
     var videoTrackAvailable: Boolean = false,
@@ -52,6 +55,9 @@ class DiagnosticsListener(private val diagnostics: PlaybackDiagnostics) : Player
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED -> "format"
             else -> "unknown"
         }
+        diagnostics.lastErrorCode = error.errorCode
+        diagnostics.lastErrorCodeName = error.errorCodeName
+        diagnostics.lastErrorMessage = error.message?.take(240)
         diagnostics.lastErrorAt = System.currentTimeMillis()
     }
 }
