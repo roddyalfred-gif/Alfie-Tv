@@ -1,11 +1,14 @@
-import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
-
-const require = createRequire(import.meta.url);
-const { App } = require('../../index.js');
+import { createTvViewModel } from '../tvApp';
 
 describe('smart tv scaffold', () => {
-  it('exports a tv shell component', () => {
-    expect(typeof App).toBe('function');
+  it('creates a valid TV shell view model', () => {
+    const viewModel = createTvViewModel();
+
+    expect(viewModel.title).toBe('Alfie TV Smart TV');
+    expect(viewModel.quickActions).toEqual(['Resume', 'Favorites', 'Guide']);
+    expect(viewModel.deviceProfile.supportsRemoteControl).toBe(true);
+    expect(viewModel.playback.isPlaying).toBe(true);
+    expect(viewModel.playback.positionSeconds).toBe(1280);
   });
 });
