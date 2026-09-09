@@ -2,6 +2,8 @@ package com.alfietv.player
 
 import android.graphics.Color
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
@@ -33,6 +35,9 @@ class MainActivity : ComponentActivity() {
     private var channelNumbers = emptyList<String>()
     private var channelIndex = 0
     private var zapHideAt = 0L
+    private var numericBuffer = ""
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val numericCommit = Runnable { commitNumericChannel() }
 
     private val refreshRunnable = object : Runnable {
         override fun run() {
@@ -102,6 +107,32 @@ class MainActivity : ComponentActivity() {
         showZapOverlay(); refreshOverlay()
     }
 
+    private fun switchToChannel(index: Int) {
+        if (index !in channelUrls.indices || index == channelIndex) return
+        channelIndex = index
+        alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle())
+        channelIds.getOrNull(channelIndex)?.let { getSharedPreferences("alfie_tv", MODE_PRIVATE).edit().putString("last_channel_id", it).apply() }
+        showZapOverlay(); refreshOverlay()
+    }
+
+    private fun enterNumericDigit(digit: Int) {
+        if (digit !in 0..9) return
+        numericBuffer = (numericBuffer + digit).takeLast(4)
+        zapView.text = "CH $numericBuffer"
+        zapView.visibility = View.VISIBLE
+        zapHideAt = System.currentTimeMillis() + 2200L
+        mainHandler.removeCallbacks(numericCommit)
+        mainHandler.postDelayed(numericCommit, 1200L)
+    }
+
+    private fun commitNumericChannel() {
+        if (numericBuffer.isEmpty()) return
+        val target = numericBuffer
+        numericBuffer = ""
+        val exact = channelNumbers.indexOfFirst { it == target }
+        if (exact >= 0) switchToChannel(exact) else showZapOverlay()
+    }
+
     private fun showZapOverlay() {
         zapView.text = "CH ${channelNumbers.getOrNull(channelIndex) ?: (channelIndex + 1)}\n${currentTitle()}"
         zapView.visibility = View.VISIBLE; zapHideAt = System.currentTimeMillis() + 2500L
@@ -155,11 +186,22 @@ class MainActivity : ComponentActivity() {
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { if (alfiePlayer.player.isPlaying) alfiePlayer.player.pause() else alfiePlayer.player.play(); return true }
             KeyEvent.KEYCODE_MEDIA_PLAY -> { alfiePlayer.player.play(); return true }
             KeyEvent.KEYCODE_MEDIA_PAUSE -> { alfiePlayer.player.pause(); return true }
-            KeyEvent.KEYCODE_CHANNEL_UP -> { switchChannel(-1); return true }
-            KeyEvent.KEYCODE_CHANNEL_DOWN -> { switchChannel(1); return true }
+            KeyEvent.KEYCODE_CHANNEL_UP -> { commitNumericChannel(); switchChannel(-1); return true }
+            KeyEvent.KEYCODE_CHANNEL_DOWN -> { commitNumericChannel(); switchChannel(1); return true }
             KeyEvent.KEYCODE_DPAD_UP -> { if (trackPanel.visibility == View.GONE) showTrackPanel(); return true }
             KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_INFO -> { showTrackPanel(); return true }
             KeyEvent.KEYCODE_BACK -> if (trackPanel.visibility == View.VISIBLE) { trackPanel.visibility = View.GONE; playerView.requestFocus(); return true }
+            KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER -> if (numericBuffer.isNotEmpty()) { commitNumericChannel(); return true }
+            KeyEvent.KEYCODE_0 -> { enterNumericDigit(0); return true }
+            KeyEvent.KEYCODE_1 -> { enterNumericDigit(1); return true }
+            KeyEvent.KEYCODE_2 -> { enterNumericDigit(2); return true }
+            KeyEvent.KEYCODE_3 -> { enterNumericDigit(3); return true }
+            KeyEvent.KEYCODE_4 -> { enterNumericDigit(4); return true }
+            KeyEvent.KEYCODE_5 -> { enterNumericDigit(5); return true }
+            KeyEvent.KEYCODE_6 -> { enterNumericDigit(6); return true }
+            KeyEvent.KEYCODE_7 -> { enterNumericDigit(7); return true }
+            KeyEvent.KEYCODE_8 -> { enterNumericDigit(8); return true }
+            KeyEvent.KEYCODE_9 -> { enterNumericDigit(9); return true }
         }
         return super.dispatchKeyEvent(event)
     }
@@ -172,6 +214,6 @@ class MainActivity : ComponentActivity() {
         root.postDelayed(refreshRunnable, 1000L)
     }
 
-    override fun onStop() { root.removeCallbacks(refreshRunnable); alfiePlayer.stop(); super.onStop() }
-    override fun onDestroy() { root.removeCallbacks(refreshRunnable); alfiePlayer.release(); super.onDestroy() }
+    override fun onStop() { root.removeCallbacks(refreshRunnable); mainHandler.removeCallbacks(numericCommit); numericBuffer = ""; alfiePlayer.stop(); super.onStop() }
+    override fun onDestroy() { root.removeCallbacks(refreshRunnable); mainHandler.removeCallbacks(numericCommit); alfiePlayer.release(); super.onDestroy() }
 }
