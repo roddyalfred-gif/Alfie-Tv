@@ -9,7 +9,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.common.TrackGroup
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
@@ -32,15 +31,19 @@ class AlfiePlayer(context: Context) {
     private var startupStartedAt = 0L
     private var currentUrl: String? = null
     private var currentTitle: String? = null
+    private var currentChannelNumber: String? = null
     private var recovering = false
     private var pendingChannelUrl: String? = null
     private var pendingChannelTitle: String? = null
+    private var pendingChannelNumber: String? = null
     private val channelSwitchRunnable = Runnable {
         val url = pendingChannelUrl ?: return@Runnable
         val title = pendingChannelTitle
+        val number = pendingChannelNumber
         pendingChannelUrl = null
         pendingChannelTitle = null
-        play(url, title)
+        pendingChannelNumber = null
+        play(url, title, C.TIME_UNSET, number)
     }
     val diagnostics = PlaybackDiagnostics()
 
@@ -109,10 +112,7 @@ class AlfiePlayer(context: Context) {
             .build()
     }
 
-    init {
-        // Initialize the session with the player so system media controls are available immediately.
-        mediaSession
-    }
+    init { mediaSession }
 
     private val healthCheck = object : Runnable {
         override fun run() { checkPlaybackHealth(); handler.postDelayed(this, 4_000) }
@@ -127,13 +127,15 @@ class AlfiePlayer(context: Context) {
         handler.postDelayed(healthCheck, 4_000)
     }
 
-    fun play(url: String, title: String? = null, positionMs: Long = C.TIME_UNSET) {
+    fun play(url: String, title: String? = null, positionMs: Long = C.TIME_UNSET, channelNumber: String? = null) {
         require(url.startsWith("http://") || url.startsWith("https://")) { "Unsupported stream URL" }
         handler.removeCallbacks(channelSwitchRunnable)
         pendingChannelUrl = null
         pendingChannelTitle = null
+        pendingChannelNumber = null
         currentUrl = url
         currentTitle = title
+        currentChannelNumber = channelNumber
         recoveryAttempts = 0
         audioRecoveryAttempts = 0
         recovering = false
@@ -163,6 +165,7 @@ class AlfiePlayer(context: Context) {
             .setMediaMetadata(
                 androidx.media3.common.MediaMetadata.Builder()
                     .setTitle(title ?: "Alfie TV")
+                    .setArtist(channelNumber?.takeIf { it.isNotBlank() }?.let { "Channel $it" })
                     .build()
             )
 
@@ -185,14 +188,15 @@ class AlfiePlayer(context: Context) {
         val url = currentUrl ?: return
         val wasLive = player.isCurrentMediaItemLive
         val position = player.currentPosition.coerceAtLeast(0L)
-        play(url, currentTitle, if (wasLive) C.TIME_UNSET else position)
+        play(url, currentTitle, if (wasLive) C.TIME_UNSET else position, currentChannelNumber)
     }
 
-    fun switchChannel(url: String, title: String? = null) {
+    fun switchChannel(url: String, title: String? = null, channelNumber: String? = null) {
         require(url.startsWith("http://") || url.startsWith("https://")) { "Unsupported stream URL" }
         handler.removeCallbacks(channelSwitchRunnable)
         pendingChannelUrl = url
         pendingChannelTitle = title
+        pendingChannelNumber = channelNumber
         handler.postDelayed(channelSwitchRunnable, 150L)
     }
 
@@ -206,6 +210,7 @@ class AlfiePlayer(context: Context) {
         handler.removeCallbacks(channelSwitchRunnable)
         pendingChannelUrl = null
         pendingChannelTitle = null
+        pendingChannelNumber = null
         lastPositionMs = player.currentPosition.coerceAtLeast(0L)
         player.stop()
     }
@@ -215,6 +220,7 @@ class AlfiePlayer(context: Context) {
         handler.removeCallbacks(channelSwitchRunnable)
         pendingChannelUrl = null
         pendingChannelTitle = null
+        pendingChannelNumber = null
         lastPositionMs = player.currentPosition.coerceAtLeast(0L)
         currentUrl = null
         mediaSession.release()
@@ -261,9 +267,7 @@ class AlfiePlayer(context: Context) {
             else -> "A/V —"
         }
         val startup = diagnostics.startupLatencyMs?.let { "START ${it}ms" } ?: "START —"
-        val recovery = if (diagnostics.recoveryCount > 0 || diagnostics.audioRecoveryCount > 0) {
-            "REC ${diagnostics.recoveryCount}/${diagnostics.audioRecoveryCount}"
-        } else null
+        val recovery = if (diagnostics.recoveryCount > 0 || diagnostics.audioRecoveryCount > 0) "REC ${diagnostics.recoveryCount}/${diagnostics.audioRecoveryCount}" else null
         return listOfNotNull(buffer, tracks, startup, recovery).joinToString("  •  ")
     }
 
@@ -309,14 +313,8 @@ class AlfiePlayer(context: Context) {
         val now = System.currentTimeMillis()
         diagnostics.bufferedSeconds = ((p.bufferedPosition - p.currentPosition).coerceAtLeast(0L) / 1000L)
         updateVideoDiagnostics()
-        if (startupStartedAt != 0L && !diagnostics.firstFrameRendered && now - startupStartedAt >= 15_000L) {
-            recover()
-            return
-        }
-        if (p.playbackState == Player.STATE_ENDED && p.isCurrentMediaItemLive) {
-            recover()
-            return
-        }
+        if (startupStartedAt != 0L && !diagnostics.firstFrameRendered && now - startupStartedAt >= 15_000L) { recover(); return }
+        if (p.playbackState == Player.STATE_ENDED && p.isCurrentMediaItemLive) { recover(); return }
         val videoPlaying = p.isPlaying && diagnostics.videoTrackAvailable
         val audioAvailable = diagnostics.audioTrackAvailable
         if (videoPlaying && audioAvailable) {
@@ -324,18 +322,14 @@ class AlfiePlayer(context: Context) {
             if (lastPlayingPosition != C.TIME_UNSET && position == lastPlayingPosition) {
                 if (stagnantSince == 0L) stagnantSince = now
                 if (now - stagnantSince >= 12_000L && now - lastAudioRecoveryAt >= 12_000L) recoverAudio()
-            } else {
-                stagnantSince = 0L
-            }
+            } else stagnantSince = 0L
             lastPlayingPosition = position
             return
         }
         if (p.playbackState == Player.STATE_BUFFERING && p.playerError == null) {
             if (bufferingSince == 0L) bufferingSince = now
             if (now - bufferingSince >= 10_000L) recover()
-        } else if (videoPlaying && !audioAvailable && now - lastAudioRecoveryAt >= 12_000L) {
-            recoverAudio()
-        }
+        } else if (videoPlaying && !audioAvailable && now - lastAudioRecoveryAt >= 12_000L) recoverAudio()
     }
 
     private fun recoverAudio(force: Boolean = false) {
