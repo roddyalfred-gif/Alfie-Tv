@@ -127,6 +127,14 @@ class AlfiePlayer(context: Context) {
         diagnostics.lastErrorCode = null
         diagnostics.lastErrorCodeName = null
         diagnostics.lastErrorMessage = null
+        // Clear track state from the previous item. A channel switch can reuse the
+        // same player instance, and stale availability could otherwise trigger an
+        // audio recovery before the new stream has exposed its tracks.
+        diagnostics.audioTrackAvailable = false
+        diagnostics.videoTrackAvailable = false
+        diagnostics.audioSessionId = null
+        diagnostics.lastAudioTrackChangeAt = null
+        diagnostics.lastVideoTrackChangeAt = null
 
         val sourceType = inferSourceType(url)
         val builder = MediaItem.Builder()
