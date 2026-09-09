@@ -14,8 +14,7 @@ class XtreamClient {
         val channels = parseArray(get(api(config, "get_live_streams"))).mapNotNull { o ->
             val id = o.optString("stream_id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
             val fallback = "$base/live/${enc(config.username)}/${enc(config.password)}/$id.m3u8"
-            val streamUrl = o.optString("direct_source").trim().ifBlank { fallback }
-            IptvChannel(id, o.optString("name"), streamUrl, o.optString("category_id").ifBlank { null }, o.optString("stream_icon").ifBlank { null }, o.optString("epg_channel_id").ifBlank { null })
+            IptvChannel(id, o.optString("name"), o.optString("direct_source").trim().ifBlank { fallback }, o.optString("category_id").ifBlank { null }, o.optString("stream_icon").ifBlank { null }, o.optString("epg_channel_id").ifBlank { null })
         }
         return categories to channels
     }
