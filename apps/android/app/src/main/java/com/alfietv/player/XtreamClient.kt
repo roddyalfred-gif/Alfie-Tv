@@ -66,8 +66,8 @@ class XtreamClient {
         val objects = runCatching { parseArray(root) }.getOrElse {
             val json = JSONObject(root)
             when {
-                json.optJSONArray("epg_listings") != null -> parseArray(json.getJSONArray("epg_listings"))
-                json.optJSONArray("epg") != null -> parseArray(json.getJSONArray("epg"))
+                json.optJSONArray("epg_listings") != null -> parseJsonArray(json.getJSONArray("epg_listings"))
+                json.optJSONArray("epg") != null -> parseJsonArray(json.getJSONArray("epg"))
                 else -> emptyList()
             }
         }
@@ -109,14 +109,9 @@ class XtreamClient {
     private fun parseXtreamTime(value: String): Long? {
         val raw = value.trim()
         if (raw.isBlank()) return null
-        raw.toLongOrNull()?.let { epoch ->
-            return if (epoch < 100_000_000_000L) epoch * 1000L else epoch
-        }
-        return runCatching {
-            java.time.OffsetDateTime.parse(raw).toInstant().toEpochMilli()
-        }.getOrNull() ?: runCatching {
-            java.time.LocalDateTime.parse(raw.replace(" ", "T")).toInstant(java.time.ZoneOffset.UTC).toEpochMilli()
-        }.getOrNull()
+        raw.toLongOrNull()?.let { epoch -> return if (epoch < 100_000_000_000L) epoch * 1000L else epoch }
+        return runCatching { java.time.OffsetDateTime.parse(raw).toInstant().toEpochMilli() }.getOrNull()
+            ?: runCatching { java.time.LocalDateTime.parse(raw.replace(" ", "T")).toInstant(java.time.ZoneOffset.UTC).toEpochMilli() }.getOrNull()
     }
 
     private fun get(url: String): String {
@@ -130,10 +125,9 @@ class XtreamClient {
         } finally { c.disconnect() }
     }
 
-    private fun parseArray(text: String): List<JSONObject> {
-        val a = JSONArray(text)
-        return List(a.length()) { a.getJSONObject(it) }
-    }
+    private fun parseArray(text: String): List<JSONObject> = parseJsonArray(JSONArray(text))
+
+    private fun parseJsonArray(array: JSONArray): List<JSONObject> = List(array.length()) { array.getJSONObject(it) }
 
     private fun enc(value: String): String = java.net.URLEncoder.encode(value, Charsets.UTF_8.name())
 }
