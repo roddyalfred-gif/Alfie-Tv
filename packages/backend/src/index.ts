@@ -13,6 +13,13 @@ dotenv.config();
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const startedAt = Date.now();
+const isProduction = process.env.NODE_ENV === 'production';
+const jwtSecret = process.env.JWT_SECRET?.trim() || (isProduction ? '' : 'dev-secret');
+
+if (isProduction && !jwtSecret) {
+  throw new Error('JWT_SECRET is required in production');
+}
+
 const store = new FileStore(process.env.DATA_FILE || './data/channels.json');
 const database = new JsonDatabase(process.env.DATABASE_FILE || './data/database.json');
 const profileStore = new ProfileStore(process.env.PROFILE_FILE || './data/profiles.json');
@@ -126,9 +133,9 @@ app.post('/api/auth/login', (req, res) => {
     return;
   }
 
-  const secret = process.env.JWT_SECRET || 'dev-secret';
   const userId = createUserId('user');
-  const token = createToken({ sub: userId, username }, secret);
+  const token = createToken({ sub: userId, username }, jwtSecret);
+  const now = Date.now();
 
   res.json({
     token,
@@ -138,23 +145,22 @@ app.post('/api/auth/login', (req, res) => {
       email: `${username}@alfie-tv.local`,
       theme: 'dark',
       language: 'en',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
     },
   });
 });
 
 app.get('/api/auth/me', (req, res) => {
   const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
-  const secret = process.env.JWT_SECRET || 'dev-secret';
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : undefined;
 
   if (!token) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
 
-  const payload = verifyToken(token, secret);
+  const payload = verifyToken(token, jwtSecret);
   if (!payload) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
@@ -196,8 +202,10 @@ app.use('/api', (_req, res) => {
 // Error handling
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
-  const message = err instanceof Error ? err.message : 'Unknown error';
-  res.status(500).json({ error: 'Internal Server Error', message });
+  res.status(500).json({
+    error: 'Internal Server Error',
+    ...(isProduction ? {} : { message: err instanceof Error ? err.message : 'Unknown error' }),
+  });
 });
 
 const server = app.listen(PORT, () => {
