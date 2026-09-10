@@ -26,6 +26,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var root: FrameLayout
     private lateinit var playerView: PlayerView
     private lateinit var alfiePlayer: AlfiePlayer
+    private lateinit var topOverlay: LinearLayout
     private lateinit var titleView: TextView
     private lateinit var statusView: TextView
     private lateinit var formatView: TextView
@@ -95,6 +96,7 @@ class MainActivity : ComponentActivity() {
         alfiePlayer.attach(playerView)
         alfiePlayer.player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
+                topOverlay.visibility = View.VISIBLE
                 statusView.text = "PLAYBACK ERROR • ${error.errorCodeName}"
                 showPlaybackRetry()
             }
@@ -111,7 +113,14 @@ class MainActivity : ComponentActivity() {
                         trackPanel.visibility = View.GONE
                         playerView.requestFocus()
                     }
-                } else if (playbackState == Player.STATE_ENDED) {
+                    // The information band is a startup/zap overlay, not a permanent watermark.
+                    topOverlay.visibility = View.GONE
+                }
+                else if (playbackState == Player.STATE_BUFFERING && alfiePlayer.player.currentMediaItem != null) {
+                    // Keep the screen clean while the stream is recovering; PlayerView supplies buffering feedback.
+                    if (!showingPlaybackRetry) topOverlay.visibility = View.GONE
+                }
+                else if (playbackState == Player.STATE_ENDED) {
                     clearProgress()
                 }
             }
@@ -161,13 +170,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun buildOverlay() {
-        val top = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(28, 20, 28, 16); setBackgroundColor(Color.argb(185, 0, 0, 0)) }
+        topOverlay = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(28, 20, 28, 16); setBackgroundColor(Color.argb(185, 0, 0, 0)) }
         titleView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 22f }
         statusView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 14f; setPadding(0, 6, 0, 0) }
         formatView = TextView(this).apply { setTextColor(Color.LTGRAY); textSize = 13f; setPadding(0, 3, 0, 0) }
         epgView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 14f; setPadding(0, 8, 0, 0) }
-        top.addView(titleView); top.addView(statusView); top.addView(formatView); top.addView(epgView)
-        root.addView(top, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP))
+        topOverlay.addView(titleView); topOverlay.addView(statusView); topOverlay.addView(formatView); topOverlay.addView(epgView)
+        root.addView(topOverlay, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP))
         zapView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 26f; gravity = Gravity.CENTER; setPadding(32, 22, 32, 12); setBackgroundColor(Color.argb(205, 0, 0, 0)); visibility = View.GONE }
         root.addView(zapView, FrameLayout.LayoutParams(-2, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
         zapProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; progress = 0; visibility = View.GONE }
@@ -198,6 +207,7 @@ class MainActivity : ComponentActivity() {
         saveProgress()
         channelIndex = next; showingPlaybackRetry = false; trackPanel.visibility = View.GONE
         playerView.hideController()
+        topOverlay.visibility = View.VISIBLE
         alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle(), currentChannelNumber())
         channelIds.getOrNull(channelIndex)?.let { preferences.edit().putString("last_channel_id", it).apply() }
         showZapOverlay(); refreshOverlay()
@@ -208,6 +218,7 @@ class MainActivity : ComponentActivity() {
         saveProgress()
         channelIndex = index; showingPlaybackRetry = false; trackPanel.visibility = View.GONE
         playerView.hideController()
+        topOverlay.visibility = View.VISIBLE
         alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle(), currentChannelNumber())
         channelIds.getOrNull(channelIndex)?.let { preferences.edit().putString("last_channel_id", it).apply() }
         showZapOverlay(); refreshOverlay()
