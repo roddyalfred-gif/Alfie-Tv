@@ -47,7 +47,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(72, 34, 72, 30)
+            setPadding(72, 30, 72, 30)
             setBackgroundColor(backgroundColor)
             isFocusable = false
         }
@@ -64,11 +64,11 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         }, LinearLayout.LayoutParams(-1, -2))
 
         root.addView(TextView(this).apply {
-            text = "Live TV  •  Movies  •  Series  •  EPG"
+            text = "Choose what you want to watch"
             textSize = 15f
             gravity = Gravity.CENTER
             setTextColor(secondaryTextColor)
-            setPadding(0, 7, 0, 12)
+            setPadding(0, 5, 0, 10)
             isFocusable = false
         }, LinearLayout.LayoutParams(-1, -2))
 
@@ -79,20 +79,52 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             setTextColor(secondaryTextColor)
             isFocusable = false
         }
-        root.addView(status, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 10 })
+        root.addView(status, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 8 })
 
-        addButton(root, "Live TV") { open(LiveTvActivity::class.java) }
+        addSectionLabel(root, "LIVE & TV", "Live television and channel guide")
+        val firstButton = addButton(root, "Live TV") { open(LiveTvActivity::class.java) }
+
+        addSectionLabel(root, "ON DEMAND", "Movies and TV series")
         addButton(root, "Movies") { open(ContentActivity::class.java, "vod") }
         addButton(root, "Series") { open(ContentActivity::class.java, "series") }
+
+        addSectionLabel(root, "MY LIBRARY", "Your saved and recently watched content")
         addButton(root, "Favorites") { open(FavoritesActivity::class.java) }
+
+        addSectionLabel(root, "PROVIDER", "Manage your IPTV connection")
         addButton(root, "Refresh Provider") { refreshProvider() }
         addButton(root, "Change Provider / Logout") {
             clearProviderCache()
             SessionStore.clear(this)
             goToLogin()
         }
+
         setContentView(root)
-        root.post { root.getChildAt(3)?.requestFocus() }
+        root.post { firstButton.requestFocus() }
+    }
+
+    private fun addSectionLabel(root: LinearLayout, title: String, subtitle: String) {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(4, 12, 4, 2)
+            isFocusable = false
+        }
+        container.addView(TextView(this).apply {
+            text = title
+            textSize = 12f
+            setTextColor(accentColor)
+            typeface = Typeface.DEFAULT_BOLD
+            letterSpacing = 0.08f
+            isFocusable = false
+        })
+        container.addView(TextView(this).apply {
+            text = subtitle
+            textSize = 11f
+            setTextColor(secondaryTextColor)
+            setPadding(0, 2, 0, 0)
+            isFocusable = false
+        })
+        root.addView(container, LinearLayout.LayoutParams(-1, -2))
     }
 
     private fun refreshProvider() {
@@ -108,8 +140,8 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         }
     }
 
-    private fun addButton(root: LinearLayout, label: String, action: () -> Unit) {
-        root.addView(Button(this).apply {
+    private fun addButton(root: LinearLayout, label: String, action: () -> Unit): Button {
+        val button = Button(this).apply {
             text = label
             isAllCaps = false
             textSize = 16f
@@ -124,7 +156,9 @@ class HomeActivity : androidx.activity.ComponentActivity() {
                 (view as Button).setTextColor(if (focused) Color.WHITE else textColor)
             }
             setOnClickListener { action() }
-        }, LinearLayout.LayoutParams(-1, 58).apply { topMargin = 7 })
+        }
+        root.addView(button, LinearLayout.LayoutParams(-1, 58).apply { topMargin = 5 })
+        return button
     }
 
     private fun roundedBackground(color: Int, radiusDp: Float): GradientDrawable = GradientDrawable().apply {
