@@ -86,6 +86,7 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.ALFIE_RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.ALFIE_RELEASE_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
           test -n "$RELEASE_KEYSTORE_B64" || { echo "Missing ALFIE_RELEASE_KEYSTORE_B64"; exit 1; }
           test -n "$RELEASE_STORE_PASSWORD" || { echo "Missing ALFIE_RELEASE_STORE_PASSWORD"; exit 1; }
           test -n "$RELEASE_KEY_ALIAS" || { echo "Missing ALFIE_RELEASE_KEY_ALIAS"; exit 1; }
@@ -106,7 +107,24 @@ jobs:
         env:
           RELEASE_KEYSTORE_B64: ${{ secrets.ALFIE_RELEASE_KEYSTORE_B64 }}
         run: |
-          echo "$RELEASE_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/alfie-upload.jks"
+          set -euo pipefail
+          printf '%s' "$RELEASE_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/alfie-upload.jks"
+          test -s "$RUNNER_TEMP/alfie-upload.jks"
+
+      - name: Validate release keystore integrity
+        env:
+          ALFIE_RELEASE_STORE_PASSWORD: ${{ secrets.ALFIE_RELEASE_STORE_PASSWORD }}
+          ALFIE_RELEASE_KEY_ALIAS: ${{ secrets.ALFIE_RELEASE_KEY_ALIAS }}
+          ALFIE_RELEASE_KEY_PASSWORD: ${{ secrets.ALFIE_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keytool -list \
+            -keystore "$RUNNER_TEMP/alfie-upload.jks" \
+            -storepass "$ALFIE_RELEASE_STORE_PASSWORD" \
+            -alias "$ALFIE_RELEASE_KEY_ALIAS" \
+            -keypass "$ALFIE_RELEASE_KEY_PASSWORD" \
+            >/dev/null
+          echo "Stable release keystore is readable and the configured alias/passwords are valid."
 
       - name: Build signed release APK
         env:
