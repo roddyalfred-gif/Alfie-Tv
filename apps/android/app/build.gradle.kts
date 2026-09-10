@@ -43,11 +43,17 @@ android {
         release {
             isMinifyEnabled = false
             val playSigning = signingConfigs.findByName("playRelease")
-            signingConfig = playSigning ?: throw GradleException(
-                "Release builds must use the stable Alfie TV release/upload key. " +
-                    "Set ALFIE_RELEASE_STORE_FILE, ALFIE_RELEASE_STORE_PASSWORD, " +
-                    "ALFIE_RELEASE_KEY_ALIAS and ALFIE_RELEASE_KEY_PASSWORD."
-            )
+            val releaseTaskRequested = gradle.startParameter.taskNames.any {
+                it.contains("release", ignoreCase = true)
+            }
+            signingConfig = playSigning
+            if (releaseTaskRequested && playSigning == null) {
+                throw GradleException(
+                    "Release builds must use the stable Alfie TV release/upload key. " +
+                        "Set ALFIE_RELEASE_STORE_FILE, ALFIE_RELEASE_STORE_PASSWORD, " +
+                        "ALFIE_RELEASE_KEY_ALIAS and ALFIE_RELEASE_KEY_PASSWORD."
+                )
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
