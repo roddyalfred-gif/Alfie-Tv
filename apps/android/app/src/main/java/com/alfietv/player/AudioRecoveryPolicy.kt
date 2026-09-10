@@ -22,7 +22,9 @@ internal object AudioRecoveryPolicy {
     ): Boolean {
         if (!videoPlaying) return false
         if (recoveryAttempts >= MAX_RECOVERY_ATTEMPTS && !force) return false
-        if (!force && lastRecoveryAtMs > 0L && nowMs - lastRecoveryAtMs < RETRY_COOLDOWN_MS) return false
+
+        val cooldownElapsed = if (lastRecoveryAtMs <= 0L) Long.MAX_VALUE else (nowMs - lastRecoveryAtMs).coerceAtLeast(0L)
+        if (!force && cooldownElapsed < RETRY_COOLDOWN_MS) return false
 
         return force || !audioTrackAvailable || positionStagnantForMs >= STALL_THRESHOLD_MS
     }
