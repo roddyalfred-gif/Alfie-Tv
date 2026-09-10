@@ -14,6 +14,7 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
@@ -172,13 +173,21 @@ class LiveTvActivity : ComponentActivity() {
         val channels = filteredChannels()
         list.adapter = object : ArrayAdapter<IptvChannel>(this, android.R.layout.simple_list_item_1, channels) {
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-                val row = super.getView(position, convertView, parent) as TextView
+                val row = LinearLayout(this@LiveTvActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(14, 8, 14, 8)
+                    minimumHeight = 72
+                }
+                val icon = ImageView(this@LiveTvActivity).apply {
+                    layoutParams = LinearLayout.LayoutParams(56, 56).apply { marginEnd = 16 }
+                    scaleType = ImageView.ScaleType.CENTER_INSIDE
+                }
+                val label = TextView(this@LiveTvActivity).apply { textSize = 18f; isFocusable = false }
                 val channel = getItem(position) ?: return row
-                row.text = "${position + 1}. ${if (UserLibraryStore.isFavorite(this@LiveTvActivity, config, channel.toLibraryItem())) "★ " else ""}${channel.name}"
-                row.textSize = 18f
-                row.setPadding(20, 16, 20, 16)
-                row.minHeight = 64
-                row.isFocusable = false
+                label.text = "${position + 1}. ${if (UserLibraryStore.isFavorite(this@LiveTvActivity, config, channel.toLibraryItem())) "★ " else ""}${channel.name}"
+                row.addView(icon); row.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
+                ArtworkLoader.load(channel.logoUrl, icon, android.R.drawable.ic_menu_gallery)
                 return row
             }
         }
@@ -225,12 +234,14 @@ class LiveTvActivity : ComponentActivity() {
         val cachedText = cached?.let { formatPrograms(channel, it.programs, it.savedAt) }
         epg.text = cachedText?.let { if (EpgCache.isFresh(cached)) it else "$it\nRefreshing guide..." }
             ?: "${channel.name}\nLoading program guide..."
+        cachedText?.let { prefs.edit().putString("epg_${channel.id}", it).apply() }
         if (cached != null && EpgCache.isFresh(cached)) return
         executor.execute {
             try {
                 val programs = XtreamClient().loadEpg(config, channel)
                 EpgCache.write(this, config, channel, programs)
                 val text = formatPrograms(channel, programs, System.currentTimeMillis())
+                prefs.edit().putString("epg_${channel.id}", text).apply()
                 runOnUiThread { if (selectedEpgChannel?.id == channel.id) epg.text = text }
             } catch (_: Exception) {
                 runOnUiThread { if (selectedEpgChannel?.id == channel.id && cached == null) epg.text = "${channel.name}\nEPG unavailable" }
@@ -242,6 +253,7 @@ class LiveTvActivity : ComponentActivity() {
         val channel = selectedEpgChannel ?: return
         val cached = EpgCache.read(this, config, channel) ?: return
         epg.text = formatPrograms(channel, cached.programs, cached.savedAt)
+        prefs.edit().putString("epg_${channel.id}", epg.text.toString()).apply()
     }
 
     private fun formatPrograms(channel: IptvChannel, programs: List<EpgProgram>, savedAt: Long): String {
