@@ -5,8 +5,8 @@
     <application
         android:theme="@style/Theme.AlfieTV"
         android:label="Alfie TV"
-        android:icon="@drawable/ic_launcher"
-        android:roundIcon="@drawable/ic_launcher"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
         android:allowBackup="false"
         android:supportsRtl="true"
         android:usesCleartextTraffic="true">
