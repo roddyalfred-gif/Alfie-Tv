@@ -9,7 +9,7 @@ class XtreamClient {
     fun load(config: XtreamConfig): Pair<List<IptvCategory>, List<IptvChannel>> {
         val base = checkedBase(config)
         val authJson = JSONObject(get("$base/player_api.php?username=${enc(config.username)}&password=${enc(config.password)}"))
-        if (authJson.optJSONObject("user_info")?.optString("auth") == "0") throw IllegalStateException("Provider authentication failed")
+        validateAuth(authJson)
         val categories = parseArray(get(api(config, "get_live_categories"))).map { IptvCategory(it.optString("category_id"), it.optString("category_name"), "live") }
         val channels = parseArray(get(api(config, "get_live_streams"))).mapNotNull { o ->
             val id = o.optString("stream_id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
@@ -68,6 +68,16 @@ class XtreamClient {
             if (end <= start) return@mapNotNull null
             EpgProgram(channel.id, o.optString("title").ifBlank { "Program" }, start, end, o.optString("description").ifBlank { null })
         }.sortedBy { it.startUtcMs }
+    }
+
+    private fun validateAuth(authJson: JSONObject) {
+        val userInfo = authJson.optJSONObject("user_info") ?: throw IllegalStateException("Provider returned an invalid authentication response")
+        if (userInfo.optInt("auth", 0) != 1) throw IllegalStateException("Provider authentication failed")
+        val status = userInfo.optString("status").trim().lowercase()
+        if (status.isNotBlank() && status !in setOf("active", "enabled")) throw IllegalStateException("Provider account is not active")
+        val expDate = userInfo.optString("exp_date").trim()
+        val expiry = expDate.toLongOrNull()
+        if (expiry != null && expiry > 0 && expiry <= System.currentTimeMillis() / 1000) throw IllegalStateException("Provider account has expired")
     }
 
     private fun checkedBase(config: XtreamConfig): String = config.serverUrl.trimEnd('/').also {
