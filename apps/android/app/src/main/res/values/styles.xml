@@ -2,7 +2,11 @@
     <style name="Theme.AlfieTV" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowFullscreen">true</item>
-        <item name="android:colorAccent">#FFFFFF</item>
         <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:colorAccent">#00A8FF</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">#080C16</item>
+        <item name="android:windowBackground">#080C16</item>
+        <item name="android:windowNoTitle">true</item>
     </style>
 </resources>
