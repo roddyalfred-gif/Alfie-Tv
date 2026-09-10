@@ -14,6 +14,7 @@
         <activity android:name=".LiveTvActivity" android:screenOrientation="landscape" android:exported="false" />
         <activity android:name=".ContentActivity" android:screenOrientation="landscape" android:exported="false" />
         <activity android:name=".FavoritesActivity" android:screenOrientation="landscape" android:exported="false" />
+        <activity android:name=".SettingsActivity" android:screenOrientation="landscape" android:exported="false" />
         <activity android:name=".HomeActivity" android:screenOrientation="landscape" android:exported="false" />
         <activity android:name=".LoginActivity" android:screenOrientation="landscape" android:exported="true">
             <intent-filter>
