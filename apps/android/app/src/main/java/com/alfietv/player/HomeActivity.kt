@@ -82,18 +82,18 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         root.addView(status, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 8 })
 
         addSectionLabel(root, "LIVE & TV", "Live television and channel guide")
-        val firstButton = addButton(root, "Live TV") { open(LiveTvActivity::class.java) }
+        val firstButton = addButton(root, "📺  Live TV") { open(LiveTvActivity::class.java) }
 
         addSectionLabel(root, "ON DEMAND", "Movies and TV series")
-        addButton(root, "Movies") { open(ContentActivity::class.java, "vod") }
-        addButton(root, "Series") { open(ContentActivity::class.java, "series") }
+        addButton(root, "🎬  Movies") { open(ContentActivity::class.java, "vod") }
+        addButton(root, "📺  Series") { open(ContentActivity::class.java, "series") }
 
         addSectionLabel(root, "MY LIBRARY", "Your saved and recently watched content")
-        addButton(root, "Favorites") { open(FavoritesActivity::class.java) }
+        addButton(root, "★  Favorites") { open(FavoritesActivity::class.java) }
 
         addSectionLabel(root, "PROVIDER", "Manage your IPTV connection")
-        addButton(root, "Refresh Provider") { refreshProvider() }
-        addButton(root, "Change Provider / Logout") {
+        addButton(root, "↻  Refresh Provider") { refreshProvider() }
+        addButton(root, "⚙  Change Provider / Logout") {
             clearProviderCache()
             SessionStore.clear(this)
             goToLogin()
