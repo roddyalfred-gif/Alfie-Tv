@@ -11,14 +11,14 @@ android {
         applicationId = "com.alfietv.player"
         minSdk = 23
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.0.2"
     }
 
     signingConfigs {
         getByName("debug")
 
-        // Production/Play upload signing is injected by CI environment variables.
+        // Release/Play upload signing is injected by CI environment variables.
         // The keystore and passwords are never stored in the repository.
         val releaseStoreFile = System.getenv("ALFIE_RELEASE_STORE_FILE")
         val releaseStorePassword = System.getenv("ALFIE_RELEASE_STORE_PASSWORD")
@@ -42,11 +42,12 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = if (signingConfigs.findByName("playRelease") != null) {
-                signingConfigs.getByName("playRelease")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            val playSigning = signingConfigs.findByName("playRelease")
+            signingConfig = playSigning ?: throw GradleException(
+                "Release builds must use the stable Alfie TV release/upload key. " +
+                    "Set ALFIE_RELEASE_STORE_FILE, ALFIE_RELEASE_STORE_PASSWORD, " +
+                    "ALFIE_RELEASE_KEY_ALIAS and ALFIE_RELEASE_KEY_PASSWORD."
+            )
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
