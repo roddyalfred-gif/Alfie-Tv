@@ -15,9 +15,18 @@ android {
         versionName = "1.0.0"
     }
 
+    signingConfigs {
+        // Use the standard Android debug keystore for CI release artifacts.
+        // This makes the downloaded APK directly installable without exposing
+        // a production keystore in the repository. A production signing key
+        // should be supplied later through protected CI secrets for publishing.
+        getByName("debug")
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
