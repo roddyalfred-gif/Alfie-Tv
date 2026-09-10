@@ -59,14 +59,23 @@ class XtreamClient {
         return episodes.sortedWith(compareBy({ it.season ?: 0 }, { it.episode ?: 0 }))
     }
 
-    fun loadEpg(config: XtreamConfig, channel: IptvChannel, limit: Int = 8): List<EpgProgram> {
+    fun loadEpg(config: XtreamConfig, channel: IptvChannel, limit: Int = 12): List<EpgProgram> {
         val safeLimit = limit.coerceIn(1, 50)
         val url = api(config, "get_short_epg", "stream_id" to channel.id, "limit" to safeLimit.toString())
-        return parseArray(get(url)).mapNotNull { o ->
-            val start = parseXtreamTime(o.optString("start")) ?: return@mapNotNull null
-            val end = parseXtreamTime(o.optString("end")) ?: return@mapNotNull null
+        val root = get(url)
+        val objects = runCatching { parseArray(root) }.getOrElse {
+            val json = JSONObject(root)
+            when {
+                json.optJSONArray("epg_listings") != null -> parseArray(json.getJSONArray("epg_listings"))
+                json.optJSONArray("epg") != null -> parseArray(json.getJSONArray("epg"))
+                else -> emptyList()
+            }
+        }
+        return objects.mapNotNull { o ->
+            val start = parseXtreamTime(o.optString("start").ifBlank { o.optString("start_timestamp") }) ?: return@mapNotNull null
+            val end = parseXtreamTime(o.optString("end").ifBlank { o.optString("stop_timestamp") }) ?: return@mapNotNull null
             if (end <= start) return@mapNotNull null
-            EpgProgram(channel.id, o.optString("title").ifBlank { "Program" }, start, end, o.optString("description").ifBlank { null })
+            EpgProgram(channel.id, o.optString("title").ifBlank { o.optString("name") }.ifBlank { "Program" }, start, end, o.optString("description").ifBlank { null })
         }.sortedBy { it.startUtcMs }
     }
 
@@ -97,10 +106,18 @@ class XtreamClient {
         return "$base/player_api.php?$query"
     }
 
-    private fun parseXtreamTime(value: String): Long? = try {
-        java.time.LocalDateTime.parse(value.replace(" ", "T"))
-            .toInstant(java.time.ZoneOffset.UTC).toEpochMilli()
-    } catch (_: Exception) { null }
+    private fun parseXtreamTime(value: String): Long? {
+        val raw = value.trim()
+        if (raw.isBlank()) return null
+        raw.toLongOrNull()?.let { epoch ->
+            return if (epoch < 100_000_000_000L) epoch * 1000L else epoch
+        }
+        return runCatching {
+            java.time.OffsetDateTime.parse(raw).toInstant().toEpochMilli()
+        }.getOrNull() ?: runCatching {
+            java.time.LocalDateTime.parse(raw.replace(" ", "T")).toInstant(java.time.ZoneOffset.UTC).toEpochMilli()
+        }.getOrNull()
+    }
 
     private fun get(url: String): String {
         val c = URI(url).toURL().openConnection() as HttpURLConnection
