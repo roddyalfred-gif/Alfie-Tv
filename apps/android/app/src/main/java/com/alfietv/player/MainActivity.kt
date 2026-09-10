@@ -1,5 +1,6 @@
 package com.alfietv.player
 
+import android.app.AlertDialog
 import android.app.PictureInPictureParams
 import android.graphics.Color
 import android.os.Build
@@ -80,7 +81,7 @@ class MainActivity : ComponentActivity() {
         setupLibraryProgress()
         root = FrameLayout(this)
         playerView = PlayerView(this).apply {
-            useController = true
+            useController = SettingsStore.playerControls(this@MainActivity)
             controllerAutoShow = false
             controllerHideOnTouch = true
             controllerShowTimeoutMs = 5000
@@ -103,7 +104,7 @@ class MainActivity : ComponentActivity() {
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY) {
-                    if (!resumeApplied && resumePositionMs > 5_000L) {
+                    if (!resumeApplied && SettingsStore.rememberPosition(this@MainActivity) && resumePositionMs > 5_000L) {
                         val duration = alfiePlayer.player.duration
                         if (duration <= 0L || resumePositionMs < duration - 10_000L) alfiePlayer.player.seekTo(resumePositionMs)
                         resumeApplied = true
@@ -113,20 +114,16 @@ class MainActivity : ComponentActivity() {
                         trackPanel.visibility = View.GONE
                         playerView.requestFocus()
                     }
-                    // The information band is a startup/zap overlay, not a permanent watermark.
                     topOverlay.visibility = View.GONE
-                }
-                else if (playbackState == Player.STATE_BUFFERING && alfiePlayer.player.currentMediaItem != null) {
-                    // Keep the screen clean while the stream is recovering; PlayerView supplies buffering feedback.
+                } else if (playbackState == Player.STATE_BUFFERING && alfiePlayer.player.currentMediaItem != null) {
                     if (!showingPlaybackRetry) topOverlay.visibility = View.GONE
-                }
-                else if (playbackState == Player.STATE_ENDED) {
+                } else if (playbackState == Player.STATE_ENDED) {
                     clearProgress()
                 }
             }
         })
         intent.getStringExtra("stream_url")?.takeIf { it.isNotBlank() }?.let {
-            alfiePlayer.play(it, currentTitle(), channelNumber = currentChannelNumber())
+            if (SettingsStore.autoPlay(this)) alfiePlayer.play(it, currentTitle(), channelNumber = currentChannelNumber())
         }
         showZapOverlay()
         refreshOverlay()
@@ -149,6 +146,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun saveProgress() {
+        if (!SettingsStore.rememberPosition(this)) return
         val config = libraryConfig ?: return
         val item = libraryItem ?: return
         if (!::alfiePlayer.isInitialized) return
@@ -163,7 +161,7 @@ class MainActivity : ComponentActivity() {
         UserLibraryStore.clearProgress(this, config, item)
     }
 
-    private fun loadResizeMode(): Int = when (preferences.getString("aspect_ratio", "fit")) {
+    private fun loadResizeMode(): Int = when (SettingsStore.aspectRatio(this)) {
         "fill" -> AspectRatioFrameLayout.RESIZE_MODE_FILL
         "zoom" -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
         else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
@@ -197,7 +195,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun currentTitle(): String = channelTitles.getOrNull(channelIndex) ?: intent.getStringExtra("title") ?: "Alfie TV"
-
     private fun currentChannelNumber(): String? = channelNumbers.getOrNull(channelIndex) ?: intent.getStringExtra("channel_number")
 
     private fun switchChannel(delta: Int) {
@@ -206,8 +203,7 @@ class MainActivity : ComponentActivity() {
         if (next == channelIndex) return
         saveProgress()
         channelIndex = next; showingPlaybackRetry = false; trackPanel.visibility = View.GONE
-        playerView.hideController()
-        topOverlay.visibility = View.VISIBLE
+        playerView.hideController(); topOverlay.visibility = View.VISIBLE
         alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle(), currentChannelNumber())
         channelIds.getOrNull(channelIndex)?.let { preferences.edit().putString("last_channel_id", it).apply() }
         showZapOverlay(); refreshOverlay()
@@ -217,8 +213,7 @@ class MainActivity : ComponentActivity() {
         if (index !in channelUrls.indices || index == channelIndex) return
         saveProgress()
         channelIndex = index; showingPlaybackRetry = false; trackPanel.visibility = View.GONE
-        playerView.hideController()
-        topOverlay.visibility = View.VISIBLE
+        playerView.hideController(); topOverlay.visibility = View.VISIBLE
         alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle(), currentChannelNumber())
         channelIds.getOrNull(channelIndex)?.let { preferences.edit().putString("last_channel_id", it).apply() }
         showZapOverlay(); refreshOverlay()
@@ -250,15 +245,12 @@ class MainActivity : ComponentActivity() {
         trackPanel.getChildAt(0)?.requestFocus()
     }
 
-    private fun showPlaybackRetry() {
-        showingPlaybackRetry = true
-        showTrackPanel()
-    }
+    private fun showPlaybackRetry() { showingPlaybackRetry = true; showTrackPanel() }
 
     private fun setResizeMode(mode: Int) {
         playerView.resizeMode = mode
         val value = when (mode) { AspectRatioFrameLayout.RESIZE_MODE_FILL -> "fill"; AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> "zoom"; else -> "fit" }
-        preferences.edit().putString("aspect_ratio", value).apply(); trackPanel.visibility = View.GONE; playerView.requestFocus()
+        SettingsStore.setAspectRatio(this, value); trackPanel.visibility = View.GONE; playerView.requestFocus()
     }
 
     private fun showAudioOptions(options: List<TrackOption>) {
@@ -286,6 +278,13 @@ class MainActivity : ComponentActivity() {
         playerView.showController()
     }
 
+    private fun dispatchExit(): Boolean {
+        if (!SettingsStore.confirmExit(this)) return false
+        AlertDialog.Builder(this).setTitle("Exit Alfie TV?").setMessage("Are you sure you want to close the player?")
+            .setNegativeButton("Cancel", null).setPositiveButton("Exit") { _, _ -> finish() }.show()
+        return true
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) when (event.keyCode) {
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { if (alfiePlayer.player.isPlaying) alfiePlayer.player.pause() else alfiePlayer.player.play(); playerView.showController(); return true }
@@ -300,7 +299,9 @@ class MainActivity : ComponentActivity() {
             KeyEvent.KEYCODE_DPAD_RIGHT -> { if (trackPanel.visibility == View.GONE) { seekBy(10_000L); return true } }
             KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_INFO -> { showTrackPanel(); return true }
             KeyEvent.KEYCODE_BACK -> {
-                if (trackPanel.visibility == View.VISIBLE) { showingPlaybackRetry = false; trackPanel.visibility = View.GONE; playerView.requestFocus() } else if (playerView.isControllerFullyVisible) { playerView.hideController(); playerView.requestFocus() } else finish()
+                if (trackPanel.visibility == View.VISIBLE) { showingPlaybackRetry = false; trackPanel.visibility = View.GONE; playerView.requestFocus() }
+                else if (playerView.isControllerFullyVisible) { playerView.hideController(); playerView.requestFocus() }
+                else if (!dispatchExit()) finish()
                 return true
             }
             KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER -> if (numericBuffer.isNotEmpty()) { commitNumericChannel(); return true }
@@ -320,7 +321,9 @@ class MainActivity : ComponentActivity() {
 
     @Deprecated("Deprecated in Android API 33")
     override fun onBackPressed() {
-        if (trackPanel.visibility == View.VISIBLE) { showingPlaybackRetry = false; trackPanel.visibility = View.GONE; playerView.requestFocus() } else if (playerView.isControllerFullyVisible) { playerView.hideController(); playerView.requestFocus() } else finish()
+        if (trackPanel.visibility == View.VISIBLE) { showingPlaybackRetry = false; trackPanel.visibility = View.GONE; playerView.requestFocus() }
+        else if (playerView.isControllerFullyVisible) { playerView.hideController(); playerView.requestFocus() }
+        else if (!dispatchExit()) finish()
     }
 
     override fun onUserLeaveHint() {
@@ -335,7 +338,7 @@ class MainActivity : ComponentActivity() {
         if (::alfiePlayer.isInitialized) {
             playerView.requestFocus()
             if (alfiePlayer.player.playbackState == Player.STATE_IDLE) alfiePlayer.prepare()
-            alfiePlayer.player.playWhenReady = true
+            if (SettingsStore.autoPlay(this)) alfiePlayer.player.playWhenReady = true
         }
     }
 
