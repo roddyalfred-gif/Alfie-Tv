@@ -33,58 +33,38 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
             setBackgroundColor(bg)
             isFocusable = false
         }
-        root.addView(TextView(this).apply {
-            text = "SETTINGS"
-            textSize = 30f
-            setTextColor(accent)
-            typeface = Typeface.DEFAULT_BOLD
-        })
-        root.addView(TextView(this).apply {
-            text = "Make Alfie TV work the way you like"
-            textSize = 14f
-            setTextColor(secondary)
-            setPadding(0, 4, 0, 14)
-        })
+        root.addView(TextView(this).apply { text = "SETTINGS"; textSize = 30f; setTextColor(accent); typeface = Typeface.DEFAULT_BOLD })
+        root.addView(TextView(this).apply { text = "Make Alfie TV work the way you like"; textSize = 14f; setTextColor(secondary); setPadding(0, 4, 0, 14) })
 
         addHeader(root, "PLAYBACK")
         addSwitch(root, "Auto-play channels", "Start a stream immediately when selected", SettingsStore.autoPlay(this)) { SettingsStore.setAutoPlay(this, it) }
         addSwitch(root, "Remember playback position", "Resume movies and episodes from your last position", SettingsStore.rememberPosition(this)) { SettingsStore.setRememberPosition(this, it) }
         addSwitch(root, "Player controls", "Show Media3 playback controls", SettingsStore.playerControls(this)) { SettingsStore.setPlayerControls(this, it) }
+        addSwitch(root, "Auto-retry playback", "Recover automatically from stream failures", SettingsStore.autoRetry(this)) { SettingsStore.setAutoRetry(this, it) }
+        addSwitch(root, "Remember last channel", "Return to the last selected live channel", SettingsStore.rememberChannel(this)) { SettingsStore.setRememberChannel(this, it) }
         addChoice(root, "Picture size", "Fit preserves the full picture; Fill and Zoom use more of the screen", SettingsStore.aspectRatio(this), listOf("fit" to "Fit", "fill" to "Fill", "zoom" to "Zoom")) { SettingsStore.setAspectRatio(this, it) }
+        addChoice(root, "Seek interval", "Choose the skip amount for movies and episodes", SettingsStore.seekSeconds(this).toString(), listOf("5" to "5 sec", "10" to "10 sec", "15" to "15 sec", "30" to "30 sec", "60" to "60 sec")) { SettingsStore.setSeekSeconds(this, it.toInt()) }
 
         addHeader(root, "INTERFACE")
-        addSwitch(root, "Show clock", "Allow the interface to display device time", SettingsStore.showClock(this)) { SettingsStore.setShowClock(this, it) }
+        addSwitch(root, "Show clock", "Display the current device time in the player overlay", SettingsStore.showClock(this)) { SettingsStore.setShowClock(this, it) }
         addSwitch(root, "Confirm exit", "Ask before closing the player with Back", SettingsStore.confirmExit(this)) { SettingsStore.setConfirmExit(this, it) }
 
         addHeader(root, "MAINTENANCE")
         addButton(root, "↻  Refresh provider data") { refresh() }
-        addButton(root, "♻  Reset app preferences") {
-            SettingsStore.reset(this)
-            buildSettings()
-        }
+        addButton(root, "♻  Reset app preferences") { SettingsStore.reset(this); buildSettings() }
         addButton(root, "←  Back") { finish() }
         setContentView(root)
         root.post { if (root.childCount > 2) root.getChildAt(2).requestFocus() }
     }
 
     private fun addHeader(root: LinearLayout, title: String) {
-        root.addView(TextView(this).apply {
-            text = title
-            textSize = 12f
-            setTextColor(accent)
-            typeface = Typeface.DEFAULT_BOLD
-            setPadding(4, 12, 4, 4)
-        })
+        root.addView(TextView(this).apply { text = title; textSize = 12f; setTextColor(accent); typeface = Typeface.DEFAULT_BOLD; setPadding(4, 12, 4, 4) })
     }
 
     private fun addSwitch(root: LinearLayout, title: String, subtitle: String, checked: Boolean, changed: (Boolean) -> Unit) {
         val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(16, 8, 16, 8)
-            background = rounded(surface)
-            isFocusable = true
-            isFocusableInTouchMode = true
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(16, 8, 16, 8); background = rounded(surface)
+            isFocusable = true; isFocusableInTouchMode = true
             setOnFocusChangeListener { v, focused -> v.background = rounded(if (focused) accent else surface) }
         }
         val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -98,12 +78,8 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
 
     private fun addChoice(root: LinearLayout, title: String, subtitle: String, selected: String, choices: List<Pair<String, String>>, changed: (String) -> Unit) {
         val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(16, 8, 16, 8)
-            background = rounded(surface)
-            isFocusable = true
-            isFocusableInTouchMode = true
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(16, 8, 16, 8); background = rounded(surface)
+            isFocusable = true; isFocusableInTouchMode = true
             setOnFocusChangeListener { v, focused -> v.background = rounded(if (focused) accent else surface) }
         }
         val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -111,36 +87,27 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
         labels.addView(TextView(this).apply { text = subtitle; textSize = 11f; setTextColor(secondary); setPadding(0, 2, 0, 0) })
         row.addView(labels, LinearLayout.LayoutParams(0, -2, 1f))
         val button = Button(this).apply {
-            isAllCaps = false
-            textSize = 14f
+            isAllCaps = false; textSize = 14f; setTextColor(primaryText); stateListAnimator = null; background = rounded(surface)
             text = choices.firstOrNull { it.first == selected }?.second ?: choices.first().second
-            setTextColor(primaryText)
-            stateListAnimator = null
-            background = rounded(surface)
             setOnClickListener {
-                val current = SettingsStore.aspectRatio(this@SettingsActivity)
+                val current = when {
+                    title == "Seek interval" -> SettingsStore.seekSeconds(this@SettingsActivity).toString()
+                    title == "Picture size" -> SettingsStore.aspectRatio(this@SettingsActivity)
+                    else -> selected
+                }
                 val index = choices.indexOfFirst { it.first == current }.let { if (it >= 0) it else 0 }
                 val next = choices[(index + 1) % choices.size]
-                changed(next.first)
-                text = next.second
+                changed(next.first); text = next.second
             }
         }
-        row.addView(button, LinearLayout.LayoutParams(150, 52))
-        row.setOnClickListener { button.performClick() }
+        row.addView(button, LinearLayout.LayoutParams(150, 52)); row.setOnClickListener { button.performClick() }
         root.addView(row, LinearLayout.LayoutParams(-1, 72).apply { topMargin = 5 })
     }
 
     private fun addButton(root: LinearLayout, label: String, action: () -> Unit) {
         val button = Button(this).apply {
-            text = label
-            isAllCaps = false
-            textSize = 15f
-            minHeight = 54
-            setTextColor(primaryText)
-            background = rounded(surface)
-            isFocusable = true
-            isFocusableInTouchMode = true
-            stateListAnimator = null
+            text = label; isAllCaps = false; textSize = 15f; minHeight = 54; setTextColor(primaryText); background = rounded(surface)
+            isFocusable = true; isFocusableInTouchMode = true; stateListAnimator = null
             setOnFocusChangeListener { v, focused -> v.background = rounded(if (focused) accent else surface) }
             setOnClickListener { action() }
         }
@@ -149,12 +116,7 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
 
     private fun refresh() {
         val config = SessionStore.load(this) ?: return
-        Thread {
-            runCatching {
-                val (categories, channels) = XtreamClient().load(config)
-                LiveTvCache.write(this, config, categories, channels)
-            }
-        }.start()
+        Thread { runCatching { val (categories, channels) = XtreamClient().load(config); LiveTvCache.write(this, config, categories, channels) } }.start()
     }
 
     private fun rounded(color: Int) = GradientDrawable().apply { setColor(color); cornerRadius = 14f * resources.displayMetrics.density }
