@@ -2,7 +2,14 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
-    <application android:theme="@style/Theme.AlfieTV" android:label="Alfie TV" android:allowBackup="false" android:supportsRtl="true" android:usesCleartextTraffic="true">
+    <application
+        android:theme="@style/Theme.AlfieTV"
+        android:label="Alfie TV"
+        android:icon="@drawable/ic_launcher"
+        android:roundIcon="@drawable/ic_launcher"
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="true">
         <activity android:name=".MainActivity" android:screenOrientation="landscape" android:exported="false" android:supportsPictureInPicture="true" />
         <activity android:name=".LiveTvActivity" android:screenOrientation="landscape" android:exported="false" />
         <activity android:name=".ContentActivity" android:screenOrientation="landscape" android:exported="false" />
