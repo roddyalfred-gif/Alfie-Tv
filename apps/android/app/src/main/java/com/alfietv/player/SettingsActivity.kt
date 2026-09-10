@@ -16,7 +16,7 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
     private val bg = Color.rgb(8, 12, 22)
     private val surface = Color.rgb(18, 25, 40)
     private val accent = Color.rgb(0, 168, 255)
-    private val textColor = Color.WHITE
+    private val primaryText = Color.WHITE
     private val secondary = Color.rgb(170, 181, 200)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -88,7 +88,7 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
             setOnFocusChangeListener { v, focused -> v.background = rounded(if (focused) accent else surface) }
         }
         val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        labels.addView(TextView(this).apply { text = title; textSize = 16f; setTextColor(textColor) })
+        labels.addView(TextView(this).apply { text = title; textSize = 16f; setTextColor(primaryText) })
         labels.addView(TextView(this).apply { text = subtitle; textSize = 11f; setTextColor(secondary); setPadding(0, 2, 0, 0) })
         row.addView(labels, LinearLayout.LayoutParams(0, -2, 1f))
         row.addView(Switch(this).apply { isChecked = checked; setOnCheckedChangeListener { _, value -> changed(value) } })
@@ -107,18 +107,19 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
             setOnFocusChangeListener { v, focused -> v.background = rounded(if (focused) accent else surface) }
         }
         val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        labels.addView(TextView(this).apply { text = title; textSize = 16f; setTextColor(textColor) })
+        labels.addView(TextView(this).apply { text = title; textSize = 16f; setTextColor(primaryText) })
         labels.addView(TextView(this).apply { text = subtitle; textSize = 11f; setTextColor(secondary); setPadding(0, 2, 0, 0) })
         row.addView(labels, LinearLayout.LayoutParams(0, -2, 1f))
         val button = Button(this).apply {
             isAllCaps = false
             textSize = 14f
             text = choices.firstOrNull { it.first == selected }?.second ?: choices.first().second
-            setTextColor(textColor)
+            setTextColor(primaryText)
             stateListAnimator = null
             background = rounded(surface)
             setOnClickListener {
-                val index = choices.indexOfFirst { it.first == SettingsStore.aspectRatio(this@SettingsActivity) }.let { if (it >= 0) it else 0 }
+                val current = SettingsStore.aspectRatio(this@SettingsActivity)
+                val index = choices.indexOfFirst { it.first == current }.let { if (it >= 0) it else 0 }
                 val next = choices[(index + 1) % choices.size]
                 changed(next.first)
                 text = next.second
@@ -135,7 +136,7 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
             isAllCaps = false
             textSize = 15f
             minHeight = 54
-            setTextColor(textColor)
+            setTextColor(primaryText)
             background = rounded(surface)
             isFocusable = true
             isFocusableInTouchMode = true
