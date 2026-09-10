@@ -2,10 +2,14 @@ package com.alfietv.player
 
 import android.content.Context
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.View
+import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
@@ -21,6 +25,7 @@ import java.util.concurrent.Executors
 
 class LiveTvActivity : ComponentActivity() {
     private val executor = Executors.newSingleThreadExecutor()
+    private val mainHandler = Handler(Looper.getMainLooper())
     private lateinit var list: ListView
     private lateinit var status: TextView
     private lateinit var epg: TextView
@@ -30,6 +35,15 @@ class LiveTvActivity : ComponentActivity() {
     private var selectedCategory: String? = null
     private lateinit var config: XtreamConfig
     private var restoredLastChannel = false
+    private var baseStatus = "Loading channels..."
+    private var selectedEpgChannel: IptvChannel? = null
+
+    private val epgTicker = object : Runnable {
+        override fun run() {
+            refreshSelectedEpgDisplay()
+            mainHandler.postDelayed(this, 60_000L)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,58 +51,84 @@ class LiveTvActivity : ComponentActivity() {
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(20, 16, 20, 16) }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         val title = TextView(this).apply { text = "Live TV"; textSize = 26f; isFocusable = false }
-        search = EditText(this).apply { hint = "Search channels"; setSingleLine(true); isFocusable = true; isFocusableInTouchMode = true }
+        search = EditText(this).apply { hint = "Search channels"; setSingleLine(true); isFocusable = true; isFocusableInTouchMode = true; imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_DONE }
         header.addView(title, LinearLayout.LayoutParams(0, -2, 1f)); header.addView(search, LinearLayout.LayoutParams(0, -2, 2f))
-        val categoryScroll = HorizontalScrollView(this).apply { isFocusable = false }
+
+        val categoryScroll = HorizontalScrollView(this).apply { isFocusable = false; isHorizontalScrollBarEnabled = false }
         categoryRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isFocusable = false }
-        categoryRow.addView(Button(this).apply { text = "All"; isAllCaps = false; isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { selectedCategory = null; render() } })
         categoryScroll.addView(categoryRow)
-        epg = TextView(this).apply { text = "Select a channel to view program information"; textSize = 16f; setPadding(8, 10, 8, 10); isFocusable = false }
+        addCategoryButton("All", null)
+
+        epg = TextView(this).apply { text = "Select a channel to view program information"; textSize = 16f; setPadding(8, 10, 8, 10); isFocusable = false; maxLines = 4 }
         list = ListView(this).apply {
-            isFocusable = true; isFocusableInTouchMode = true
+            isFocusable = true; isFocusableInTouchMode = true; dividerHeight = 1
             setOnKeyListener { _, keyCode, event ->
-                if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_CHANNEL_UP) { moveChannel(-1); true }
-                else if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_CHANNEL_DOWN) { moveChannel(1); true }
-                else false
+                if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                when (keyCode) {
+                    KeyEvent.KEYCODE_CHANNEL_UP -> { moveChannel(-1); true }
+                    KeyEvent.KEYCODE_CHANNEL_DOWN -> { moveChannel(1); true }
+                    KeyEvent.KEYCODE_DPAD_LEFT -> { categoryRow.getChildAt(0)?.requestFocus() ?: false }
+                    else -> false
+                }
             }
         }
-        status = TextView(this).apply { text = "Loading channels..."; textSize = 14f; isFocusable = false }
-        root.addView(header); root.addView(categoryScroll, LinearLayout.LayoutParams(-1, -2)); root.addView(epg, LinearLayout.LayoutParams(-1, -2)); root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f)); root.addView(status)
+        status = TextView(this).apply { text = baseStatus; textSize = 14f; isFocusable = false; setPadding(8, 8, 8, 4) }
+        root.addView(header)
+        root.addView(categoryScroll, LinearLayout.LayoutParams(-1, -2))
+        root.addView(epg, LinearLayout.LayoutParams(-1, -2))
+        root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(status)
         setContentView(root)
+
         search.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { render() }
             override fun afterTextChanged(s: Editable?) = Unit
         })
-        search.setOnEditorActionListener { _, _, _ -> list.requestFocus(); false }
-        list.setOnItemClickListener { _, _, position, _ -> play(filteredChannels()[position]) }
+        search.setOnEditorActionListener { _, _, _ -> list.requestFocus(); true }
+        list.setOnItemClickListener { _, _, position, _ -> filteredChannels().getOrNull(position)?.let(::play) }
         list.setOnItemLongClickListener { _, _, position, _ ->
-            val channel = filteredChannels()[position]
-            val item = channel.toLibraryItem()
-            val added = UserLibraryStore.toggleFavorite(this, config, item)
-            status.text = if (added) "★ Added to favorites: ${channel.name}" else "Removed from favorites: ${channel.name}"
-            render()
+            filteredChannels().getOrNull(position)?.let { channel ->
+                val added = UserLibraryStore.toggleFavorite(this, config, channel.toLibraryItem())
+                setBaseStatus(if (added) "★ Added to favorites: ${channel.name}" else "Removed from favorites: ${channel.name}")
+                render()
+            }
             true
         }
         load(categoryRow)
+        mainHandler.post(epgTicker)
+    }
+
+    private fun addCategoryButton(name: String, id: String?) {
+        val button = Button(this).apply {
+            text = name
+            isAllCaps = false
+            isFocusable = true
+            isFocusableInTouchMode = true
+            setOnClickListener { selectedCategory = id; setBaseStatus("${filteredChannels().size} channels • Select to play • Long-press to favorite"); render(); list.requestFocus() }
+            setOnKeyListener { _, keyCode, event ->
+                if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_DOWN) { list.requestFocus(); true } else false
+            }
+        }
+        categoryRow.addView(button, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = 8 })
     }
 
     private fun load(categoryRow: LinearLayout) {
         val cached = LiveTvCache.read(this, config)
         if (cached != null) {
             applyChannels(cached.categories, cached.channels, categoryRow)
-            status.text = "${cached.channels.size} channels • Cached ${LiveTvCache.ageText(cached)} • Refreshing..."
-        } else status.text = "Loading channels..."
+            setBaseStatus("${cached.channels.size} channels • Cached ${LiveTvCache.ageText(cached)} • Refreshing...")
+        } else setBaseStatus("Loading channels...")
         executor.execute {
             try {
                 val (categories, channels) = XtreamClient().load(config)
                 LiveTvCache.write(this, config, categories, channels)
                 runOnUiThread {
                     applyChannels(categories, channels, categoryRow)
-                    status.text = "${channels.size} channels • Updated just now • Long-press to favorite • CH+/CH− supported"
+                    setBaseStatus("${channels.size} channels • Updated just now • OK to play • Long-press favorite")
                 }
             } catch (e: Exception) {
-                runOnUiThread { status.text = if (allChannels.isNotEmpty()) "${allChannels.size} channels • Offline cache • Refresh failed: ${e.message ?: "unknown error"}" else "Unable to load channels: ${e.message ?: "unknown error"}" }
+                runOnUiThread { setBaseStatus(if (allChannels.isNotEmpty()) "${allChannels.size} channels • Offline cache • Refresh failed: ${e.message ?: "unknown error"}" else "Unable to load channels: ${e.message ?: "unknown error"}") }
             }
         }
     }
@@ -97,12 +137,12 @@ class LiveTvActivity : ComponentActivity() {
         allChannels = channels
         migrateLegacyFavorites(channels)
         while (categoryRow.childCount > 1) categoryRow.removeViewAt(1)
-        categories.forEach { category -> categoryRow.addView(Button(this).apply { text = category.name; isAllCaps = false; isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { selectedCategory = category.id; render() } }) }
+        categories.forEach { category -> addCategoryButton(category.name, category.id) }
         if (selectedCategory != null && categories.none { it.id == selectedCategory }) selectedCategory = null
         render()
         if (!restoredLastChannel) {
             restoredLastChannel = true
-            prefs.getString(lastChannelKey(), null)?.let { id -> channels.firstOrNull { it.id == id }?.let { showEpg(it) } }
+            prefs.getString(lastChannelKey(), null)?.let { id -> channels.firstOrNull { it.id == id }?.let(::showEpg) }
         }
     }
 
@@ -130,18 +170,40 @@ class LiveTvActivity : ComponentActivity() {
 
     private fun render() {
         val channels = filteredChannels()
-        list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, channels.mapIndexed { index, channel -> "${index + 1}  ${if (UserLibraryStore.isFavorite(this, config, channel.toLibraryItem())) "★ " else ""}${channel.name}" })
-        status.text = status.text.takeIf { it.contains("Updated") || it.contains("Cached") || it.contains("Offline") || it.contains("Added") || it.contains("Removed") } ?: "${channels.size} channels • Long-press to favorite • CH+/CH− supported"
-        list.post { if (!search.hasFocus()) list.requestFocus() }
+        list.adapter = object : ArrayAdapter<IptvChannel>(this, android.R.layout.simple_list_item_1, channels) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val row = super.getView(position, convertView, parent) as TextView
+                val channel = getItem(position) ?: return row
+                row.text = "${position + 1}. ${if (UserLibraryStore.isFavorite(this@LiveTvActivity, config, channel.toLibraryItem())) "★ " else ""}${channel.name}"
+                row.textSize = 18f
+                row.setPadding(20, 16, 20, 16)
+                row.minHeight = 64
+                row.isFocusable = false
+                return row
+            }
+        }
+        status.text = baseStatus
+        list.post {
+            if (!search.hasFocus()) {
+                list.requestFocus()
+                if (list.count > 0 && list.selectedItemPosition < 0) list.setSelection(0)
+            }
+        }
+        refreshSelectedEpgDisplay()
+    }
+
+    private fun setBaseStatus(value: String) {
+        baseStatus = value
+        if (::status.isInitialized) status.text = value
     }
 
     private fun moveChannel(delta: Int) {
-        val count = list.adapter?.count ?: return
+        val count = list.adapter?.count ?: 0
         if (count == 0) return
         val current = list.selectedItemPosition.takeIf { it >= 0 } ?: 0
         val next = (current + delta).coerceIn(0, count - 1)
         list.setSelection(next)
-        filteredChannels().getOrNull(next)?.let { showEpg(it) }
+        filteredChannels().getOrNull(next)?.let(::showEpg)
     }
 
     private fun play(channel: IptvChannel) {
@@ -158,35 +220,47 @@ class LiveTvActivity : ComponentActivity() {
     private fun IptvChannel.toLibraryItem() = UserLibraryStore.Item(id, UserLibraryStore.Type.LIVE, name, streamUrl, categoryId, logoUrl)
 
     private fun showEpg(channel: IptvChannel) {
+        selectedEpgChannel = channel
         val cached = EpgCache.read(this, config, channel)
         val cachedText = cached?.let { formatPrograms(channel, it.programs, it.savedAt) }
         epg.text = cachedText?.let { if (EpgCache.isFresh(cached)) it else "$it\nRefreshing guide..." }
             ?: "${channel.name}\nLoading program guide..."
-
         if (cached != null && EpgCache.isFresh(cached)) return
         executor.execute {
             try {
                 val programs = XtreamClient().loadEpg(config, channel)
                 EpgCache.write(this, config, channel, programs)
                 val text = formatPrograms(channel, programs, System.currentTimeMillis())
-                runOnUiThread { epg.text = text }
+                runOnUiThread { if (selectedEpgChannel?.id == channel.id) epg.text = text }
             } catch (_: Exception) {
-                runOnUiThread { if (cached == null) epg.text = "${channel.name}\nEPG unavailable" }
+                runOnUiThread { if (selectedEpgChannel?.id == channel.id && cached == null) epg.text = "${channel.name}\nEPG unavailable" }
             }
         }
     }
 
+    private fun refreshSelectedEpgDisplay() {
+        val channel = selectedEpgChannel ?: return
+        val cached = EpgCache.read(this, config, channel) ?: return
+        epg.text = formatPrograms(channel, cached.programs, cached.savedAt)
+    }
+
     private fun formatPrograms(channel: IptvChannel, programs: List<EpgProgram>, savedAt: Long): String {
         val now = System.currentTimeMillis()
-        val current = programs.firstOrNull { now in it.startUtcMs until it.endUtcMs }
-        val next = programs.firstOrNull { it.startUtcMs > now }
+        val ordered = programs.sortedBy { it.startUtcMs }
+        val current = ordered.firstOrNull { now in it.startUtcMs until it.endUtcMs }
+        val next = ordered.firstOrNull { it.startUtcMs > now }
         val nowText = current?.let { "NOW  ${it.title}  ${formatTime(it.startUtcMs)}–${formatTime(it.endUtcMs)}" } ?: "NOW  No current program"
         val nextText = next?.let { "NEXT ${it.title}  ${formatTime(it.startUtcMs)}" } ?: "NEXT No upcoming program"
         val progress = current?.let { val duration = (it.endUtcMs - it.startUtcMs).coerceAtLeast(1L); ((now - it.startUtcMs).coerceIn(0L, duration) * 100 / duration).toInt() } ?: 0
-        val age = if (savedAt > 0L) " • Guide ${EpgCache.ageText(EpgCache.Snapshot(programs, savedAt))}" else ""
+        val age = if (savedAt > 0L) " • Guide ${EpgCache.ageText(EpgCache.Snapshot(ordered, savedAt))}" else ""
         return "${channel.name}\n$nowText\n$nextText\nProgress: $progress%$age"
     }
 
     private fun formatTime(ms: Long): String = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(ms))
-    override fun onDestroy() { executor.shutdownNow(); super.onDestroy() }
+
+    override fun onDestroy() {
+        mainHandler.removeCallbacks(epgTicker)
+        executor.shutdownNow()
+        super.onDestroy()
+    }
 }
