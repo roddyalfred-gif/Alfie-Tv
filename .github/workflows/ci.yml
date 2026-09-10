@@ -55,6 +55,9 @@ jobs:
         with:
           gradle-version: '8.13'
 
+      - name: Run Android unit tests
+        run: gradle test --stacktrace
+
       - name: Build Android debug APK
         run: gradle assembleDebug --stacktrace
 
