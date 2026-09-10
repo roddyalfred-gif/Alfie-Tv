@@ -11,22 +11,42 @@ android {
         applicationId = "com.alfietv.player"
         minSdk = 23
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
     }
 
     signingConfigs {
-        // Use the standard Android debug keystore for CI release artifacts.
-        // This makes the downloaded APK directly installable without exposing
-        // a production keystore in the repository. A production signing key
-        // should be supplied later through protected CI secrets for publishing.
         getByName("debug")
+
+        // Production/Play upload signing is injected by CI environment variables.
+        // The keystore and passwords are never stored in the repository.
+        val releaseStoreFile = System.getenv("ALFIE_RELEASE_STORE_FILE")
+        val releaseStorePassword = System.getenv("ALFIE_RELEASE_STORE_PASSWORD")
+        val releaseKeyAlias = System.getenv("ALFIE_RELEASE_KEY_ALIAS")
+        val releaseKeyPassword = System.getenv("ALFIE_RELEASE_KEY_PASSWORD")
+
+        if (!releaseStoreFile.isNullOrBlank() &&
+            !releaseStorePassword.isNullOrBlank() &&
+            !releaseKeyAlias.isNullOrBlank() &&
+            !releaseKeyPassword.isNullOrBlank()
+        ) {
+            create("playRelease") {
+                storeFile = file(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (signingConfigs.findByName("playRelease") != null) {
+                signingConfigs.getByName("playRelease")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
