@@ -3,6 +3,7 @@ package com.alfietv.player
 import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.InputType
@@ -17,50 +18,52 @@ class LoginActivity : androidx.activity.ComponentActivity() {
     private lateinit var status: TextView
     private lateinit var button: Button
 
-    private val backgroundColor = Color.rgb(8, 12, 22)
-    private val surfaceColor = Color.rgb(18, 25, 40)
+    private val backgroundColor = Color.rgb(7, 10, 18)
+    private val surfaceColor = Color.rgb(17, 23, 36)
+    private val fieldColor = Color.rgb(25, 34, 51)
     private val accentColor = Color.rgb(0, 168, 255)
     private val textColor = Color.WHITE
     private val secondaryTextColor = Color.rgb(170, 181, 200)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        title = "Alfie TV"
         window.statusBarColor = backgroundColor
         window.navigationBarColor = backgroundColor
 
         val forceLogin = intent.getBooleanExtra("forceLogin", false)
         if (!forceLogin) {
             SessionStore.load(this)?.let { saved ->
+                buildLoginForm(saved)
                 connect(saved, autoLogin = true)
                 return
             }
         }
 
-        buildLoginForm()
+        buildLoginForm(null)
         if (!getPreferences(MODE_PRIVATE).getBoolean("content_notice_shown", false)) {
             showFirstLaunchNotice()
         }
     }
 
     private fun showFirstLaunchNotice() {
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle("Welcome to Alfie TV")
             .setMessage("This player doesn't contain any content at first load. Press OK to confirm, then enter your provider login credentials to load your Live TV, Movies, Series and EPG content.")
-            .setPositiveButton("OK") { dialog, _ ->
+            .setPositiveButton("OK") { dialogInterface, _ ->
                 getPreferences(MODE_PRIVATE).edit().putBoolean("content_notice_shown", true).apply()
-                dialog.dismiss()
+                dialogInterface.dismiss()
+                findViewById<EditText>(1001)?.requestFocus()
             }
             .setCancelable(false)
-            .show()
-            .also { dialog ->
-                dialog.setOnShowListener {
-                    dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.requestFocus()
-                }
-            }
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.requestFocus()
+        }
+        dialog.show()
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.requestFocus()
     }
 
-    private fun buildLoginForm() {
+    private fun buildLoginForm(saved: XtreamConfig?) {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
@@ -76,35 +79,35 @@ class LoginActivity : androidx.activity.ComponentActivity() {
             elevation = 12f
         }
 
-        val logo = TextView(this).apply {
+        card.addView(TextView(this).apply {
             text = "ALFIE TV"
             textSize = 30f
             setTextColor(accentColor)
             gravity = Gravity.CENTER
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            typeface = Typeface.DEFAULT_BOLD
             letterSpacing = 0.12f
-        }
-        card.addView(logo, LinearLayout.LayoutParams(-1, -2))
+        }, LinearLayout.LayoutParams(-1, -2))
 
-        val title = TextView(this).apply {
+        card.addView(TextView(this).apply {
             text = "Connect your provider"
             textSize = 22f
             setTextColor(textColor)
             gravity = Gravity.CENTER
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-        }
-        card.addView(title, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 18 })
+            typeface = Typeface.DEFAULT_BOLD
+        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 18 })
 
-        val subtitle = TextView(this).apply {
-            text = "Enter your IPTV server and account credentials to load your content."
+        card.addView(TextView(this).apply {
+            text = "Enter your IPTV provider credentials to load your content."
             textSize = 14f
             setTextColor(secondaryTextColor)
             gravity = Gravity.CENTER
-        }
-        card.addView(subtitle, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 8 })
+        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 8 })
 
-        val server = field("Provider URL", "https://provider.example.com", 33)
-        val username = field("Username", "Username", 33)
+        val server = field("Provider URL", "https://provider.example.com", 33).apply {
+            id = 1001
+            saved?.let { setText(it.serverUrl) }
+        }
+        val username = field("Username", "Username", 33).apply { saved?.let { setText(it.username) } }
         val password = field("Password", "Password", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
 
         card.addView(server, fieldParams())
@@ -133,14 +136,12 @@ class LoginActivity : androidx.activity.ComponentActivity() {
         card.addView(status, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 4 })
 
         root.addView(card, LinearLayout.LayoutParams(-1, -2).apply { gravity = Gravity.CENTER; weight = 1f })
-
-        val footer = TextView(this).apply {
+        root.addView(TextView(this).apply {
             text = "Alfie TV • Live TV • Movies • Series • EPG"
             textSize = 12f
             setTextColor(secondaryTextColor)
             gravity = Gravity.CENTER
-        }
-        root.addView(footer, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 14 })
+        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 14 })
         setContentView(root)
 
         button.setOnClickListener {
@@ -168,7 +169,7 @@ class LoginActivity : androidx.activity.ComponentActivity() {
         setHintTextColor(secondaryTextColor)
         setSingleLine(true)
         contentDescription = label
-        background = roundedBackground(Color.rgb(28, 37, 55), 12f)
+        background = roundedBackground(fieldColor, 12f)
         setPadding(18, 0, 18, 0)
         isFocusable = true
         isFocusableInTouchMode = true
@@ -203,7 +204,6 @@ class LoginActivity : androidx.activity.ComponentActivity() {
                 runOnUiThread {
                     spinner?.visibility = View.GONE
                     if (::button.isInitialized) button.isEnabled = true
-                    if (!::status.isInitialized) buildLoginForm()
                     status.text = if (autoLogin) "Saved provider session expired. Please reconnect." else "Connection failed: ${e.message ?: "unknown error"}"
                 }
             }
