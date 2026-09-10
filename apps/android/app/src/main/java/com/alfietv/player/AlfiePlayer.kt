@@ -21,6 +21,7 @@ import androidx.media3.ui.PlayerView
 class AlfiePlayer(context: Context) {
     private val appContext = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
+    private val playbackGeneration = PlaybackGeneration()
     private var recoveryAttempts = 0
     private var audioRecoveryAttempts = 0
     private var lastRecoveryAt = 0L
@@ -36,8 +37,11 @@ class AlfiePlayer(context: Context) {
     private var pendingChannelUrl: String? = null
     private var pendingChannelTitle: String? = null
     private var pendingChannelNumber: String? = null
+    private var pendingChannelGeneration = 0L
     private val channelSwitchRunnable = Runnable {
         val url = pendingChannelUrl ?: return@Runnable
+        val generation = pendingChannelGeneration
+        if (!playbackGeneration.isCurrent(generation)) return@Runnable
         val title = pendingChannelTitle
         val number = pendingChannelNumber
         pendingChannelUrl = null
@@ -129,6 +133,7 @@ class AlfiePlayer(context: Context) {
 
     fun play(url: String, title: String? = null, positionMs: Long = C.TIME_UNSET, channelNumber: String? = null) {
         require(url.startsWith("http://") || url.startsWith("https://")) { "Unsupported stream URL" }
+        playbackGeneration.next()
         handler.removeCallbacks(channelSwitchRunnable)
         pendingChannelUrl = null
         pendingChannelTitle = null
@@ -198,6 +203,7 @@ class AlfiePlayer(context: Context) {
     fun switchChannel(url: String, title: String? = null, channelNumber: String? = null) {
         require(url.startsWith("http://") || url.startsWith("https://")) { "Unsupported stream URL" }
         handler.removeCallbacks(channelSwitchRunnable)
+        pendingChannelGeneration = playbackGeneration.next()
         pendingChannelUrl = url
         pendingChannelTitle = title
         pendingChannelNumber = channelNumber
@@ -211,6 +217,7 @@ class AlfiePlayer(context: Context) {
     }
 
     fun stop() {
+        playbackGeneration.next()
         handler.removeCallbacks(channelSwitchRunnable)
         pendingChannelUrl = null
         pendingChannelTitle = null
@@ -220,6 +227,7 @@ class AlfiePlayer(context: Context) {
     }
 
     fun release() {
+        playbackGeneration.next()
         handler.removeCallbacks(healthCheck)
         handler.removeCallbacks(channelSwitchRunnable)
         pendingChannelUrl = null
@@ -372,10 +380,12 @@ class AlfiePlayer(context: Context) {
         bufferingSince = 0L
         startupStartedAt = now
         diagnostics.firstFrameRendered = false
+        val generation = playbackGeneration.current()
         val live = player.isCurrentMediaItemLive
         val position = player.currentPosition.coerceAtLeast(0L)
         val originalItem = player.currentMediaItem
         handler.postDelayed({
+            if (!playbackGeneration.isCurrent(generation)) return@postDelayed
             if (currentUrl != url) { recovering = false; return@postDelayed }
             val item = originalItem ?: MediaItem.Builder().setUri(url).setMediaId(currentTitle ?: "alfie-tv").build()
             player.setMediaItem(item, if (live) C.TIME_UNSET else position)
