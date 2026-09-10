@@ -4,6 +4,8 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 import java.security.MessageDigest
+import java.text.DateFormat
+import java.util.Date
 
 /** Provider- and channel-scoped EPG cache. Credentials are never stored. */
 object EpgCache {
@@ -38,7 +40,8 @@ object EpgCache {
 
     fun write(context: Context, config: XtreamConfig, channel: IptvChannel, programs: List<EpgProgram>) {
         if (programs.isEmpty()) return
-        val root = JSONObject().put("version", VERSION).put("savedAt", System.currentTimeMillis())
+        val savedAt = System.currentTimeMillis()
+        val root = JSONObject().put("version", VERSION).put("savedAt", savedAt)
         root.put("programs", JSONArray().also { array ->
             programs.forEach { program ->
                 array.put(JSONObject()
@@ -51,6 +54,23 @@ object EpgCache {
         runCatching {
             context.openFileOutput(fileName(config, channel), Context.MODE_PRIVATE).bufferedWriter().use { it.write(root.toString()) }
         }
+        // Also publish a lightweight display snapshot. MainActivity polls this value,
+        // so EPG can appear after the player has already started without waiting for a
+        // second activity refresh or relying on a race between screen transitions.
+        val now = System.currentTimeMillis()
+        val current = programs.firstOrNull { now >= it.startUtcMs && now < it.endUtcMs }
+        val next = programs.firstOrNull { it.startUtcMs > now }
+        val formatter = DateFormat.getTimeInstance(DateFormat.SHORT)
+        val display = buildString {
+            append("NOW  ")
+            append(current?.title ?: "—")
+            if (current != null) append("  ${formatter.format(Date(current.startUtcMs))}–${formatter.format(Date(current.endUtcMs))}")
+            append("\nNEXT ")
+            append(next?.title ?: "—")
+            if (next != null) append("  ${formatter.format(Date(next.startUtcMs))}")
+        }
+        context.getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
+            .edit().putString("epg_${channel.id}", display).apply()
     }
 
     fun isFresh(snapshot: Snapshot): Boolean = System.currentTimeMillis() - snapshot.savedAt <= MAX_AGE_MS
