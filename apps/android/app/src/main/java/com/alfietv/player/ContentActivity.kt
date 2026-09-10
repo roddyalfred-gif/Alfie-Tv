@@ -5,7 +5,8 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
-import android.view.KeyEvent
+import android.view.View
+import android.view.ViewGroup
 import android.widget.*
 import java.util.concurrent.Executors
 
@@ -133,18 +134,43 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private fun sortVod(items: List<VodItem>) = when (sortMode) { 1 -> items.sortedByDescending { it.name.lowercase() }; 2 -> items.sortedByDescending { it.year ?: "" }; else -> items.sortedBy { it.name.lowercase() } }
     private fun sortSeries(items: List<SeriesItem>) = when (sortMode) { 1 -> items.sortedByDescending { it.name.lowercase() }; 2 -> items.sortedByDescending { it.year ?: "" }; else -> items.sortedBy { it.name.lowercase() } }
 
+    private fun renderArtworkList(items: List<Any>, labels: List<String>, urls: List<String?>, placeholder: Int) {
+        list.adapter = object : ArrayAdapter<Any>(this, android.R.layout.simple_list_item_1, items) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val row = LinearLayout(this@ContentActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(14, 8, 14, 8)
+                    minimumHeight = 78
+                }
+                val icon = ImageView(this@ContentActivity).apply {
+                    layoutParams = LinearLayout.LayoutParams(58, 68).apply { marginEnd = 16 }
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                }
+                val text = TextView(this@ContentActivity).apply { textSize = 18f; isFocusable = false }
+                text.text = labels[position]
+                row.addView(icon); row.addView(text, LinearLayout.LayoutParams(0, -2, 1f))
+                ArtworkLoader.load(urls.getOrNull(position), icon, placeholder)
+                return row
+            }
+        }
+    }
+
     private fun render() {
         if (mode == "vod") {
             val items = filteredVod()
-            list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.mapIndexed { i, x -> "${i + 1}. ${if (UserLibraryStore.isFavorite(this, config, x.toLibraryItem())) "★ " else ""}${x.name}" })
+            val labels = items.mapIndexed { i, x -> "${i + 1}. ${if (UserLibraryStore.isFavorite(this, config, x.toLibraryItem())) "★ " else ""}${x.name}" }
+            renderArtworkList(items, labels, items.map { it.posterUrl }, android.R.drawable.ic_menu_gallery)
             if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} movies • Select to play • Long-press to favorite"
         } else if (episodes.isEmpty()) {
             val items = filteredSeries()
-            list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.mapIndexed { i, x -> "${i + 1}. ${if (UserLibraryStore.isFavorite(this, config, x.toLibraryItem())) "★ " else ""}${x.name}" })
+            val labels = items.mapIndexed { i, x -> "${i + 1}. ${if (UserLibraryStore.isFavorite(this, config, x.toLibraryItem())) "★ " else ""}${x.name}" }
+            renderArtworkList(items, labels, items.map { it.posterUrl }, android.R.drawable.ic_menu_gallery)
             if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} series • Select for episodes • Long-press to favorite"
         } else {
             val items = episodes.sortedWith(compareBy<SeriesEpisode> { it.season ?: 0 }.thenBy { it.episode ?: 0 })
-            list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, items.map { e -> "S${e.season ?: 0} E${e.episode ?: 0}  ${if (UserLibraryStore.isFavorite(this, config, e.toLibraryItem(selectedSeriesId))) "★ " else ""}${e.name}" })
+            val labels = items.map { e -> "S${e.season ?: 0} E${e.episode ?: 0}  ${if (UserLibraryStore.isFavorite(this, config, e.toLibraryItem(selectedSeriesId))) "★ " else ""}${e.name}" }
+            renderArtworkList(items, labels, List(items.size) { null }, android.R.drawable.ic_media_play)
             if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} episodes • Long-press to favorite"
         }
         list.post { if (!search.hasFocus()) list.requestFocus() }
