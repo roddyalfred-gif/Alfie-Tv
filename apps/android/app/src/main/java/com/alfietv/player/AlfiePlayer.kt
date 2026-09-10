@@ -191,13 +191,17 @@ class AlfiePlayer(context: Context) {
         play(url, currentTitle, if (wasLive) C.TIME_UNSET else position, currentChannelNumber)
     }
 
+    /**
+     * Coalesces rapid D-pad/CH+/CH- input so only the final requested channel is prepared.
+     * A short 75ms window keeps TV zapping responsive while avoiding redundant stream startups.
+     */
     fun switchChannel(url: String, title: String? = null, channelNumber: String? = null) {
         require(url.startsWith("http://") || url.startsWith("https://")) { "Unsupported stream URL" }
         handler.removeCallbacks(channelSwitchRunnable)
         pendingChannelUrl = url
         pendingChannelTitle = title
         pendingChannelNumber = channelNumber
-        handler.postDelayed(channelSwitchRunnable, 150L)
+        handler.postDelayed(channelSwitchRunnable, 75L)
     }
 
     fun playLastPosition() {
