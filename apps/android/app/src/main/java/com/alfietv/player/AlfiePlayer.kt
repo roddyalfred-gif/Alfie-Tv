@@ -333,7 +333,14 @@ class AlfiePlayer(context: Context) {
             val position = p.currentPosition
             if (lastPlayingPosition != C.TIME_UNSET && position == lastPlayingPosition) {
                 if (stagnantSince == 0L) stagnantSince = now
-                if (now - stagnantSince >= 12_000L && now - lastAudioRecoveryAt >= 12_000L) recoverAudio()
+                if (AudioRecoveryPolicy.shouldRecover(
+                        videoPlaying = videoPlaying,
+                        audioTrackAvailable = audioAvailable,
+                        positionStagnantForMs = now - stagnantSince,
+                        nowMs = now,
+                        lastRecoveryAtMs = lastAudioRecoveryAt,
+                        recoveryAttempts = audioRecoveryAttempts,
+                    )) recoverAudio()
             } else stagnantSince = 0L
             lastPlayingPosition = position
             return
@@ -341,13 +348,29 @@ class AlfiePlayer(context: Context) {
         if (p.playbackState == Player.STATE_BUFFERING && p.playerError == null) {
             if (bufferingSince == 0L) bufferingSince = now
             if (now - bufferingSince >= 10_000L) recover()
-        } else if (videoPlaying && !audioAvailable && now - lastAudioRecoveryAt >= 12_000L) recoverAudio()
+        } else if (videoPlaying && AudioRecoveryPolicy.shouldRecover(
+                videoPlaying = videoPlaying,
+                audioTrackAvailable = audioAvailable,
+                positionStagnantForMs = 0L,
+                nowMs = now,
+                lastRecoveryAtMs = lastAudioRecoveryAt,
+                recoveryAttempts = audioRecoveryAttempts,
+            )) recoverAudio()
     }
 
     private fun recoverAudio(force: Boolean = false) {
         if (recovering || player.currentMediaItem == null) return
         val now = System.currentTimeMillis()
-        if (!force && (now - lastAudioRecoveryAt < 12_000 || audioRecoveryAttempts >= 3)) return
+        val positionStagnantForMs = if (stagnantSince == 0L) 0L else (now - stagnantSince).coerceAtLeast(0L)
+        if (!AudioRecoveryPolicy.shouldRecover(
+                videoPlaying = player.isPlaying || player.playWhenReady,
+                audioTrackAvailable = diagnostics.audioTrackAvailable,
+                positionStagnantForMs = positionStagnantForMs,
+                nowMs = now,
+                lastRecoveryAtMs = lastAudioRecoveryAt,
+                recoveryAttempts = audioRecoveryAttempts,
+                force = force,
+            )) return
         lastAudioRecoveryAt = now
         if (!force) audioRecoveryAttempts++
         diagnostics.audioRecoveryCount++
@@ -355,6 +378,9 @@ class AlfiePlayer(context: Context) {
         val item = player.currentMediaItem ?: return
         val live = player.isCurrentMediaItemLive
         val position = player.currentPosition.coerceAtLeast(0L)
+        stagnantSince = 0L
+        lastPlayingPosition = C.TIME_UNSET
+        diagnostics.audioTrackAvailable = false
         player.stop()
         if (live) {
             player.setMediaItem(item)
@@ -378,8 +404,12 @@ class AlfiePlayer(context: Context) {
         diagnostics.recoveryCount++
         lastRecoveryAt = now
         bufferingSince = 0L
+        stagnantSince = 0L
+        lastPlayingPosition = C.TIME_UNSET
         startupStartedAt = now
         diagnostics.firstFrameRendered = false
+        diagnostics.audioTrackAvailable = false
+        diagnostics.videoTrackAvailable = false
         val generation = playbackGeneration.current()
         val live = player.isCurrentMediaItemLive
         val position = player.currentPosition.coerceAtLeast(0L)
