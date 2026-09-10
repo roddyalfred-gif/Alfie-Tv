@@ -6,6 +6,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -59,7 +60,7 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
             isFillViewport = true
             isFocusable = false
             setBackgroundColor(bg)
-            addView(content, ScrollView.LayoutParams(-1, -2))
+            addView(content, ViewGroup.LayoutParams(-1, -2))
         }
         setContentView(scroll)
         content.post { if (content.childCount > 2) content.getChildAt(2).requestFocus() }
