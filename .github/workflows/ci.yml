@@ -77,3 +77,13 @@ jobs:
           name: alfie-tv-release-apk
           path: apps/android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+
+      - name: Build Android release AAB
+        run: gradle bundleRelease --stacktrace
+
+      - name: Upload release AAB
+        uses: actions/upload-artifact@v5
+        with:
+          name: alfie-tv-release-aab
+          path: apps/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
