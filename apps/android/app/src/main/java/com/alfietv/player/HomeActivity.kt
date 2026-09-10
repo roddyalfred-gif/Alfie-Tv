@@ -1,9 +1,13 @@
 package com.alfietv.player
 
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -16,8 +20,16 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     private var status: TextView? = null
     private var homeRoot: LinearLayout? = null
 
+    private val backgroundColor = Color.rgb(8, 12, 22)
+    private val surfaceColor = Color.rgb(18, 25, 40)
+    private val accentColor = Color.rgb(0, 168, 255)
+    private val textColor = Color.WHITE
+    private val secondaryTextColor = Color.rgb(170, 181, 200)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.statusBarColor = backgroundColor
+        window.navigationBarColor = backgroundColor
         config = SessionStore.load(this) ?: XtreamConfig(
             intent.getStringExtra("server") ?: "",
             intent.getStringExtra("username") ?: "",
@@ -35,25 +47,39 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(64, 36, 64, 36)
+            setPadding(72, 34, 72, 30)
+            setBackgroundColor(backgroundColor)
             isFocusable = false
         }
         homeRoot = root
+
         root.addView(TextView(this).apply {
-            text = "Alfie TV"
-            textSize = 38f
+            text = "ALFIE TV"
+            textSize = 34f
             gravity = Gravity.CENTER
+            setTextColor(accentColor)
+            typeface = Typeface.DEFAULT_BOLD
+            letterSpacing = 0.1f
             isFocusable = false
         }, LinearLayout.LayoutParams(-1, -2))
+
         root.addView(TextView(this).apply {
-            text = "Your IPTV entertainment hub"
-            textSize = 18f
+            text = "Live TV  •  Movies  •  Series  •  EPG"
+            textSize = 15f
             gravity = Gravity.CENTER
-            setPadding(0, 8, 0, 16)
+            setTextColor(secondaryTextColor)
+            setPadding(0, 7, 0, 12)
             isFocusable = false
         }, LinearLayout.LayoutParams(-1, -2))
-        status = TextView(this).apply { gravity = Gravity.CENTER; textSize = 14f; text = "Provider connected"; isFocusable = false }
-        root.addView(status, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 8 })
+
+        status = TextView(this).apply {
+            gravity = Gravity.CENTER
+            textSize = 13f
+            text = "●  Provider connected"
+            setTextColor(secondaryTextColor)
+            isFocusable = false
+        }
+        root.addView(status, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 10 })
 
         addButton(root, "Live TV") { open(LiveTvActivity::class.java) }
         addButton(root, "Movies") { open(ContentActivity::class.java, "vod") }
@@ -75,7 +101,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             try {
                 val (categories, channels) = XtreamClient().load(config)
                 LiveTvCache.write(this, config, categories, channels)
-                runOnUiThread { status?.text = "Provider refreshed successfully • ${channels.size} live channels cached" }
+                runOnUiThread { status?.text = "●  Provider refreshed • ${channels.size} live channels cached" }
             } catch (e: Exception) {
                 runOnUiThread { status?.text = "Refresh failed: ${e.message ?: "unknown error"}" }
             }
@@ -86,11 +112,24 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         root.addView(Button(this).apply {
             text = label
             isAllCaps = false
-            minHeight = 64
+            textSize = 16f
+            minHeight = 58
+            setTextColor(textColor)
+            background = roundedBackground(surfaceColor, 14f)
             isFocusable = true
             isFocusableInTouchMode = true
+            stateListAnimator = null
+            setOnFocusChangeListener { view, focused ->
+                view.background = roundedBackground(if (focused) accentColor else surfaceColor, 14f)
+                (view as Button).setTextColor(if (focused) Color.WHITE else textColor)
+            }
             setOnClickListener { action() }
-        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 8 })
+        }, LinearLayout.LayoutParams(-1, 58).apply { topMargin = 7 })
+    }
+
+    private fun roundedBackground(color: Int, radiusDp: Float): GradientDrawable = GradientDrawable().apply {
+        setColor(color)
+        cornerRadius = radiusDp * resources.displayMetrics.density
     }
 
     private fun open(clazz: Class<*>, mode: String? = null) {
