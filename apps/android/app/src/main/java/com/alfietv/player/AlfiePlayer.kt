@@ -38,6 +38,10 @@ class AlfiePlayer(context: Context) {
     private var pendingChannelTitle: String? = null
     private var pendingChannelNumber: String? = null
     private var pendingChannelGeneration = 0L
+
+    /** Controlled by SettingsActivity/MainActivity; true enables automatic recovery after fatal errors. */
+    var autoRetryEnabled: Boolean = true
+
     private val channelSwitchRunnable = Runnable {
         val url = pendingChannelUrl ?: return@Runnable
         val generation = pendingChannelGeneration
@@ -97,7 +101,9 @@ class AlfiePlayer(context: Context) {
                 override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
                     updateVideoDiagnostics()
                 }
-                override fun onPlayerError(error: PlaybackException) { recover() }
+                override fun onPlayerError(error: PlaybackException) {
+                    if (autoRetryEnabled) recover()
+                }
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     if (isPlaying) {
                         recoveryAttempts = 0
@@ -124,7 +130,6 @@ class AlfiePlayer(context: Context) {
 
     fun attach(view: PlayerView) {
         view.player = player
-        view.useController = true
         view.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
         view.requestFocus()
         handler.removeCallbacks(healthCheck)
@@ -196,10 +201,6 @@ class AlfiePlayer(context: Context) {
         play(url, currentTitle, if (wasLive) C.TIME_UNSET else position, currentChannelNumber)
     }
 
-    /**
-     * Coalesces rapid D-pad/CH+/CH- input so only the final requested channel is prepared.
-     * A short 75ms window keeps TV zapping responsive while avoiding redundant stream startups.
-     */
     fun switchChannel(url: String, title: String? = null, channelNumber: String? = null) {
         require(url.startsWith("http://") || url.startsWith("https://")) { "Unsupported stream URL" }
         handler.removeCallbacks(channelSwitchRunnable)
@@ -219,226 +220,141 @@ class AlfiePlayer(context: Context) {
     fun stop() {
         playbackGeneration.next()
         handler.removeCallbacks(channelSwitchRunnable)
-        pendingChannelUrl = null
-        pendingChannelTitle = null
-        pendingChannelNumber = null
-        lastPositionMs = player.currentPosition.coerceAtLeast(0L)
         player.stop()
     }
 
     fun release() {
         playbackGeneration.next()
-        handler.removeCallbacks(healthCheck)
         handler.removeCallbacks(channelSwitchRunnable)
-        pendingChannelUrl = null
-        pendingChannelTitle = null
-        pendingChannelNumber = null
-        lastPositionMs = player.currentPosition.coerceAtLeast(0L)
-        currentUrl = null
+        handler.removeCallbacks(healthCheck)
         mediaSession.release()
         player.release()
     }
 
     fun audioTracks(): List<TrackOption> = trackOptions(C.TRACK_TYPE_AUDIO)
     fun subtitleTracks(): List<TrackOption> = trackOptions(C.TRACK_TYPE_TEXT)
-    fun selectAudio(track: TrackOption?) = selectTrack(C.TRACK_TYPE_AUDIO, track)
+
+    fun selectAudio(option: TrackOption) = selectTrack(C.TRACK_TYPE_AUDIO, option)
+    fun selectSubtitle(option: TrackOption?) {
+        val builder = player.trackSelectionParameters.buildUpon().clearOverridesOfType(C.TRACK_TYPE_TEXT)
+        if (option != null) builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).addOverride(TrackSelectionOverride(option.group, option.indexes))
+        else builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+        player.trackSelectionParameters = builder.build()
+    }
 
     fun refreshAudio() {
-        if (player.currentMediaItem == null || recovering) return
+        if (player.currentMediaItem == null) return
+        val wasLive = player.isCurrentMediaItemLive
+        val position = player.currentPosition.coerceAtLeast(0L)
+        val shouldPlay = player.playWhenReady
+        audioRecoveryAttempts = 0
         recoverAudio(force = true)
+        if (!wasLive && shouldPlay) player.seekTo(position)
     }
 
-    fun selectSubtitle(track: TrackOption?) {
-        val builder = player.trackSelectionParameters.buildUpon()
-        if (track == null) builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-        else builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).setOverrideForType(TrackSelectionOverride(track.mediaTrackGroup, track.trackIndex))
-        player.trackSelectionParameters = builder.build()
-    }
-
-    fun statusText(): String {
-        if (player.playbackState == Player.STATE_BUFFERING) return "BUFFERING"
-        if (player.playbackState == Player.STATE_ENDED) return "ENDED"
-        if (player.playerError != null) return "ERROR ${diagnostics.lastErrorCategory ?: "unknown"}"
-        if (player.isPlaying) return "PLAYING"
-        return "PAUSED"
-    }
-
-    fun errorText(): String? {
-        val category = diagnostics.lastErrorCategory ?: return null
-        val code = diagnostics.lastErrorCodeName ?: "UNKNOWN"
-        val message = diagnostics.lastErrorMessage?.takeIf { it.isNotBlank() }
-        return if (message == null) "$category • $code" else "$category • $code • $message"
-    }
-
-    fun diagnosticsText(): String {
-        val buffer = diagnostics.bufferedSeconds?.let { "BUF ${it}s" } ?: "BUF —"
-        val tracks = when {
-            diagnostics.audioTrackAvailable && diagnostics.videoTrackAvailable -> "A/V ✓"
-            diagnostics.videoTrackAvailable -> "AUDIO —"
-            diagnostics.audioTrackAvailable -> "VIDEO —"
-            else -> "A/V —"
-        }
-        val startup = diagnostics.startupLatencyMs?.let { "START ${it}ms" } ?: "START —"
-        val recovery = if (diagnostics.recoveryCount > 0 || diagnostics.audioRecoveryCount > 0) "REC ${diagnostics.recoveryCount}/${diagnostics.audioRecoveryCount}" else null
-        return listOfNotNull(buffer, tracks, startup, recovery).joinToString("  •  ")
-    }
-
-    fun videoFormatText(): String {
-        val format = player.videoFormat ?: return "Video —"
-        val resolution = if (format.width > 0 && format.height > 0) "${format.width}×${format.height}" else "Video"
-        val bitrate = if (format.bitrate > 0) " ${(format.bitrate / 1000)} kbps" else ""
-        return resolution + bitrate
-    }
-
-    private var lastPositionMs = 0L
-
-    private fun updateVideoDiagnostics() {
-        val format = player.videoFormat ?: return
-        if (format.width > 0 && format.height > 0) diagnostics.resolution = "${format.width}×${format.height}"
-        if (format.bitrate > 0) diagnostics.bitrate = format.bitrate
-    }
-
-    private fun trackOptions(trackType: Int): List<TrackOption> {
-        val result = mutableListOf<TrackOption>()
+    private fun trackOptions(type: Int): List<TrackOption> = buildList {
         player.currentTracks.groups.forEach { group ->
-            if (group.type != trackType || !group.isSupported) return@forEach
-            for (index in 0 until group.length) {
-                if (!group.isTrackSupported(index)) continue
-                val format = group.getTrackFormat(index)
-                val label = format.label?.takeIf { it.isNotBlank() } ?: format.language?.takeIf { it.isNotBlank() }
-                    ?: if (trackType == C.TRACK_TYPE_AUDIO) "Audio ${index + 1}" else "Subtitle ${index + 1}"
-                result += TrackOption(label, group.mediaTrackGroup, index)
+            if (group.type != type) return@forEach
+            for (i in 0 until group.length) {
+                val format = group.getTrackFormat(i)
+                if (group.isTrackSupported(i)) add(TrackOption(group.mediaTrackGroup, i, format.label ?: format.language ?: "Track ${i + 1}"))
             }
         }
-        return result
     }
 
-    private fun selectTrack(trackType: Int, track: TrackOption?) {
-        val builder = player.trackSelectionParameters.buildUpon().setTrackTypeDisabled(trackType, track == null)
-        if (track != null) builder.setOverrideForType(TrackSelectionOverride(track.mediaTrackGroup, track.trackIndex))
-        player.trackSelectionParameters = builder.build()
+    private fun selectTrack(type: Int, option: TrackOption) {
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(type, false)
+            .clearOverridesOfType(type)
+            .addOverride(TrackSelectionOverride(option.group, option.indexes))
+            .build()
     }
 
     private fun checkPlaybackHealth() {
-        val p = player
-        if (!p.playWhenReady || p.currentMediaItem == null || recovering) return
+        if (player.currentMediaItem == null || player.playbackState == Player.STATE_IDLE) return
         val now = System.currentTimeMillis()
-        diagnostics.bufferedSeconds = ((p.bufferedPosition - p.currentPosition).coerceAtLeast(0L) / 1000L)
-        updateVideoDiagnostics()
-        if (startupStartedAt != 0L && !diagnostics.firstFrameRendered && now - startupStartedAt >= 15_000L) { recover(); return }
-        if (p.playbackState == Player.STATE_ENDED && p.isCurrentMediaItemLive) { recover(); return }
-        val videoPlaying = p.isPlaying && diagnostics.videoTrackAvailable
-        val audioAvailable = diagnostics.audioTrackAvailable
-        if (videoPlaying && audioAvailable) {
-            val position = p.currentPosition
-            if (lastPlayingPosition != C.TIME_UNSET && position == lastPlayingPosition) {
-                if (stagnantSince == 0L) stagnantSince = now
-                if (AudioRecoveryPolicy.shouldRecover(
-                        videoPlaying = videoPlaying,
-                        audioTrackAvailable = audioAvailable,
-                        positionStagnantForMs = now - stagnantSince,
-                        nowMs = now,
-                        lastRecoveryAtMs = lastAudioRecoveryAt,
-                        recoveryAttempts = audioRecoveryAttempts,
-                    )) recoverAudio()
-            } else stagnantSince = 0L
-            lastPlayingPosition = position
+        val position = player.currentPosition
+        val playing = player.isPlaying
+        if (playing && position == lastPlayingPosition) {
+            if (stagnantSince == 0L) stagnantSince = now
+        } else if (playing) stagnantSince = 0L
+        lastPlayingPosition = position
+
+        if (startupStartedAt != 0L && !diagnostics.firstFrameRendered && now - startupStartedAt > 20_000L) {
+            if (autoRetryEnabled) recover()
             return
         }
-        if (p.playbackState == Player.STATE_BUFFERING && p.playerError == null) {
-            if (bufferingSince == 0L) bufferingSince = now
-            if (now - bufferingSince >= 10_000L) recover()
-        } else if (videoPlaying && AudioRecoveryPolicy.shouldRecover(
-                videoPlaying = videoPlaying,
-                audioTrackAvailable = audioAvailable,
-                positionStagnantForMs = 0L,
-                nowMs = now,
-                lastRecoveryAtMs = lastAudioRecoveryAt,
-                recoveryAttempts = audioRecoveryAttempts,
-            )) recoverAudio()
+        if (bufferingSince != 0L && now - bufferingSince > 15_000L) {
+            if (autoRetryEnabled) recover()
+            return
+        }
+        val audioStall = AudioRecoveryPolicy.shouldRecover(
+            videoPlaying = playing && diagnostics.videoTrackAvailable,
+            audioTrackAvailable = diagnostics.audioTrackAvailable,
+            positionStagnantForMs = if (stagnantSince == 0L) 0L else now - stagnantSince,
+            nowMs = now,
+            lastRecoveryAtMs = lastAudioRecoveryAt,
+            recoveryAttempts = audioRecoveryAttempts,
+        )
+        if (audioStall && autoRetryEnabled) recoverAudio()
     }
 
     private fun recoverAudio(force: Boolean = false) {
-        if (recovering || player.currentMediaItem == null) return
+        val url = currentUrl ?: return
         val now = System.currentTimeMillis()
-        val positionStagnantForMs = if (stagnantSince == 0L) 0L else (now - stagnantSince).coerceAtLeast(0L)
         if (!AudioRecoveryPolicy.shouldRecover(
-                videoPlaying = player.isPlaying || player.playWhenReady,
+                videoPlaying = player.isPlaying,
                 audioTrackAvailable = diagnostics.audioTrackAvailable,
-                positionStagnantForMs = positionStagnantForMs,
+                positionStagnantForMs = if (stagnantSince == 0L) AudioRecoveryPolicy.STALL_THRESHOLD_MS else now - stagnantSince,
                 nowMs = now,
                 lastRecoveryAtMs = lastAudioRecoveryAt,
                 recoveryAttempts = audioRecoveryAttempts,
                 force = force,
-            )) return
+            ) && !force) return
+        if (audioRecoveryAttempts >= AudioRecoveryPolicy.MAX_RECOVERY_ATTEMPTS && !force) return
+        audioRecoveryAttempts++
         lastAudioRecoveryAt = now
-        if (!force) audioRecoveryAttempts++
-        diagnostics.audioRecoveryCount++
-        val wasPlaying = player.isPlaying || player.playWhenReady
-        val item = player.currentMediaItem ?: return
-        val live = player.isCurrentMediaItemLive
-        val position = player.currentPosition.coerceAtLeast(0L)
         stagnantSince = 0L
         lastPlayingPosition = C.TIME_UNSET
         diagnostics.audioTrackAvailable = false
-        player.stop()
-        if (live) {
-            player.setMediaItem(item)
-            player.prepare()
-            player.seekToDefaultPosition()
-        } else {
-            player.setMediaItem(item, position)
-            player.prepare()
-            player.seekTo(position)
-        }
-        player.playWhenReady = wasPlaying
+        val wasLive = player.isCurrentMediaItemLive
+        val position = player.currentPosition.coerceAtLeast(0L)
+        val shouldPlay = player.playWhenReady
+        recovering = true
+        handler.postDelayed({
+            if (currentUrl != url) return@postDelayed
+            play(url, currentTitle, if (wasLive) C.TIME_UNSET else position, currentChannelNumber)
+            player.playWhenReady = shouldPlay
+            recovering = false
+        }, 250L)
     }
 
     private fun recover() {
+        if (recovering || !autoRetryEnabled) return
         val url = currentUrl ?: return
-        if (recovering) return
-        val now = System.currentTimeMillis()
-        if (now - lastRecoveryAt < 2_000 || recoveryAttempts >= 4) return
-        recovering = true
+        if (recoveryAttempts >= 3) return
         recoveryAttempts++
-        diagnostics.recoveryCount++
-        lastRecoveryAt = now
-        bufferingSince = 0L
+        lastRecoveryAt = System.currentTimeMillis()
         stagnantSince = 0L
         lastPlayingPosition = C.TIME_UNSET
-        startupStartedAt = now
-        diagnostics.firstFrameRendered = false
         diagnostics.audioTrackAvailable = false
         diagnostics.videoTrackAvailable = false
-        val generation = playbackGeneration.current()
-        val live = player.isCurrentMediaItemLive
+        val wasLive = player.isCurrentMediaItemLive
         val position = player.currentPosition.coerceAtLeast(0L)
-        val originalItem = player.currentMediaItem
+        val shouldPlay = player.playWhenReady
+        recovering = true
         handler.postDelayed({
-            if (!playbackGeneration.isCurrent(generation)) return@postDelayed
-            if (currentUrl != url) { recovering = false; return@postDelayed }
-            val item = originalItem ?: MediaItem.Builder().setUri(url).setMediaId(currentTitle ?: "alfie-tv").build()
-            player.setMediaItem(item, if (live) C.TIME_UNSET else position)
-            player.prepare()
-            if (live) player.seekToDefaultPosition()
-            player.playWhenReady = true
+            if (currentUrl != url) return@postDelayed
+            play(url, currentTitle, if (wasLive) C.TIME_UNSET else position, currentChannelNumber)
+            player.playWhenReady = shouldPlay
             recovering = false
         }, 350L)
     }
 
-    private fun inferSourceType(url: String): SourceType {
-        val path = url.substringBefore('?').lowercase()
-        val query = url.substringAfter('?', "").lowercase()
-        return when {
-            path.endsWith(".m3u8") || query.contains(".m3u8") -> SourceType.HLS
-            path.endsWith(".mpd") || query.contains(".mpd") -> SourceType.DASH
-            path.endsWith(".mp4") -> SourceType.MP4
-            path.endsWith(".mkv") -> SourceType.MKV
-            path.endsWith(".webm") -> SourceType.WEBM
-            path.endsWith(".ts") || path.endsWith(".mpegts") -> SourceType.MPEG_TS
-            else -> SourceType.UNKNOWN
-        }
+    private fun updateVideoDiagnostics() {
+        val info = player.videoFormat
+        diagnostics.videoTrackAvailable = info != null
+        diagnostics.resolution = info?.let { "${it.width}x${it.height}" }
+        diagnostics.bitrate = info?.bitrate?.takeIf { it > 0 }
     }
-
-    private enum class SourceType { HLS, DASH, MP4, MKV, WEBM, MPEG_TS, UNKNOWN }
 }
