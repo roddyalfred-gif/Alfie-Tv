@@ -11,6 +11,9 @@ object SettingsStore {
     private const val CONFIRM_EXIT = "confirm_exit"
     private const val PLAYER_CONTROLS = "player_controls"
     private const val ASPECT_RATIO = "aspect_ratio"
+    private const val REMEMBER_CHANNEL = "remember_channel"
+    private const val AUTO_RETRY = "auto_retry"
+    private const val SEEK_SECONDS = "seek_seconds"
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -30,6 +33,15 @@ object SettingsStore {
         val safe = if (value in setOf("fit", "fill", "zoom")) value else "fit"
         prefs(context).edit().putString(ASPECT_RATIO, safe).apply()
     }
+
+    fun rememberChannel(context: Context) = prefs(context).getBoolean(REMEMBER_CHANNEL, true)
+    fun setRememberChannel(context: Context, value: Boolean) = prefs(context).edit().putBoolean(REMEMBER_CHANNEL, value).apply()
+
+    fun autoRetry(context: Context) = prefs(context).getBoolean(AUTO_RETRY, true)
+    fun setAutoRetry(context: Context, value: Boolean) = prefs(context).edit().putBoolean(AUTO_RETRY, value).apply()
+
+    fun seekSeconds(context: Context) = prefs(context).getInt(SEEK_SECONDS, 10).coerceIn(5, 60)
+    fun setSeekSeconds(context: Context, value: Int) = prefs(context).edit().putInt(SEEK_SECONDS, value.coerceIn(5, 60)).apply()
 
     fun reset(context: Context) = prefs(context).edit().clear().apply()
 }
