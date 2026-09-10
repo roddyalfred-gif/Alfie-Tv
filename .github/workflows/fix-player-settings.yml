@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   fix-and-test:
-    if: ${{ !contains(github.event.head_commit.message, 'fix(android): wire player settings') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -28,11 +27,18 @@ jobs:
           from pathlib import Path
           p = Path('apps/android/app/src/main/java/com/alfietv/player/AlfiePlayer.kt')
           s = p.read_text()
-          old = '''            setHandleAudioBecomingNoisy(true)\n            setSeekBackIncrementMs(10_000)\n            setSeekForwardIncrementMs(10_000)'''
-          new = '''            setHandleAudioBecomingNoisy(true)\n            val seekMs = SettingsStore.seekSeconds(appContext).toLong() * 1000L\n            setSeekBackIncrementMs(seekMs)\n            setSeekForwardIncrementMs(seekMs)\n            autoRetryEnabled = SettingsStore.autoRetry(appContext)'''
-          if old not in s:
+          old = '''            setHandleAudioBecomingNoisy(true)
+            setSeekBackIncrementMs(10_000)
+            setSeekForwardIncrementMs(10_000)'''
+          new = '''            setHandleAudioBecomingNoisy(true)
+            val seekMs = SettingsStore.seekSeconds(appContext).toLong() * 1000L
+            setSeekBackIncrementMs(seekMs)
+            setSeekForwardIncrementMs(seekMs)
+            autoRetryEnabled = SettingsStore.autoRetry(appContext)'''
+          if old in s:
+              p.write_text(s.replace(old, new, 1))
+          elif 'SettingsStore.seekSeconds(appContext)' not in s:
               raise SystemExit('Expected player settings block was not found')
-          p.write_text(s.replace(old, new, 1))
           PY
 
       - name: Build and test Android
@@ -45,6 +51,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add apps/android/app/src/main/java/com/alfietv/player/AlfiePlayer.kt
-          git diff --cached --quiet && exit 0
+          if git diff --cached --quiet; then
+            echo "Player settings already applied"
+            exit 0
+          fi
           git commit -m "fix(android): wire player settings"
-          git push
+          git push origin HEAD:main
