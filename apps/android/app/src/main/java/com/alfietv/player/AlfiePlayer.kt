@@ -73,8 +73,10 @@ class AlfiePlayer(context: Context) {
                     .build(), true
             )
             setHandleAudioBecomingNoisy(true)
-            setSeekBackIncrementMs(10_000)
-            setSeekForwardIncrementMs(10_000)
+            val seekMs = SettingsStore.seekSeconds(appContext).toLong() * 1000L
+            setSeekBackIncrementMs(seekMs)
+            setSeekForwardIncrementMs(seekMs)
+            autoRetryEnabled = SettingsStore.autoRetry(appContext)
             addListener(DiagnosticsListener(diagnostics))
             addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
