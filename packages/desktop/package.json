@@ -12,11 +12,11 @@
   "dependencies": {
     "@alfie-tv/core": "*",
     "@alfie-tv/ui": "*",
-    "electron": "^43.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "electron": "^43.2.0",
     "typescript": "^5.0.0",
     "vitest": "^4.1.10"
   }
