@@ -55,6 +55,9 @@ jobs:
       - name: Test desktop package
         run: npx --yes vitest@4.1.10 run packages/desktop/src/__tests__/desktopApp.test.ts --config vitest.config.ts
 
+      - name: Install Electron runtime for packaging
+        run: npm install --no-save --workspace @alfie-tv/desktop electron@43.2.0
+
       - name: Package Windows portable desktop build
         working-directory: packages/desktop
         run: npx --yes electron-builder@26.0.12 --win portable --x64 --publish never
@@ -84,6 +87,9 @@ jobs:
 
       - name: Test desktop package
         run: npx --yes vitest@4.1.10 run packages/desktop/src/__tests__/desktopApp.test.ts --config vitest.config.ts
+
+      - name: Install Electron runtime for packaging
+        run: npm install --no-save --workspace @alfie-tv/desktop electron@43.2.0
 
       - name: Package macOS desktop builds
         working-directory: packages/desktop
