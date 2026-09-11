@@ -56,7 +56,12 @@ jobs:
         run: npx --yes vitest@4.1.10 run packages/desktop/src/__tests__/desktopApp.test.ts --config vitest.config.ts
 
       - name: Install Electron runtime for packaging
-        run: npm install --no-save --workspace @alfie-tv/desktop electron@43.2.0
+        working-directory: packages/desktop
+        run: npm install --no-save --package-lock=false --ignore-scripts electron@43.2.0
+
+      - name: Verify Electron runtime
+        working-directory: packages/desktop
+        run: node -e "const p=require.resolve('electron/package.json'); const e=require('electron/package.json').version; if(e!=='43.2.0') throw new Error('Expected Electron 43.2.0, got '+e); console.log('Electron',e,'at',p)"
 
       - name: Package Windows portable desktop build
         working-directory: packages/desktop
@@ -89,7 +94,12 @@ jobs:
         run: npx --yes vitest@4.1.10 run packages/desktop/src/__tests__/desktopApp.test.ts --config vitest.config.ts
 
       - name: Install Electron runtime for packaging
-        run: npm install --no-save --workspace @alfie-tv/desktop electron@43.2.0
+        working-directory: packages/desktop
+        run: npm install --no-save --package-lock=false --ignore-scripts electron@43.2.0
+
+      - name: Verify Electron runtime
+        working-directory: packages/desktop
+        run: node -e "const p=require.resolve('electron/package.json'); const e=require('electron/package.json').version; if(e!=='43.2.0') throw new Error('Expected Electron 43.2.0, got '+e); console.log('Electron',e,'at',p)"
 
       - name: Package macOS desktop builds
         working-directory: packages/desktop
