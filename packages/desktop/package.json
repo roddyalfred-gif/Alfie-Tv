@@ -7,7 +7,7 @@
   "scripts": {
     "start": "electron .",
     "build": "tsc --noEmit",
-    "test": "vitest"
+    "test": "vitest run --config ../../vitest.config.ts"
   },
   "dependencies": {
     "@alfie-tv/core": "*",
