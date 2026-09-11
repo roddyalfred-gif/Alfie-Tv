@@ -117,8 +117,6 @@ jobs:
           ALFIE_RELEASE_KEY_ALIAS: ${{ secrets.ALFIE_RELEASE_KEY_ALIAS }}
         run: |
           set -euo pipefail
-          # Validate the keystore and configured alias here. The private key
-          # password is intentionally validated by the actual Gradle signing task.
           keytool -list \
             -keystore "$RUNNER_TEMP/alfie-upload.jks" \
             -storepass "$ALFIE_RELEASE_STORE_PASSWORD" \
@@ -136,9 +134,12 @@ jobs:
 
       - name: Verify release APK signature
         run: |
+          set -euo pipefail
           APK=$(find app/build/outputs/apk/release -name '*.apk' -print -quit)
           test -n "$APK"
-          apksigner verify --verbose "$APK"
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          test -x "$APKSIGNER" || { echo "Android SDK apksigner not found"; exit 1; }
+          "$APKSIGNER" verify --verbose "$APK"
 
       - name: Upload stable release APK
         uses: actions/upload-artifact@v5
