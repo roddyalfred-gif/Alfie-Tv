@@ -53,7 +53,7 @@ jobs:
         run: npm run build -w @alfie-tv/desktop
 
       - name: Test desktop package
-        run: npm test -w @alfie-tv/desktop
+        run: npx --yes vitest@4.1.10 run packages/desktop/src/__tests__/desktopApp.test.ts --config vitest.config.ts
 
       - name: Package Windows portable desktop build
         working-directory: packages/desktop
