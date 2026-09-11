@@ -1,5 +1,5 @@
 export interface PlatformStatus {
-  mode: 'mobile' | 'desktop' | 'web';
+  mode: 'mobile' | 'desktop' | 'web' | 'tv';
   connected: boolean;
   message: string;
 }
