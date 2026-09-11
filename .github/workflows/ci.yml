@@ -115,16 +115,16 @@ jobs:
         env:
           ALFIE_RELEASE_STORE_PASSWORD: ${{ secrets.ALFIE_RELEASE_STORE_PASSWORD }}
           ALFIE_RELEASE_KEY_ALIAS: ${{ secrets.ALFIE_RELEASE_KEY_ALIAS }}
-          ALFIE_RELEASE_KEY_PASSWORD: ${{ secrets.ALFIE_RELEASE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
+          # Validate the keystore and configured alias here. The private key
+          # password is intentionally validated by the actual Gradle signing task.
           keytool -list \
             -keystore "$RUNNER_TEMP/alfie-upload.jks" \
             -storepass "$ALFIE_RELEASE_STORE_PASSWORD" \
             -alias "$ALFIE_RELEASE_KEY_ALIAS" \
-            -keypass "$ALFIE_RELEASE_KEY_PASSWORD" \
             >/dev/null
-          echo "Stable release keystore is readable and the configured alias/passwords are valid."
+          echo "Release keystore and configured alias are valid."
 
       - name: Build signed release APK
         env:
