@@ -36,6 +36,36 @@ jobs:
       - name: Run tests
         run: npm test
 
+  desktop-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build desktop package
+        run: npm run build -w @alfie-tv/desktop
+
+      - name: Test desktop package
+        run: npm test -w @alfie-tv/desktop
+
+      - name: Package Windows portable desktop build
+        working-directory: packages/desktop
+        run: npx --yes electron-builder@26.0.12 --win portable --x64 --publish never
+
+      - name: Upload Windows desktop build
+        uses: actions/upload-artifact@v5
+        with:
+          name: alfie-tv-desktop-windows
+          path: packages/desktop/dist/*.exe
+          if-no-files-found: error
+
   android-build:
     runs-on: ubuntu-latest
     defaults:
