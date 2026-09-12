@@ -83,7 +83,7 @@ class LiveTvActivity : ComponentActivity() {
         header.addView(search, LinearLayout.LayoutParams(0, 52, 1.7f))
         root.addView(header, LinearLayout.LayoutParams(-1, 56))
 
-        val categoryScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS; isFocusable = false }
+        val categoryScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; overScrollMode = View.OVER_SCROLL_IF_CONTENTS_SCROLL; isFocusable = false }
         categoryRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         categoryScroll.addView(categoryRow)
         addCategoryButton("All", null)
@@ -106,7 +106,7 @@ class LiveTvActivity : ComponentActivity() {
         }
         content.addView(list, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.62f))
 
-        val epgScroll = ScrollView(this).apply { isFillViewport = true; isFocusable = false; overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS }
+        val epgScroll = ScrollView(this).apply { isFillViewport = true; isFocusable = false; overScrollMode = View.OVER_SCROLL_IF_CONTENTS_SCROLL }
         epgContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(18, 18, 18, 18); setBackgroundColor(panel); isFocusable = true; isFocusableInTouchMode = true
             setOnKeyListener { _, keyCode, event ->
@@ -267,7 +267,7 @@ class LiveTvActivity : ComponentActivity() {
         val current = ordered.firstOrNull { now in it.startUtcMs until it.endUtcMs }; val next = ordered.firstOrNull { it.startUtcMs > now }
         epgTitle.text = channel.name
         epgNow.text = current?.let { "NOW  ${it.title}\n${formatTime(it.startUtcMs)} – ${formatTime(it.endUtcMs)}" } ?: "NOW  No current program"
-        epgNext.text = next?.let { "NEXT  ${it.title}\n${formatTime(it.startUtcMs)} – ${formatTime(it.endUtcMs)}" } ?: "NEXT  —"
+        epgNext.text = next?.let { "NEXT  ${next.title}\n${formatTime(next.startUtcMs)} – ${formatTime(next.endUtcMs)}" } ?: "NEXT  —"
         epgProgress.progress = current?.let { (((now - it.startUtcMs).toDouble() / (it.endUtcMs - it.startUtcMs).coerceAtLeast(1L)) * 100).toInt().coerceIn(0, 100) } ?: 0
         epgMeta.text = "${ordered.size} guide entries • Updated ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(savedAt))}"
     }
@@ -287,6 +287,12 @@ class LiveTvActivity : ComponentActivity() {
     private fun formatTime(epochMs: Long): String = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(epochMs))
 
     private fun play(channel: IptvChannel) {
+        val visibleChannels = filteredChannels()
+        val channelIndex = visibleChannels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
+        val channelUrls = ArrayList(visibleChannels.map { it.streamUrl })
+        val channelTitles = ArrayList(visibleChannels.map { it.name })
+        val channelIds = ArrayList(visibleChannels.map { it.id })
+        val channelNumbers = ArrayList(visibleChannels.indices.map { (it + 1).toString() })
         prefs.edit().putString(lastChannelKey(), channel.id).apply()
         val intent = android.content.Intent(this, VideoPlayerActivity::class.java).apply {
             putExtra("url", channel.streamUrl)
@@ -294,6 +300,13 @@ class LiveTvActivity : ComponentActivity() {
             putExtra("title", channel.name)
             putExtra("content_id", channel.id)
             putExtra("content_type", "LIVE")
+            putExtra("channel_id", channel.id)
+            putExtra("channel_number", (channelIndex + 1).toString())
+            putExtra("channel_urls", channelUrls)
+            putExtra("channel_titles", channelTitles)
+            putExtra("channel_ids", channelIds)
+            putExtra("channel_numbers", channelNumbers)
+            putExtra("channel_index", channelIndex)
             putExtra("server", config.serverUrl)
             putExtra("username", config.username)
             putExtra("password", config.password)
