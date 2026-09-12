@@ -20,6 +20,7 @@ class VideoPlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val target = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             putExtra("stream_url", intent.getStringExtra("url") ?: intent.getStringExtra("stream_url") ?: "")
             putExtra("title", intent.getStringExtra("title") ?: "Alfie TV")
             putExtra("content_id", intent.getStringExtra("content_id"))
@@ -29,6 +30,11 @@ class VideoPlayerActivity : ComponentActivity() {
             putExtra("password", intent.getStringExtra("password"))
             putExtra("channel_id", intent.getStringExtra("channel_id"))
             putExtra("channel_number", intent.getStringExtra("channel_number"))
+            putExtra("channel_urls", intent.getStringArrayListExtra("channel_urls"))
+            putExtra("channel_titles", intent.getStringArrayListExtra("channel_titles"))
+            putExtra("channel_ids", intent.getStringArrayListExtra("channel_ids"))
+            putExtra("channel_numbers", intent.getStringArrayListExtra("channel_numbers"))
+            putExtra("channel_index", intent.getIntExtra("channel_index", 0))
         }
         startActivity(target)
         finish()
