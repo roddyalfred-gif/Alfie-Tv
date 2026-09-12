@@ -104,7 +104,6 @@ class LiveTvActivity : ComponentActivity() {
             }
             setOnFocusChangeListener { _, focused -> if (focused && selectedItemPosition >= 0) filteredChannels().getOrNull(selectedItemPosition)?.let(::showEpg) }
         }
-        // Horizontal parent: width is weighted, height must consume the parent's available height.
         content.addView(list, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.62f))
 
         val epgScroll = ScrollView(this).apply { isFillViewport = true; isFocusable = false; overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS }
@@ -119,11 +118,7 @@ class LiveTvActivity : ComponentActivity() {
         epgProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; progress = 0; isIndeterminate = false }
         epgNext = TextView(this).apply { textSize = 15f; setTextColor(Color.WHITE); setPadding(0, 14, 0, 8) }
         epgMeta = TextView(this).apply { textSize = 13f; setTextColor(muted); setPadding(0, 10, 0, 0) }
-        epgContainer.addView(epgTitle)
-        epgContainer.addView(epgNow)
-        epgContainer.addView(epgProgress, LinearLayout.LayoutParams(-1, 8))
-        epgContainer.addView(epgNext)
-        epgContainer.addView(epgMeta)
+        epgContainer.addView(epgTitle); epgContainer.addView(epgNow); epgContainer.addView(epgProgress, LinearLayout.LayoutParams(-1, 8)); epgContainer.addView(epgNext); epgContainer.addView(epgMeta)
         epgScroll.addView(epgContainer)
         content.addView(epgScroll, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 0.92f).apply { leftMargin = 8 })
         root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -186,7 +181,17 @@ class LiveTvActivity : ComponentActivity() {
         render()
         if (!restoredLastChannel) {
             restoredLastChannel = true
-            prefs.getString(lastChannelKey(), null)?.let { id -> channels.firstOrNull { it.id == id }?.let(::showEpg) }
+            val lastId = prefs.getString(lastChannelKey(), null)
+            val last = channels.firstOrNull { it.id == lastId }
+            if (last != null) {
+                selectedIndex = filteredChannels().indexOfFirst { it.id == last.id }.takeIf { it >= 0 } ?: -1
+                list.post {
+                    val position = filteredChannels().indexOfFirst { it.id == last.id }
+                    if (position >= 0) list.setSelection(position)
+                    showEpg(last)
+                }
+                setBaseStatus("Restored last channel: ${last.name} • OK to play")
+            }
         }
     }
 
@@ -285,7 +290,13 @@ class LiveTvActivity : ComponentActivity() {
         prefs.edit().putString(lastChannelKey(), channel.id).apply()
         val intent = android.content.Intent(this, VideoPlayerActivity::class.java).apply {
             putExtra("url", channel.streamUrl)
+            putExtra("stream_url", channel.streamUrl)
             putExtra("title", channel.name)
+            putExtra("content_id", channel.id)
+            putExtra("content_type", "LIVE")
+            putExtra("server", config.serverUrl)
+            putExtra("username", config.username)
+            putExtra("password", config.password)
         }
         startActivity(intent)
     }
