@@ -23,7 +23,6 @@ class HomeActivity : androidx.activity.ComponentActivity() {
 
     private val bg = Color.rgb(4, 7, 15)
     private val panel = Color.rgb(13, 19, 32)
-    private val panel2 = Color.rgb(20, 28, 45)
     private val blue = Color.rgb(35, 168, 255)
     private val purple = Color.rgb(122, 82, 255)
     private val cyan = Color.rgb(53, 224, 220)
@@ -54,7 +53,6 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             setPadding(30, 18, 30, 14)
         }
 
-        // Compact premium header.
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -99,7 +97,6 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         }
         scroll.addView(content)
 
-        // Hero area: the first thing users see.
         val hero = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(26, 20, 26, 20)
@@ -241,14 +238,6 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         return button
     }
 
-    private fun card(root: LinearLayout, title: String, subtitle: String, accent: Int, action: () -> Unit) {
-        val button = card(root, title, subtitle, accent, action)
-        button.layoutParams = (button.layoutParams as LinearLayout.LayoutParams).apply {
-            width = -1
-            weight = 0f
-        }
-    }
-
     private fun animateFocus(view: View, focused: Boolean) {
         val target = if (focused) 1.025f else 1f
         ObjectAnimator.ofFloat(view, View.SCALE_X, view.scaleX, target).setDuration(130).start()
@@ -264,8 +253,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         status?.text = "↻  REFRESHING…"
         executor.execute {
             try {
-                val (_, channels) = XtreamClient().load(config)
-                val categories = XtreamClient().load(config).first
+                val (categories, channels) = XtreamClient().load(config)
                 LiveTvCache.write(this, config, categories, channels)
                 runOnUiThread { status?.text = "●  ${channels.size} CHANNELS READY" }
             } catch (_: Exception) {
