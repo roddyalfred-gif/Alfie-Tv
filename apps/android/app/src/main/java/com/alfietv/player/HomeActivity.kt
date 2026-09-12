@@ -95,8 +95,8 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         val liveButton = addButton(menu, "📺  Live TV", "Channels • EPG • favorites • live playback") {
             open(LiveTvActivity::class.java)
         }
-        addButton(menu, "🗓  TV Guide / EPG", "Browse the programme schedule and select a channel") {
-            open(LiveTvActivity::class.java)
+        addButton(menu, "🗓  TV Guide / EPG", "Multi-program schedule • channel-by-channel guide") {
+            open(EpgGuideActivity::class.java)
         }
 
         addSectionLabel(menu, "ON DEMAND", "Movies and TV series from your provider")
