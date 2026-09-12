@@ -2,6 +2,7 @@
   "name": "@alfie-tv/desktop",
   "version": "1.0.0",
   "description": "Alfie TV - Desktop App",
+  "author": "Alfie TV",
   "private": true,
   "main": "index.js",
   "scripts": {
@@ -16,8 +17,13 @@
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "electron": "^43.2.0",
+    "electron": "43.2.0",
     "typescript": "^5.0.0",
     "vitest": "^4.1.10"
+  },
+  "build": {
+    "appId": "com.alfietv.desktop",
+    "productName": "Alfie TV",
+    "electronVersion": "43.2.0"
   }
 }
