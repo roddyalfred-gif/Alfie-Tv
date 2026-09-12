@@ -13,6 +13,7 @@
         <activity android:name=".MainActivity" android:screenOrientation="landscape" android:exported="false" android:supportsPictureInPicture="true" />
         <activity android:name=".VideoPlayerActivity" android:screenOrientation="landscape" android:exported="false" />
         <activity android:name=".LiveTvActivity" android:screenOrientation="landscape" android:exported="false" />
+        <activity android:name=".EpgGuideActivity" android:screenOrientation="landscape" android:exported="false" />
         <activity android:name=".ContentActivity" android:screenOrientation="landscape" android:exported="false" />
         <activity android:name=".FavoritesActivity" android:screenOrientation="landscape" android:exported="false" />
         <activity android:name=".SettingsActivity" android:screenOrientation="landscape" android:exported="false" />
