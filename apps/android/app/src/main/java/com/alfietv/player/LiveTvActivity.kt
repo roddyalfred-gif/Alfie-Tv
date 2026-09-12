@@ -104,7 +104,8 @@ class LiveTvActivity : ComponentActivity() {
             }
             setOnFocusChangeListener { _, focused -> if (focused && selectedItemPosition >= 0) filteredChannels().getOrNull(selectedItemPosition)?.let(::showEpg) }
         }
-        content.addView(list, LinearLayout.LayoutParams(0, 0, 1.62f))
+        // Horizontal parent: width is weighted, height must consume the parent's available height.
+        content.addView(list, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.62f))
 
         val epgScroll = ScrollView(this).apply { isFillViewport = true; isFocusable = false; overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS }
         epgContainer = LinearLayout(this).apply {
@@ -124,7 +125,7 @@ class LiveTvActivity : ComponentActivity() {
         epgContainer.addView(epgNext)
         epgContainer.addView(epgMeta)
         epgScroll.addView(epgContainer)
-        content.addView(epgScroll, LinearLayout.LayoutParams(0, 0, 0.92f).apply { leftMargin = 8 })
+        content.addView(epgScroll, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 0.92f).apply { leftMargin = 8 })
         root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
 
         status = TextView(this).apply { text = baseStatus; textSize = 13f; setTextColor(muted); setPadding(4, 7, 4, 2) }
@@ -261,29 +262,39 @@ class LiveTvActivity : ComponentActivity() {
         val current = ordered.firstOrNull { now in it.startUtcMs until it.endUtcMs }; val next = ordered.firstOrNull { it.startUtcMs > now }
         epgTitle.text = channel.name
         epgNow.text = current?.let { "NOW  ${it.title}\n${formatTime(it.startUtcMs)} – ${formatTime(it.endUtcMs)}" } ?: "NOW  No current program"
-        epgNext.text = next?.let { "NEXT  ${it.title}\n${formatTime(it.startUtcMs)} – ${formatTime(it.endUtcMs)}" } ?: "NEXT  No upcoming program"
-        val progress = current?.let { val duration = (it.endUtcMs - it.startUtcMs).coerceAtLeast(1L); ((now - it.startUtcMs).coerceIn(0L, duration) * 100 / duration).toInt() } ?: 0
-        epgProgress.progress = progress
-        epgMeta.text = "EPG • $progress% through current program • Guide ${EpgCache.ageText(EpgCache.Snapshot(ordered, savedAt))}"
-        epgContainer.setBackgroundColor(panel)
+        epgNext.text = next?.let { "NEXT  ${it.title}\n${formatTime(it.startUtcMs)} – ${formatTime(it.endUtcMs)}" } ?: "NEXT  —"
+        epgProgress.progress = current?.let { (((now - it.startUtcMs).toDouble() / (it.endUtcMs - it.startUtcMs).coerceAtLeast(1L)) * 100).toInt().coerceIn(0, 100) } ?: 0
+        epgMeta.text = "${ordered.size} guide entries • Updated ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(savedAt))}"
     }
 
-    private fun refreshSelectedEpgDisplay() { val channel = selectedEpgChannel ?: return; EpgCache.read(this, config, channel)?.let { renderEpg(channel, it.programs, it.savedAt) } }
-    private fun animatePanel() { ObjectAnimator.ofFloat(epgContainer, View.ALPHA, 0.65f, 1f).setDuration(180).start() }
-    private fun formatTime(ms: Long): String = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(ms))
+    private fun refreshSelectedEpgDisplay() {
+        selectedEpgChannel?.let { channel ->
+            val cached = EpgCache.read(this, config, channel)
+            if (cached != null) renderEpg(channel, cached.programs, cached.savedAt)
+        }
+    }
+
+    private fun animatePanel() {
+        epgContainer.alpha = 0.65f
+        ObjectAnimator.ofFloat(epgContainer, View.ALPHA, 0.65f, 1f).setDuration(180).start()
+    }
+
+    private fun formatTime(epochMs: Long): String = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(epochMs))
 
     private fun play(channel: IptvChannel) {
-        val channels = filteredChannels(); val index = channels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0); val windowStart = (index - 50).coerceAtLeast(0); val windowEnd = (index + 51).coerceAtMost(channels.size); val window = channels.subList(windowStart, windowEnd)
-        prefs.edit().putString(lastChannelKey(), channel.id).apply(); showEpg(channel); UserLibraryStore.recordWatched(this, config, channel.toLibraryItem())
-        startActivity(android.content.Intent(this, MainActivity::class.java).apply {
-            putExtra("stream_url", channel.streamUrl); putExtra("title", channel.name); putExtra("content_id", channel.id); putExtra("content_type", UserLibraryStore.Type.LIVE.name)
-            putExtra("channel_number", (index + 1).toString()); putExtra("channel_index", index - windowStart)
-            putExtra("channel_urls", ArrayList(window.map { it.streamUrl })); putExtra("channel_titles", ArrayList(window.map { it.name })); putExtra("channel_ids", ArrayList(window.map { it.id })); putExtra("channel_numbers", ArrayList(window.mapIndexed { i, _ -> (windowStart + i + 1).toString() }))
-        })
+        prefs.edit().putString(lastChannelKey(), channel.id).apply()
+        val intent = android.content.Intent(this, VideoPlayerActivity::class.java).apply {
+            putExtra("url", channel.streamUrl)
+            putExtra("title", channel.name)
+        }
+        startActivity(intent)
     }
 
-    private fun IptvChannel.toLibraryItem() = UserLibraryStore.Item(id, UserLibraryStore.Type.LIVE, name, streamUrl, categoryId, logoUrl)
-    private fun roundedBackground(color: Int, radiusDp: Float): GradientDrawable = GradientDrawable().apply { setColor(color); cornerRadius = radiusDp * resources.displayMetrics.density }
+    override fun onDestroy() {
+        mainHandler.removeCallbacks(epgTicker)
+        executor.shutdownNow()
+        super.onDestroy()
+    }
 
-    override fun onDestroy() { mainHandler.removeCallbacks(epgTicker); executor.shutdownNow(); super.onDestroy() }
+    private fun roundedBackground(color: Int, radius: Float): GradientDrawable = GradientDrawable().apply { setColor(color); cornerRadius = radius }
 }
