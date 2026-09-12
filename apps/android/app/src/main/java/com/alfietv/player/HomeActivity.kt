@@ -15,17 +15,18 @@ import android.widget.ScrollView
 import android.widget.TextView
 import java.util.concurrent.Executors
 
-/** TV-first application hub with a responsive, scrollable and remote-friendly menu. */
+/** TV-first application hub with a modern, responsive and remote-friendly interface. */
 class HomeActivity : androidx.activity.ComponentActivity() {
     private lateinit var config: XtreamConfig
     private val executor = Executors.newSingleThreadExecutor()
     private var status: TextView? = null
-    private val backgroundColor = Color.rgb(5, 9, 18)
-    private val surfaceColor = Color.rgb(15, 23, 38)
-    private val surfaceAltColor = Color.rgb(21, 31, 50)
-    private val accentColor = Color.rgb(0, 168, 255)
+    private val backgroundColor = Color.rgb(5, 8, 17)
+    private val surfaceColor = Color.rgb(16, 24, 40)
+    private val surfaceAltColor = Color.rgb(24, 34, 54)
+    private val accentColor = Color.rgb(0, 174, 255)
+    private val accentAltColor = Color.rgb(104, 76, 255)
     private val textColor = Color.WHITE
-    private val secondaryTextColor = Color.rgb(170, 181, 200)
+    private val secondaryTextColor = Color.rgb(166, 178, 199)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,38 +48,61 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     private fun buildHome() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(42, 24, 42, 24)
+            setPadding(28, 20, 28, 18)
             setBackgroundColor(backgroundColor)
         }
 
-        val header = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            isFocusable = false
+        val topBar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(4, 0, 4, 14)
         }
-        header.addView(TextView(this).apply {
+        val brand = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        brand.addView(TextView(this).apply {
             text = "ALFIE TV"
-            textSize = 32f
-            gravity = Gravity.CENTER
+            textSize = 29f
             setTextColor(accentColor)
             typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = 0.14f
+            letterSpacing = 0.12f
         })
-        header.addView(TextView(this).apply {
-            text = "LIVE • MOVIES • SERIES • YOUR LIBRARY"
-            textSize = 13f
-            gravity = Gravity.CENTER
+        brand.addView(TextView(this).apply {
+            text = "STREAM • WATCH • ENJOY"
+            textSize = 10f
             setTextColor(secondaryTextColor)
-            setPadding(0, 5, 0, 3)
+            letterSpacing = 0.12f
+            setPadding(0, 2, 0, 0)
         })
+        topBar.addView(brand, LinearLayout.LayoutParams(0, -2, 1f))
         status = TextView(this).apply {
+            text = "●  PROVIDER CONNECTED"
+            textSize = 11f
+            typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
-            textSize = 12f
-            text = "●  Provider connected"
-            setTextColor(secondaryTextColor)
+            setTextColor(Color.rgb(120, 225, 175))
+            background = roundedBackground(surfaceAltColor, 18f)
+            setPadding(18, 9, 18, 9)
         }
-        header.addView(status)
-        root.addView(header, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 8 })
+        topBar.addView(status)
+        root.addView(topBar)
+
+        val hero = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 18, 24, 18)
+            background = gradientBackground(accentAltColor, Color.rgb(22, 42, 75), 20f)
+        }
+        hero.addView(TextView(this).apply {
+            text = "WELCOME TO ALFIE TV"
+            textSize = 21f
+            setTextColor(textColor)
+            typeface = Typeface.DEFAULT_BOLD
+        })
+        hero.addView(TextView(this).apply {
+            text = "Live television, your TV Guide, movies and series — all in one place."
+            textSize = 12f
+            setTextColor(Color.rgb(225, 232, 245))
+            setPadding(0, 5, 0, 0)
+        })
+        root.addView(hero, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 10 })
 
         val scroll = ScrollView(this).apply {
             isFillViewport = true
@@ -87,44 +111,46 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         }
         val menu = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, 0, 0, 14)
+            setPadding(0, 0, 0, 12)
         }
         scroll.addView(menu)
 
-        addSectionLabel(menu, "WATCH NOW", "Jump straight into live television or on-demand content")
-        val liveButton = addButton(menu, "📺  Live TV", "Channels • EPG • favorites • live playback") {
+        addSectionLabel(menu, "LIVE & TV", "Your live channels and multi-program schedule")
+        val liveRow = addCardRow(menu)
+        val liveButton = addButton(liveRow, "📺  LIVE TV", "Channels • favorites • playback") {
             open(LiveTvActivity::class.java)
         }
-        addButton(menu, "🗓  TV Guide / EPG", "Multi-program schedule • channel-by-channel guide") {
+        addButton(liveRow, "🗓  TV GUIDE", "NOW • NEXT • full schedule") {
             open(EpgGuideActivity::class.java)
         }
 
-        addSectionLabel(menu, "ON DEMAND", "Movies and TV series from your provider")
-        addButton(menu, "🎬  Movies", "Browse, select and play your movie library") {
+        addSectionLabel(menu, "ON DEMAND", "Browse your provider's entertainment library")
+        val vodRow = addCardRow(menu)
+        addButton(vodRow, "🎬  MOVIES", "Browse and play movies") {
             open(ContentActivity::class.java, "vod")
         }
-        addButton(menu, "📺  Series", "Browse shows, seasons and episodes") {
+        addButton(vodRow, "📺  SERIES", "Shows • seasons • episodes") {
             open(ContentActivity::class.java, "series")
         }
 
-        addSectionLabel(menu, "MY LIBRARY", "Keep your viewing easy to resume")
-        addButton(menu, "★  Favorites", "Your saved channels and content") {
+        addSectionLabel(menu, "MY LIBRARY", "Your saved and recently viewed content")
+        val libraryRow = addCardRow(menu)
+        addButton(libraryRow, "★  FAVORITES", "Saved channels and content") {
             open(FavoritesActivity::class.java)
         }
-        addButton(menu, "◷  Recently Watched", "Jump back into your recent viewing") {
+        addButton(libraryRow, "◷  RECENTLY WATCHED", "Quickly resume recent viewing") {
             open(FavoritesActivity::class.java)
         }
 
-        addSectionLabel(menu, "PLAYER & APP", "Customize playback and application behaviour")
-        addButton(menu, "⚙  Settings", "Player, display, playback and app settings") {
+        addSectionLabel(menu, "APP & PROVIDER", "Manage playback, settings and your IPTV connection")
+        val toolsRow = addCardRow(menu)
+        addButton(toolsRow, "⚙  SETTINGS", "Player • display • playback") {
             open(SettingsActivity::class.java)
         }
-
-        addSectionLabel(menu, "PROVIDER", "Keep channels, categories and guide data current")
-        addButton(menu, "↻  Refresh Provider", "Update channels, categories and guide cache") {
+        addButton(toolsRow, "↻  REFRESH", "Update channels and guide cache") {
             refreshProvider()
         }
-        addButton(menu, "⇄  Change Provider / Logout", "Disconnect and sign in with another provider") {
+        addButton(menu, "⇄  CHANGE PROVIDER / LOGOUT", "Disconnect and sign in with another IPTV provider") {
             clearProviderCache()
             SessionStore.clear(this)
             goToLogin()
@@ -133,8 +159,8 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
 
         val footer = TextView(this).apply {
-            text = "Use ↑ ↓ to navigate • OK / Enter to select • Back to return"
-            textSize = 11f
+            text = "↑ ↓ ← → Navigate   •   OK / Enter Select   •   Back Return"
+            textSize = 10f
             gravity = Gravity.CENTER
             setTextColor(secondaryTextColor)
             setPadding(0, 8, 0, 0)
@@ -146,10 +172,10 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         root.post { liveButton.requestFocus() }
     }
 
-    private fun addSectionLabel(root: LinearLayout, title: String, subtitle: String? = null) {
+    private fun addSectionLabel(root: LinearLayout, title: String, subtitle: String) {
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(6, 12, 6, 4)
+            setPadding(6, 9, 6, 4)
             isFocusable = false
         }
         container.addView(TextView(this).apply {
@@ -159,39 +185,49 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             typeface = Typeface.DEFAULT_BOLD
             letterSpacing = 0.08f
         })
-        subtitle?.let {
-            container.addView(TextView(this).apply {
-                text = it
-                textSize = 11f
-                setTextColor(secondaryTextColor)
-                setPadding(0, 2, 0, 0)
-            })
-        }
+        container.addView(TextView(this).apply {
+            text = subtitle
+            textSize = 10f
+            setTextColor(secondaryTextColor)
+            setPadding(0, 2, 0, 0)
+        })
         root.addView(container)
+    }
+
+    private fun addCardRow(root: LinearLayout): LinearLayout {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, 1)
+        }
+        root.addView(row, LinearLayout.LayoutParams(-1, 76))
+        return row
     }
 
     private fun addButton(root: LinearLayout, label: String, description: String, action: () -> Unit): Button {
         val button = Button(this).apply {
             text = "$label\n$description"
             isAllCaps = false
-            textSize = 15f
-            minHeight = 66
+            textSize = 13f
+            minHeight = 0
             gravity = Gravity.CENTER_VERTICAL or Gravity.START
-            setPadding(24, 0, 20, 0)
+            setPadding(18, 0, 12, 0)
             setTextColor(textColor)
-            background = roundedBackground(surfaceColor, 14f)
+            background = roundedBackground(surfaceColor, 16f)
             isFocusable = true
             isFocusableInTouchMode = true
             stateListAnimator = null
             setOnFocusChangeListener { view, focused ->
-                view.background = roundedBackground(if (focused) accentColor else surfaceColor, 14f)
-                (view as Button).setTextColor(Color.WHITE)
+                view.background = roundedBackground(if (focused) accentColor else surfaceColor, 16f)
                 animateFocus(view, focused)
                 if (focused) ensureVisible(view)
             }
             setOnClickListener { action() }
         }
-        root.addView(button, LinearLayout.LayoutParams(-1, 68).apply { topMargin = 5 })
+        val params = LinearLayout.LayoutParams(0, -1, 1f).apply {
+            leftMargin = 3
+            rightMargin = 3
+        }
+        root.addView(button, params)
         return button
     }
 
@@ -202,22 +238,22 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     }
 
     private fun ensureVisible(view: View) {
-        val scroll = view.parent?.parent as? ScrollView
-        scroll?.post { scroll.smoothScrollTo(0, (view.top - 90).coerceAtLeast(0)) }
+        val scroll = view.parent?.parent?.parent as? ScrollView
+        scroll?.post { scroll.smoothScrollTo(0, (view.top - 70).coerceAtLeast(0)) }
     }
 
     private fun refreshProvider() {
-        status?.text = "Refreshing provider…"
+        status?.text = "↻  REFRESHING PROVIDER…"
         executor.execute {
             try {
                 val (categories, channels) = XtreamClient().load(config)
                 LiveTvCache.write(this, config, categories, channels)
                 runOnUiThread {
-                    status?.text = "●  Provider refreshed • ${channels.size} live channels cached"
+                    status?.text = "●  ${channels.size} LIVE CHANNELS READY"
                 }
             } catch (e: Exception) {
                 runOnUiThread {
-                    status?.text = "Refresh failed • ${e.message ?: "unknown error"}"
+                    status?.text = "⚠  REFRESH FAILED"
                 }
             }
         }
@@ -225,6 +261,13 @@ class HomeActivity : androidx.activity.ComponentActivity() {
 
     private fun roundedBackground(color: Int, radiusDp: Float): GradientDrawable = GradientDrawable().apply {
         setColor(color)
+        cornerRadius = radiusDp * resources.displayMetrics.density
+    }
+
+    private fun gradientBackground(start: Int, end: Int, radiusDp: Float): GradientDrawable = GradientDrawable(
+        GradientDrawable.Orientation.TL_BR,
+        intArrayOf(start, end)
+    ).apply {
         cornerRadius = radiusDp * resources.displayMetrics.density
     }
 
