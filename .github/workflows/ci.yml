@@ -12,6 +12,8 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Full validation run after TV Guide upgrade.
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
