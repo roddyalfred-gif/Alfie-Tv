@@ -57,7 +57,7 @@ jobs:
 
       - name: Package Windows portable desktop build
         working-directory: packages/desktop
-        run: npx --yes electron-builder@26.0.12 --win portable --x64 --publish never -c.electronVersion=43.2.0
+        run: npx --yes electron-builder@26.0.12 --win portable --x64 --publish never
 
       - name: Upload Windows desktop build
         uses: actions/upload-artifact@v5
@@ -87,7 +87,7 @@ jobs:
 
       - name: Package macOS desktop builds
         working-directory: packages/desktop
-        run: npx --yes electron-builder@26.0.12 --mac dmg zip --x64 --arm64 --publish never -c.electronVersion=43.2.0
+        run: npx --yes electron-builder@26.0.12 --mac dmg zip --x64 --arm64 --publish never
 
       - name: Upload macOS desktop builds
         uses: actions/upload-artifact@v5
