@@ -55,17 +55,9 @@ jobs:
       - name: Test desktop package
         run: npx --yes vitest@4.1.10 run packages/desktop/src/__tests__/desktopApp.test.ts --config vitest.config.ts
 
-      - name: Install Electron runtime for packaging
-        working-directory: packages/desktop
-        run: npm install --no-save --package-lock=false --ignore-scripts electron@43.2.0
-
-      - name: Verify Electron runtime
-        working-directory: packages/desktop
-        run: node -e "const p=require.resolve('electron/package.json'); const e=require('electron/package.json').version; if(e!=='43.2.0') throw new Error('Expected Electron 43.2.0, got '+e); console.log('Electron',e,'at',p)"
-
       - name: Package Windows portable desktop build
         working-directory: packages/desktop
-        run: npx --yes electron-builder@26.0.12 --win portable --x64 --publish never
+        run: npx --yes electron-builder@26.0.12 --win portable --x64 --publish never -c.electronVersion=43.2.0
 
       - name: Upload Windows desktop build
         uses: actions/upload-artifact@v5
@@ -93,17 +85,9 @@ jobs:
       - name: Test desktop package
         run: npx --yes vitest@4.1.10 run packages/desktop/src/__tests__/desktopApp.test.ts --config vitest.config.ts
 
-      - name: Install Electron runtime for packaging
-        working-directory: packages/desktop
-        run: npm install --no-save --package-lock=false --ignore-scripts electron@43.2.0
-
-      - name: Verify Electron runtime
-        working-directory: packages/desktop
-        run: node -e "const p=require.resolve('electron/package.json'); const e=require('electron/package.json').version; if(e!=='43.2.0') throw new Error('Expected Electron 43.2.0, got '+e); console.log('Electron',e,'at',p)"
-
       - name: Package macOS desktop builds
         working-directory: packages/desktop
-        run: npx --yes electron-builder@26.0.12 --mac dmg zip --x64 --arm64 --publish never
+        run: npx --yes electron-builder@26.0.12 --mac dmg zip --x64 --arm64 --publish never -c.electronVersion=43.2.0
 
       - name: Upload macOS desktop builds
         uses: actions/upload-artifact@v5
