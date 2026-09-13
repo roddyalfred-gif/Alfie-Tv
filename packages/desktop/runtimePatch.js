@@ -29,7 +29,7 @@ module.exports = String.raw`
       if (!box || box.querySelector('.alfie-playback-error')) return;
       const message = document.createElement('div');
       message.className = 'alfie-playback-error';
-      message.textContent = 'Playback error — check the provider stream or try another channel.';
+      message.textContent = 'Playback error — check the provider stream or try another title/channel.';
       Object.assign(message.style, { color:'#fda4af', padding:'10px 2px', fontSize:'12px' });
       box.appendChild(message);
     });
@@ -38,8 +38,25 @@ module.exports = String.raw`
       if (message) message.remove();
     });
   };
-  new MutationObserver(installVideoGuard).observe(document.documentElement, { childList: true, subtree: true });
+  const restoreProvider = () => {
+    try {
+      const raw = localStorage.getItem('alfie-provider');
+      if (!raw || document.querySelector('#login')?.classList.contains('hidden')) return;
+      const saved = JSON.parse(raw);
+      if (!saved?.server || !saved?.username) return;
+      const server = document.querySelector('#server');
+      const username = document.querySelector('#username');
+      const password = document.querySelector('#password');
+      if (!server || !username || !password) return;
+      server.value = saved.server;
+      username.value = saved.username;
+      password.value = saved.password || '';
+      if (saved.password) document.querySelector('#loginForm')?.requestSubmit();
+    } catch {}
+  };
+  new MutationObserver(() => { installVideoGuard(); restoreProvider(); }).observe(document.documentElement, { childList: true, subtree: true });
   installVideoGuard();
+  setTimeout(restoreProvider, 0);
   window.__alfieRuntimePatch = true;
 })();
 `;
