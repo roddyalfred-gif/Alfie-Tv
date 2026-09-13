@@ -101,6 +101,55 @@ const GUIDE_PATCH = String.raw`
 })();
 `;
 
+const PLAYER_PATCH = String.raw`
+(() => {
+  let hls = null;
+  let retryTimer = null;
+  const destroy = () => { if (hls) { try { hls.destroy(); } catch {} hls = null; } if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; } };
+  const attach = (video) => {
+    if (!video || video.dataset.alfieHlsAttached === '1') return;
+    video.dataset.alfieHlsAttached = '1';
+    const url = video.currentSrc || video.src;
+    if (!url) return;
+    destroy();
+    const isHls = /\.m3u8(?:$|[?#])/i.test(url);
+    if (!isHls) return;
+    try {
+      const Hls = require('hls.js');
+      if (Hls && Hls.isSupported()) {
+        hls = new Hls({ enableWorker: true, lowLatencyMode: true, backBufferLength: 90, maxBufferLength: 30, manifestLoadingTimeOut: 20000, fragLoadingTimeOut: 20000 });
+        hls.loadSource(url);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (!data?.fatal) return;
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+            try { hls.startLoad(); } catch {}
+          } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+            try { hls.recoverMediaError(); } catch {}
+          } else {
+            destroy();
+            retryTimer = setTimeout(() => attach(video), 1500);
+          }
+        });
+        return;
+      }
+    } catch {}
+    video.load();
+    video.play().catch(() => {});
+  };
+  const observe = () => {
+    const video = document.querySelector('#video');
+    if (video) attach(video);
+  };
+  new MutationObserver(observe).observe(document.documentElement, { childList: true, subtree: true });
+  document.addEventListener('loadedmetadata', observe, true);
+  document.addEventListener('error', observe, true);
+  window.addEventListener('beforeunload', destroy);
+  observe();
+  window.__alfiePlayerPatch = true;
+})();
+`;
+
 function createWindow() {
   if (!electron || !electron.BrowserWindow) return;
   const { ipcMain } = electron;
@@ -115,6 +164,7 @@ function createWindow() {
   win.loadFile(path.join(__dirname, 'index.html'));
   win.webContents.on('did-finish-load', () => {
     win.webContents.executeJavaScript(GUIDE_PATCH).catch(() => {});
+    win.webContents.executeJavaScript(PLAYER_PATCH).catch(() => {});
     win.webContents.executeJavaScript(LAYOUT_PATCH).catch(() => {});
   });
 }
