@@ -313,93 +313,51 @@ class LiveTvActivity : ComponentActivity() {
                     maxLines = 2
                 }
                 name.text = "${position + 1}. ${if (favorite) "★ " else ""}${channel.name}"
-                sub.text = when (currentLayoutMode) {
-                    LayoutMode.LIST -> if (focused) "NOW • EPG shown at right • OK to play" else "Select for live program information"
-                    LayoutMode.GRID -> if (focused) "NOW • OK to play" else "Select channel"
-                    LayoutMode.TILE -> if (focused) "NOW" else "LIVE"
+                sub.text = when {
+                    channel.epgId != null -> "EPG available"
+                    channel.categoryId != null -> channel.categoryId
+                    else -> "Live"
                 }
-                textBox.addView(name)
-                if (currentLayoutMode != LayoutMode.TILE) textBox.addView(sub)
-                item.addView(icon)
-                if (currentLayoutMode == LayoutMode.LIST) item.addView(textBox, LinearLayout.LayoutParams(0, -2, 1f))
-                else item.addView(textBox, LinearLayout.LayoutParams(-1, -2))
-                ArtworkLoader.load(channel.logoUrl, icon, android.R.drawable.ic_menu_gallery)
+                textBox.addView(name); textBox.addView(sub)
+                item.addView(icon); item.addView(textBox, LinearLayout.LayoutParams(if (currentLayoutMode == LayoutMode.LIST) 0 else -1, -2, if (currentLayoutMode == LayoutMode.LIST) 1f else 0f))
+                item.setOnClickListener {
+                    selectedIndex = position
+                    list.setSelection(position)
+                    showEpg(channel)
+                    list.invalidateViews()
+                    play(channel)
+                }
                 item.setOnFocusChangeListener { view, hasFocus ->
-                    if (hasFocus) { selectedIndex = position; animateFocus(view, true); showEpg(channel); renderSelectionOnly() }
-                    else animateFocus(view, false)
+                    if (hasFocus) { selectedIndex = position; showEpg(channel) }
+                    view.background = roundedBackground(if (hasFocus) Color.rgb(0, 85, 160) else row, 12f)
                 }
                 return item
             }
         }
-        list.post {
-            if (!search.hasFocus()) {
-                list.requestFocus()
-                if (list.count > 0 && list.selectedItemPosition < 0) list.setSelection(0)
-            }
-        }
-        status.text = baseStatus
+        list.setSelection(selectedIndex.coerceAtLeast(0))
     }
 
-    private fun renderSelectionOnly() { list.invalidateViews() }
-    private fun animateFocus(view: View, focused: Boolean) { ObjectAnimator.ofFloat(view, View.SCALE_X, view.scaleX, if (focused) 1.02f else 1f).setDuration(120).start(); ObjectAnimator.ofFloat(view, View.SCALE_Y, view.scaleY, if (focused) 1.02f else 1f).setDuration(120).start() }
-    private fun setBaseStatus(value: String) { baseStatus = value; if (::status.isInitialized) status.text = value }
-    private fun moveChannel(delta: Int) { val count = list.adapter?.count ?: 0; if (count == 0) return; val current = list.selectedItemPosition.takeIf { it >= 0 } ?: 0; val next = (current + delta).coerceIn(0, count - 1); list.setSelection(next); filteredChannels().getOrNull(next)?.let { selectedIndex = next; showEpg(it); list.invalidateViews() } }
-
-    private fun showEpg(channel: IptvChannel) {
-        selectedEpgChannel = channel
-        epgTitle.text = channel.name
-        epgNow.text = "Loading EPG…"
-        epgNext.text = "NEXT  —"
-        epgProgress.progress = 0
-        epgMeta.text = "Program guide • ${channel.categoryId ?: "Live TV"}"
-        animatePanel()
-        val cached = EpgCache.read(this, config, channel)
-        cached?.let { epgContainer.post { if (selectedEpgChannel?.id == channel.id) renderEpg(channel, it.programs, it.savedAt) } }
-        if (cached != null && EpgCache.isFresh(cached)) return
-        executor.execute {
-            try {
-                val programs = XtreamClient().loadEpg(config, channel)
-                EpgCache.write(this, config, channel, programs)
-                runOnUiThread { if (selectedEpgChannel?.id == channel.id) renderEpg(channel, programs, System.currentTimeMillis()) }
-            } catch (_: Exception) {
-                runOnUiThread { if (selectedEpgChannel?.id == channel.id && cached == null) { epgNow.text = "EPG unavailable"; epgNext.text = "Try refreshing the provider" } }
-            }
-        }
+    private fun moveChannel(delta: Int) {
+        val channels = filteredChannels()
+        if (channels.isEmpty()) return
+        val next = (selectedIndex + delta).coerceIn(0, channels.lastIndex)
+        selectedIndex = next
+        list.setSelection(next)
+        channels.getOrNull(next)?.let { showEpg(it) }
+        list.invalidateViews()
     }
-
-    private fun renderEpg(channel: IptvChannel, programs: List<EpgProgram>, savedAt: Long) {
-        val now = System.currentTimeMillis(); val ordered = programs.sortedBy { it.startUtcMs }
-        val current = ordered.firstOrNull { now in it.startUtcMs until it.endUtcMs }; val next = ordered.firstOrNull { it.startUtcMs > now }
-        epgTitle.text = channel.name
-        epgNow.text = current?.let { "NOW  ${it.title}\n${formatTime(it.startUtcMs)} – ${formatTime(it.endUtcMs)}" } ?: "NOW  No current program"
-        epgNext.text = next?.let { "NEXT  ${it.title}\n${formatTime(it.startUtcMs)} – ${formatTime(it.endUtcMs)}" } ?: "NEXT  —"
-        epgProgress.progress = current?.let { (((now - it.startUtcMs).toDouble() / (it.endUtcMs - it.startUtcMs).coerceAtLeast(1L)) * 100).toInt().coerceIn(0, 100) } ?: 0
-        epgMeta.text = "${ordered.size} guide entries • Updated ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(savedAt))}"
-    }
-
-    private fun refreshSelectedEpgDisplay() {
-        selectedEpgChannel?.let { channel -> EpgCache.read(this, config, channel)?.let { renderEpg(channel, it.programs, it.savedAt) } }
-    }
-
-    private fun animatePanel() {
-        epgContainer.alpha = 0.65f
-        ObjectAnimator.ofFloat(epgContainer, View.ALPHA, 0.65f, 1f).setDuration(180).start()
-    }
-
-    private fun formatTime(epochMs: Long): String = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(epochMs))
 
     private fun play(channel: IptvChannel) {
+        val channelIndex = filteredChannels().indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
+        val channelUrls = ArrayList(filteredChannels().map { it.streamUrl })
+        val channelTitles = ArrayList(filteredChannels().map { it.name })
+        val channelIds = ArrayList(filteredChannels().map { it.id })
+        val channelNumbers = ArrayList(filteredChannels().indices.map { (it + 1).toString() })
         val streamUrl = channel.streamUrl.trim()
         if (streamUrl.isBlank()) {
             setBaseStatus("${channel.name} has no stream URL • Provider refresh required")
             return
         }
-        val visibleChannels = filteredChannels()
-        val channelIndex = visibleChannels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
-        val channelUrls = ArrayList(visibleChannels.map { it.streamUrl })
-        val channelTitles = ArrayList(visibleChannels.map { it.name })
-        val channelIds = ArrayList(visibleChannels.map { it.id })
-        val channelNumbers = ArrayList(visibleChannels.indices.map { (it + 1).toString() })
         prefs.edit().putString(lastChannelKey(), channel.id).apply()
         val intent = android.content.Intent(this, VideoPlayerActivity::class.java).apply {
             putExtra("url", streamUrl); putExtra("stream_url", streamUrl); putExtra("title", channel.name)
@@ -411,11 +369,66 @@ class LiveTvActivity : ComponentActivity() {
         startActivity(intent)
     }
 
+    private fun showEpg(channel: IptvChannel) {
+        selectedEpgChannel = channel
+        epgTitle.text = channel.name
+        epgNow.text = "Loading NOW / NEXT…"
+        epgNext.text = ""
+        epgMeta.text = "EPG channel: ${channel.epgId ?: "not mapped"}"
+        epgProgress.progress = 0
+        val cached = EpgCache.read(this, config, channel)
+        if (cached != null) {
+            renderEpg(channel, cached.programs)
+            if (EpgCache.isFresh(cached)) return
+        }
+        executor.execute {
+            try {
+                val programs = XtreamClient().loadEpg(config, channel)
+                EpgCache.write(this, config, channel, programs)
+                runOnUiThread { if (selectedEpgChannel?.id == channel.id) renderEpg(channel, programs) }
+            } catch (_: Exception) {
+                runOnUiThread {
+                    if (selectedEpgChannel?.id == channel.id && cached == null) {
+                        epgNow.text = "No programme data available"
+                        epgNext.text = "Try Refresh Provider if the channel should have EPG."
+                        epgProgress.progress = 0
+                    }
+                }
+            }
+        }
+    }
+
+    private fun refreshSelectedEpgDisplay() {
+        selectedEpgChannel?.let { channel ->
+            val cached = EpgCache.read(this, config, channel)
+            if (cached != null) renderEpg(channel, cached.programs)
+        }
+    }
+
+    private fun renderEpg(channel: IptvChannel, programs: List<EpgProgram>) {
+        val now = System.currentTimeMillis()
+        val sorted = programs.sortedBy { it.startUtcMs }
+        val current = sorted.firstOrNull { now in it.startUtcMs until it.endUtcMs }
+        val next = sorted.firstOrNull { it.startUtcMs > now }
+        epgNow.text = if (current != null) "NOW  ${current.title}" else "NOW  No current programme"
+        epgNext.text = if (next != null) "NEXT  ${next.title}" else "NEXT  No upcoming programme"
+        epgProgress.progress = if (current != null) {
+            val duration = (current.endUtcMs - current.startUtcMs).coerceAtLeast(1L)
+            (((now - current.startUtcMs).toDouble() / duration) * 100.0).toInt().coerceIn(0, 100)
+        } else 0
+        epgMeta.text = buildString {
+            append(channel.name)
+            append(" • ")
+            append(DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(now)))
+            current?.let { append(" • "); append(DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it.startUtcMs))); append("–"); append(DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it.endUtcMs))) }
+        }
+    }
+
+    private fun setBaseStatus(text: String) { baseStatus = text; status.text = text }
+    private fun roundedBackground(color: Int, radiusDp: Float): GradientDrawable = GradientDrawable().apply { setColor(color); cornerRadius = radiusDp * resources.displayMetrics.density }
+    private fun animateFocus(view: View, focused: Boolean) { ObjectAnimator.ofFloat(view, "scaleX", if (focused) 1.03f else 1f).setDuration(120).start(); ObjectAnimator.ofFloat(view, "scaleY", if (focused) 1.03f else 1f).setDuration(120).start() }
     override fun onDestroy() {
-        mainHandler.removeCallbacks(epgTicker)
         executor.shutdownNow()
         super.onDestroy()
     }
-
-    private fun roundedBackground(color: Int, radius: Float): GradientDrawable = GradientDrawable().apply { setColor(color); cornerRadius = radius }
 }
