@@ -9,7 +9,7 @@ import java.util.Date
 
 /** Provider- and channel-scoped EPG cache. Credentials are never stored. */
 object EpgCache {
-    private const val VERSION = 1
+    private const val VERSION = 2
     private const val MAX_AGE_MS = 10 * 60 * 1000L
 
     data class Snapshot(val programs: List<EpgProgram>, val savedAt: Long)
@@ -54,9 +54,6 @@ object EpgCache {
         runCatching {
             context.openFileOutput(fileName(config, channel), Context.MODE_PRIVATE).bufferedWriter().use { it.write(root.toString()) }
         }
-        // Also publish a lightweight display snapshot. MainActivity polls this value,
-        // so EPG can appear after the player has already started without waiting for a
-        // second activity refresh or relying on a race between screen transitions.
         val now = System.currentTimeMillis()
         val current = programs.firstOrNull { now >= it.startUtcMs && now < it.endUtcMs }
         val next = programs.firstOrNull { it.startUtcMs > now }
