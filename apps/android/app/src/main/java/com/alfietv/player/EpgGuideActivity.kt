@@ -56,7 +56,6 @@ class EpgGuideActivity : ComponentActivity() {
             setPadding(18, 12, 18, 10)
             setBackgroundColor(bg)
         }
-
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         header.addView(TextView(this).apply {
             text = "TV GUIDE"
@@ -162,9 +161,7 @@ class EpgGuideActivity : ComponentActivity() {
         if (cached != null) {
             applyChannels(cached.channels)
             status.text = "${cached.channels.size} channels • cached • refreshing…"
-        } else {
-            status.text = "Refreshing channels and guide…"
-        }
+        } else status.text = "Refreshing channels and guide…"
         executor.execute {
             try {
                 val (categories, fresh) = XtreamClient().load(config)
@@ -218,22 +215,16 @@ class EpgGuideActivity : ComponentActivity() {
         channelList.invalidateViews()
         channelList.setSelection(channels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0))
         renderLoading(channel)
-
         val cached = EpgCache.read(this, config, channel)
         if (cached != null) renderPrograms(cached.programs)
         if (cached != null && EpgCache.isFresh(cached)) return
-
         executor.execute {
             try {
                 val programs = XtreamClient().loadEpg(config, channel)
                 EpgCache.write(this, config, channel, programs)
-                runOnUiThread {
-                    if (selectedChannel?.id == channel.id) renderPrograms(programs)
-                }
+                runOnUiThread { if (selectedChannel?.id == channel.id) renderPrograms(programs) }
             } catch (_: Exception) {
-                runOnUiThread {
-                    if (selectedChannel?.id == channel.id && cached == null) renderUnavailable()
-                }
+                runOnUiThread { if (selectedChannel?.id == channel.id && cached == null) renderUnavailable() }
             }
         }
     }
@@ -273,24 +264,21 @@ class EpgGuideActivity : ComponentActivity() {
             .take(24)
         val channel = selectedChannel
         schedule.removeAllViews()
-
         if (visible.isEmpty()) {
             renderUnavailable()
             return
         }
-
         schedule.addView(TextView(this).apply {
             text = "${channel?.name ?: "Channel"}  •  ${visible.size} programmes"
             textSize = 13f
             setTextColor(muted)
             setPadding(6, 4, 6, 8)
         })
-
         visible.forEachIndexed { index, program ->
             val current = now in program.startUtcMs until program.endUtcMs
             val duration = (program.endUtcMs - program.startUtcMs).coerceAtLeast(1L)
             val elapsed = (now - program.startUtcMs).coerceAtLeast(0L)
-            val progress = ((elapsed.toDouble() / duration.toDouble()) * 100.0).toInt().coerceIn(0, 100)
+            val progressPct = ((elapsed.toDouble() / duration.toDouble()) * 100.0).toInt().coerceIn(0, 100)
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(16, 10, 16, 8)
@@ -332,7 +320,7 @@ class EpgGuideActivity : ComponentActivity() {
             if (current) {
                 val progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
                     max = 100
-                    progress = progress
+                    progress = progressPct
                 }
                 card.addView(progressBar, LinearLayout.LayoutParams(-1, 5).apply { topMargin = 7 })
             }
@@ -348,12 +336,10 @@ class EpgGuideActivity : ComponentActivity() {
         val channelIds = ArrayList(channels.map { it.id })
         val channelNumbers = ArrayList(channels.indices.map { (it + 1).toString() })
         val url = channel.streamUrl.trim()
-
         if (url.isBlank()) {
             status.text = "${channel.name} has no stream URL • Refresh Provider"
             return
         }
-
         startActivity(Intent(this, VideoPlayerActivity::class.java).apply {
             putExtra("url", url)
             putExtra("stream_url", url)
