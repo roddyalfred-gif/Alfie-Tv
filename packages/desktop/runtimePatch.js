@@ -14,10 +14,10 @@ module.exports = String.raw`
     const pass = encoded(cfg.password);
     const id = encoded(item.stream_id ?? item.id);
     if (!id) return '';
-    if (type === 'live') return `${base}/live/${user}/${pass}/${id}`;
+    if (type === 'live') return base + '/live/' + user + '/' + pass + '/' + id;
     const folder = type === 'movie' ? 'movie' : 'series';
     const ext = String(item.container_extension || 'mp4').replace(/^\./, '') || 'mp4';
-    return `${base}/${folder}/${user}/${pass}/${id}.${ext}`;
+    return base + '/' + folder + '/' + user + '/' + pass + '/' + id + '.' + ext;
   };
   window.streamUrl = providerStreamUrl;
   const installVideoGuard = () => {
