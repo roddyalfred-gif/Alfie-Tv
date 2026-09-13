@@ -1,115 +1,49 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Alfie TV Desktop</title>
-    <style>
-      body {
-        margin: 0;
-        font-family: Arial, sans-serif;
-        background: #020617;
-        color: #f8fafc;
-      }
-      .shell {
-        min-height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 24px;
-      }
-      .panel {
-        background: #111827;
-        border: 1px solid #334155;
-        border-radius: 16px;
-        padding: 28px;
-        max-width: 760px;
-        width: 100%;
-      }
-      .layout {
-        display: grid;
-        grid-template-columns: 2fr 1fr;
-        gap: 20px;
-      }
-      .card {
-        background: #0f172a;
-        border: 1px solid #334155;
-        border-radius: 12px;
-        padding: 14px;
-        margin-bottom: 10px;
-      }
-      .pill {
-        display: inline-block;
-        margin-top: 6px;
-        padding: 4px 8px;
-        border-radius: 999px;
-        background: #1d4ed8;
-        color: #dbeafe;
-        font-size: 12px;
-      }
-      .toolbar {
-        display: flex;
-        gap: 8px;
-        margin: 12px 0;
-      }
-      .toolbar button {
-        border: none;
-        border-radius: 999px;
-        background: #1d4ed8;
-        color: white;
-        padding: 6px 10px;
-        cursor: pointer;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="shell">
-      <div class="panel">
-        <h1>Alfie TV Desktop</h1>
-        <p>Desktop shell scaffold is running.</p>
-        <div class="toolbar">
-          <button data-screen="home">Home</button>
-          <button data-screen="channels">Channels</button>
-          <button data-screen="player">Player</button>
-          <button data-screen="settings">Settings</button>
-        </div>
-        <div class="status-banner">
-          <div id="screen-label" class="pill">HOME</div>
-          <div class="status-text">Shared client state active</div>
-        </div>
-        <div class="layout">
-          <div>
-            <div class="card">
-              <strong>News HD</strong>
-              <div>News • 1080p</div>
-              <span class="pill">Favorite</span>
-            </div>
-            <div class="card">
-              <strong>Sports Live</strong>
-              <div>Sports • 720p</div>
-              <span class="pill">Live</span>
-            </div>
-          </div>
-          <div class="card">
-            <strong>Now playing</strong>
-            <p>Channel browsing and playback controls are ready for the next desktop milestone.</p>
-            <div class="quick-row">
-              <span class="quick-pill">Favorites</span>
-              <span class="quick-pill">Resume</span>
-              <span class="quick-pill">Watch later</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <script>
-      const label = document.getElementById('screen-label');
-      document.querySelectorAll('.toolbar button').forEach((button) => {
-        button.addEventListener('click', () => {
-          const screen = button.getAttribute('data-screen').toUpperCase();
-          label.textContent = screen;
-        });
-      });
-    </script>
-  </body>
-</html>
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Alfie TV</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#050816;color:#eef2ff;font-family:Inter,Arial,sans-serif}button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!important}
+#login{min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 50% 20%,#172554 0,#050816 55%)}.login-card{width:min(520px,92vw);background:#0b1224;border:1px solid #263453;border-radius:22px;padding:32px;box-shadow:0 25px 80px #0008}.brand{font-size:32px;font-weight:800}.accent{color:#8b5cf6}.muted{color:#94a3b8}.field{margin:14px 0}.field label{display:block;font-size:12px;color:#94a3b8;margin-bottom:7px}.field input{width:100%;padding:12px 14px;border-radius:10px;border:1px solid #334155;background:#050816;color:white}.primary{border:0;background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;border-radius:10px;padding:12px 18px;font-weight:700}.error{color:#fda4af;margin-top:10px}
+#app{height:100vh;display:grid;grid-template-columns:245px 1fr;overflow:hidden}.sidebar{background:#080d1c;border-right:1px solid #1e293b;padding:18px 12px;display:flex;flex-direction:column}.nav-title{padding:8px 12px 18px;font-size:23px;font-weight:800}.nav button{width:100%;text-align:left;background:transparent;color:#aebbd3;border:0;border-radius:9px;padding:12px;margin:2px 0}.nav button.active,.nav button:hover{background:#17213a;color:#fff}.provider-mini{margin-top:auto;border:1px solid #263453;background:#0d1528;border-radius:12px;padding:12px;font-size:12px}.content{overflow:auto}.topbar{height:70px;border-bottom:1px solid #1e293b;background:#080d1cdd;display:flex;align-items:center;gap:14px;padding:0 24px;position:sticky;top:0;z-index:4}.topbar h1{font-size:20px;margin:0}.search{margin-left:auto;width:min(340px,35vw);padding:10px 13px;background:#0f172a;border:1px solid #334155;color:#fff;border-radius:9px}.page{padding:22px 26px}.hero{border:1px solid #263453;border-radius:18px;padding:24px;background:linear-gradient(135deg,#111b38,#0b1021);margin-bottom:20px}.hero h2{margin:0 0 7px;font-size:28px}.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.chip{border:1px solid #334155;background:#0f172a;color:#cbd5e1;border-radius:999px;padding:7px 11px}.chip.active{background:#312e81;border-color:#6366f1;color:#fff}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:13px}.card{background:#0b1224;border:1px solid #22304b;border-radius:13px;overflow:hidden;min-height:120px}.poster{height:115px;background:linear-gradient(135deg,#1e293b,#111827);display:grid;place-items:center;color:#64748b;font-size:12px;background-size:cover;background-position:center}.card-body{padding:11px}.card-title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.small{font-size:12px;color:#94a3b8;margin-top:4px}.card-actions{display:flex;gap:6px;margin-top:9px}.icon{border:1px solid #334155;background:#111827;color:#cbd5e1;border-radius:7px;padding:6px 8px}.live-layout{display:grid;grid-template-columns:minmax(280px,1fr) minmax(320px,1.2fr);gap:16px;height:calc(100vh - 116px)}.channel-list,.guide,.player-box{border:1px solid #22304b;background:#080d1c;border-radius:15px;overflow:auto}.channel-list{padding:8px}.channel{padding:11px;border-radius:9px;display:flex;align-items:center;gap:10px}.channel:hover,.channel.selected{background:#17213a}.channel img{width:42px;height:42px;border-radius:8px;object-fit:cover;background:#111827}.channel-main{flex:1;min-width:0}.guide{padding:14px}.guide-row{padding:12px 0;border-bottom:1px solid #1e293b}.guide-row:last-child{border:0}.now{color:#a78bfa}.player{position:relative;background:#000;aspect-ratio:16/9;border-radius:12px;overflow:hidden}.player video{width:100%;height:100%;object-fit:contain}.player-empty{height:100%;display:grid;place-items:center;color:#64748b}.below-player{padding:13px 2px}.settings-grid{display:grid;grid-template-columns:repeat(2,minmax(250px,1fr));gap:18px}.setting{border:1px solid #22304b;border-radius:13px;padding:18px;background:#0b1224}.setting input{width:100%;margin-top:8px;padding:10px;border-radius:8px;border:1px solid #334155;background:#050816;color:#fff}.status{margin-top:10px;color:#94a3b8}.empty{padding:50px;text-align:center;color:#64748b}
+@media(max-width:900px){#app{grid-template-columns:75px 1fr}.nav-title{font-size:0}.nav-title:after{content:'AT';font-size:20px}.nav button{font-size:0;text-align:center}.nav button:first-letter{font-size:18px}.provider-mini{display:none}.live-layout{grid-template-columns:1fr;height:auto}.settings-grid{grid-template-columns:1fr}.search{width:40vw}}
+</style></head>
+<body>
+<section id="login"><div class="login-card"><div class="brand"><span class="accent">Alfie</span> TV</div><p class="muted">Connect your provider to use Live TV, TV Guide, Movies, Series, Favorites and playback.</p><form id="loginForm"><div class="field"><label>Provider / Server URL</label><input id="server" placeholder="http://server.example:8080" required></div><div class="field"><label>Username</label><input id="username" required></div><div class="field"><label>Password</label><input id="password" type="password" required></div><button class="primary" type="submit">Connect Provider</button><div id="loginError" class="error"></div></form></div></section>
+<section id="app" class="hidden"><aside class="sidebar"><div class="nav-title"><span class="accent">Alfie</span> TV</div><nav class="nav"><button data-page="home">⌂ &nbsp; Home</button><button data-page="live">▣ &nbsp; Live TV</button><button data-page="guide">▤ &nbsp; TV Guide</button><button data-page="movies">▶ &nbsp; Movies</button><button data-page="series">▦ &nbsp; Series</button><button data-page="favorites">★ &nbsp; Favorites</button><button data-page="settings">⚙ &nbsp; Settings</button></nav><div class="provider-mini"><b id="providerName">Provider</b><div id="providerStatus" class="muted">Connected</div></div></aside><main class="content"><header class="topbar"><h1 id="pageTitle">Home</h1><input id="globalSearch" class="search" placeholder="Search channels, movies, series..."></header><div id="page" class="page"></div></main></section>
+<script>
+const {ipcRenderer}=require('electron');
+const $=id=>document.getElementById(id);let config=null,state={page:'home',channels:[],liveCats:[],movies:[],movieCats:[],series:[],seriesCats:[],favorites:new Set(),selected:null,epg:[],episodes:[]};
+function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+async function api(action,params={}){try{return await ipcRenderer.invoke('alfie:provider',{config,action,params})}catch(e){throw new Error(e.message||'Provider request failed')}}
+function saveConfig(){localStorage.setItem('alfie-provider',JSON.stringify(config))}function streamUrl(item,type='live'){if(item.direct_source)return item.direct_source;let ext=item.container_extension||'mp4';return `${config.server.replace(/\/+$/,'')}/${type==='live'?'live':type==='movie'?'movie':'series'}/${encodeURIComponent(config.username)}/${encodeURIComponent(config.password)}/${item.stream_id||item.id}.${ext}`}
+function poster(url){return url?` style="background-image:url('${esc(url)}')"`:''}
+function nav(page){state.page=page;document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===page));render()}
+async function connect(){
+  $('providerStatus').textContent='Loading provider…';
+  try{await api('login');const [lc,ls,mc,ms,sc,ss]=await Promise.all([api('get_live_categories'),api('get_live_streams'),api('get_vod_categories'),api('get_vod_streams'),api('get_series_categories'),api('get_series')]);state.liveCats=Array.isArray(lc)?lc:[];state.channels=Array.isArray(ls)?ls:[];state.movieCats=Array.isArray(mc)?mc:[];state.movies=Array.isArray(ms)?ms:[];state.seriesCats=Array.isArray(sc)?sc:[];state.series=Array.isArray(ss)?ss:[];$('providerName').textContent=config.username;$('providerStatus').textContent=`${state.channels.length} channels loaded`;saveConfig();$('login').classList.add('hidden');$('app').classList.remove('hidden');nav('home')}catch(e){$('loginError').textContent=e.message;$('providerStatus').textContent='Connection failed';throw e}}
+$('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('loginError').textContent='';config={server:$('server').value.trim(),username:$('username').value.trim(),password:$('password').value};try{await connect()}catch{}});
+$('globalSearch').addEventListener('input',()=>render());document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>nav(b.dataset.page));
+function filtered(arr){let q=$('globalSearch').value.trim().toLowerCase();return q?arr.filter(x=>String(x.name||x.title||'').toLowerCase().includes(q)):arr}
+function home(){return `<div class="hero"><h2>Welcome to Alfie TV</h2><p class="muted">Your desktop player now uses the same provider-first structure: Live TV, EPG, Movies, Series, Favorites and playback.</p><div class="toolbar"><button class="primary" onclick="nav('live')">Open Live TV</button><button class="chip" onclick="nav('movies')">Browse Movies</button><button class="chip" onclick="nav('series')">Browse Series</button></div></div><div class="grid"><div class="card"><div class="card-body"><div class="card-title">Live TV</div><div class="small">${state.channels.length} channels</div></div></div><div class="card"><div class="card-body"><div class="card-title">Movies</div><div class="small">${state.movies.length} titles</div></div></div><div class="card"><div class="card-body"><div class="card-title">Series</div><div class="small">${state.series.length} series</div></div></div><div class="card"><div class="card-body"><div class="card-title">Favorites</div><div class="small">${state.favorites.size} saved</div></div></div></div>`}
+function categories(cats,type){return `<div class="toolbar"><button class="chip active" onclick="filterCat('${type}','all',this)">All</button>${cats.map(c=>`<button class="chip" onclick="filterCat('${type}','${esc(c.category_id||c.category_id)}',this)">${esc(c.category_name)}</button>`).join('')}</div>`}
+let catFilter={live:'all',movies:'all',series:'all'};function filterCat(type,id,el){catFilter[type]=id;document.querySelectorAll('.toolbar .chip').forEach(x=>x.classList.remove('active'));el.classList.add('active');render()}
+function live(){let arr=filtered(state.channels);if(catFilter.live!=='all')arr=arr.filter(x=>String(x.category_id)===String(catFilter.live));return `<div class="live-layout"><div class="channel-list">${categories(state.liveCats,'live')}${arr.map(c=>`<div class="channel ${state.selected?.id===c.stream_id?'selected':''}" onclick="playLive('${esc(c.stream_id)}')"><img src="${esc(c.stream_icon||'')}" onerror="this.style.visibility='hidden'"><div class="channel-main"><div>${esc(c.name)}</div><div class="small">${esc(c.tv_archive?'Catch-up':'Live')}</div></div><button class="icon" onclick="event.stopPropagation();toggleFav('${esc(c.stream_id)}')">${state.favorites.has('live:'+c.stream_id)?'★':'☆'}</button></div>`).join('')||'<div class="empty">No channels found.</div>'}</div><div>${player()}<div class="guide" style="margin-top:12px">${state.epg.length?state.epg.map((p,i)=>`<div class="guide-row"><b class="${i===0?'now':''}">${esc(p.title||p.name||'Program')}</b><div class="small">${formatTime(p.start||p.start_timestamp)} – ${formatTime(p.end||p.stop_timestamp)}</div><div class="small">${esc(p.description||'')}</div></div>`).join(''):'<div class="empty">Select a channel to load its TV Guide.</div>'}</div></div></div>`}
+function player(){return `<div class="player-box"><div class="player">${state.selected?`<video id="video" controls autoplay playsinline src="${esc(state.selected.url)}"></video>`:'<div class="player-empty">Select a channel or title to start playback</div>'}</div>${state.selected?`<div class="below-player"><b>${esc(state.selected.name)}</b><div class="small">Playback • ${esc(state.selected.type||'Live')}</div></div>`:''}</div>`}
+function formatTime(v){if(!v)return '--';let n=Number(v);if(Number.isFinite(n)){if(n<100000000000)n*=1000;return new Date(n).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}let d=new Date(v.replace(' ','T'));return Number.isNaN(d.getTime())?esc(v):d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}
+async function playLive(id){let c=state.channels.find(x=>String(x.stream_id)===String(id));if(!c)return;state.selected={id:c.stream_id,name:c.name,url:streamUrl(c,'live'),type:'Live'};state.epg=[];render();try{let r=await api('get_short_epg',{stream_id:String(id),limit:'12'});state.epg=Array.isArray(r)?r:(r?.epg_listings||r?.epg||[]);render()}catch(e){state.epg=[];render()}}
+function guide(){return `<div class="hero"><h2>TV Guide</h2><p class="muted">Select any live channel to see its current and upcoming programmes.</p></div><div class="grid">${filtered(state.channels).slice(0,80).map(c=>`<div class="card" onclick="playLive('${esc(c.stream_id)}')"><div class="card-body"><div class="card-title">${esc(c.name)}</div><div class="small">Open channel guide</div></div></div>`).join('')}</div>`}
+function movies(){let arr=filtered(state.movies);if(catFilter.movies!=='all')arr=arr.filter(x=>String(x.category_id)===String(catFilter.movies));return `${categories(state.movieCats,'movies')}<div class="grid">${arr.map(m=>`<div class="card"><div class="poster"${poster(m.stream_icon)}>${m.stream_icon?'':'MOVIE'}</div><div class="card-body"><div class="card-title">${esc(m.name)}</div><div class="small">${esc(m.year||'')} ${m.rating?'• '+esc(m.rating):''}</div><div class="card-actions"><button class="icon" onclick="playMovie('${esc(m.stream_id)}')">▶ Play</button><button class="icon" onclick="toggleFav('movie:${esc(m.stream_id)}')">${state.favorites.has('movie:'+m.stream_id)?'★':'☆'}</button></div></div></div>`).join('')||'<div class="empty">No movies found.</div>'}</div>`}
+function playMovie(id){let m=state.movies.find(x=>String(x.stream_id)===String(id));if(!m)return;state.selected={id:m.stream_id,name:m.name,url:streamUrl(m,'movie'),type:'Movie'};render()}
+function series(){let arr=filtered(state.series);if(catFilter.series!=='all')arr=arr.filter(x=>String(x.category_id)===String(catFilter.series));return `${categories(state.seriesCats,'series')}<div class="grid">${arr.map(s=>`<div class="card"><div class="poster"${poster(s.cover)}>${s.cover?'':'SERIES'}</div><div class="card-body"><div class="card-title">${esc(s.name)}</div><div class="small">${esc(s.year||'')} ${s.rating?'• '+esc(s.rating):''}</div><div class="card-actions"><button class="icon" onclick="openSeries('${esc(s.series_id)}')">Episodes</button><button class="icon" onclick="toggleFav('series:${esc(s.series_id)}')">${state.favorites.has('series:'+s.series_id)?'★':'☆'}</button></div></div></div>`).join('')||'<div class="empty">No series found.</div>'}</div>`}
+async function openSeries(id){let s=state.series.find(x=>String(x.series_id)===String(id));if(!s)return;try{state.episodes=await api('get_series_info',{series_id:String(id)});state.episodes=state.episodes?.episodes?Object.values(state.episodes.episodes).flat():[];let modal=state.episodes.map(e=>`<div class="card"><div class="card-body"><b>${esc(e.title||('Episode '+(e.episode_num||'')))}</b><div class="small">Season ${esc(e.season||'?')} • Episode ${esc(e.episode_num||'?')}</div><button class="icon" style="margin-top:8px" onclick="playEpisode('${esc(e.id||e.episode_num)}','${esc(e.title||'Episode')}')">▶ Play</button></div></div>`).join('');$('page').insertAdjacentHTML('afterbegin',`<div class="hero"><h2>${esc(s.name)}</h2><p class="muted">Episodes</p><div class="grid">${modal||'<div class="empty">No episodes returned.</div>'}</div></div>`)}catch(e){alert(e.message)}}
+function playEpisode(id,name){let item={id,name,container_extension:'mp4'};state.selected={id,name,url:`${config.server.replace(/\/+$/,'')}/series/${encodeURIComponent(config.username)}/${encodeURIComponent(config.password)}/${encodeURIComponent(id)}.mp4`,type:'Episode'};render()}
+function toggleFav(key){state.favorites.has(key)?state.favorites.delete(key):state.favorites.add(key);localStorage.setItem('alfie-favorites',JSON.stringify([...state.favorites]));render()}
+function favorites(){let keys=[...state.favorites];let live=keys.filter(k=>k.startsWith('live:')).map(k=>state.channels.find(x=>String(x.stream_id)===k.slice(5))).filter(Boolean);let mov=keys.filter(k=>k.startsWith('movie:')).map(k=>state.movies.find(x=>String(x.stream_id)===k.slice(6))).filter(Boolean);let ser=keys.filter(k=>k.startsWith('series:')).map(k=>state.series.find(x=>String(x.series_id)===k.slice(7))).filter(Boolean);return `<div class="hero"><h2>Favorites</h2><p class="muted">Your saved channels, movies and series stay on this desktop installation.</p></div><h3>Live TV</h3><div class="grid">${live.map(c=>`<div class="card"><div class="card-body"><b>${esc(c.name)}</b><div class="card-actions"><button class="icon" onclick="playLive('${esc(c.stream_id)}')">▶ Play</button></div></div></div>`).join('')||'<div class="muted">No favorite channels.</div>'}</div><h3>Movies & Series</h3><div class="grid">${[...mov,...ser].map(x=>`<div class="card"><div class="poster"${poster(x.stream_icon||x.cover)}></div><div class="card-body"><div class="card-title">${esc(x.name)}</div></div></div>`).join('')||'<div class="muted">No favorite VOD titles.</div>'}</div>`}
+function settings(){return `<div class="hero"><h2>Provider & Playback</h2><p class="muted">Update the provider connection used by the desktop app.</p></div><div class="settings-grid"><div class="setting"><b>Provider URL</b><input id="setServer" value="${esc(config.server)}"></div><div class="setting"><b>Username</b><input id="setUser" value="${esc(config.username)}"></div><div class="setting"><b>Password</b><input id="setPass" type="password" value="${esc(config.password)}"></div><div class="setting"><b>Account</b><div class="status">${esc(state.channels.length)} live channels • ${esc(state.movies.length)} movies • ${esc(state.series.length)} series</div></div></div><div class="toolbar"><button class="primary" onclick="updateProvider()">Reconnect Provider</button><button class="chip" onclick="logout()">Log out</button></div>`}
+async function updateProvider(){config={server:$('setServer').value.trim(),username:$('setUser').value.trim(),password:$('setPass').value};saveConfig();try{await connect()}catch{}}
+function logout(){localStorage.removeItem('alfie-provider');location.reload()}
+function render(){if(!$('app').classList.contains('hidden')){$('pageTitle').textContent={home:'Home',live:'Live TV',guide:'TV Guide',movies:'Movies',series:'Series',favorites:'Favorites',settings:'Settings'}[state.page]||'Alfie TV';let html={home,live,guide,movies,series,favorites,settings}[state.page]();$('page').innerHTML=html}}
+try{state.favorites=new Set(JSON.parse(localStorage.getItem('alfie-favorites')||'[]'))}catch{}
+const stored=localStorage.getItem('alfie-provider');if(stored){try{config=JSON.parse(stored);connect()}catch{}}
+</script></body></html>
