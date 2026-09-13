@@ -13,6 +13,7 @@
   "dependencies": {
     "@alfie-tv/core": "*",
     "@alfie-tv/ui": "*",
+    "hls.js": "^1.7.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
