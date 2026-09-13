@@ -34,7 +34,9 @@ object EpgCache {
                 programs += EpgProgram(channel.id, title, start, end, o.optString("description").ifBlank { null })
             }
             if (programs.isEmpty()) return null
-            Snapshot(programs, savedAt)
+            val snapshot = Snapshot(programs, savedAt)
+            writeDisplay(context, channel, programs)
+            snapshot
         }.getOrNull()
     }
 
@@ -54,9 +56,14 @@ object EpgCache {
         runCatching {
             context.openFileOutput(fileName(config, channel), Context.MODE_PRIVATE).bufferedWriter().use { it.write(root.toString()) }
         }
+        writeDisplay(context, channel, programs)
+    }
+
+    private fun writeDisplay(context: Context, channel: IptvChannel, programs: List<EpgProgram>) {
         val now = System.currentTimeMillis()
-        val current = programs.firstOrNull { now >= it.startUtcMs && now < it.endUtcMs }
-        val next = programs.firstOrNull { it.startUtcMs > now }
+        val ordered = programs.sortedBy { it.startUtcMs }
+        val current = ordered.firstOrNull { now >= it.startUtcMs && now < it.endUtcMs }
+        val next = ordered.firstOrNull { it.startUtcMs > now }
         val formatter = DateFormat.getTimeInstance(DateFormat.SHORT)
         val display = buildString {
             append("NOW  ")
@@ -83,6 +90,8 @@ object EpgCache {
 
     fun clear(context: Context) {
         context.fileList().filter { it.startsWith("epg_") && it.endsWith(".json") }.forEach { context.deleteFile(it) }
+        val prefs = context.getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
+        prefs.edit().remove("epg_clear_marker").apply()
     }
 
     private fun fileName(config: XtreamConfig, channel: IptvChannel): String =
