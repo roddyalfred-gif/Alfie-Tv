@@ -56,27 +56,65 @@ class XtreamClient {
                 val episodeNumber = o.optInt("episode_num", 0).takeIf { it > 0 }
                 val ext = o.optString("container_extension").ifBlank { "mp4" }
                 val fallback = "${checkedBase(config)}/series/${enc(config.username)}/${enc(config.password)}/$id.$ext"
-                SeriesEpisode(id, o.optString("title").ifBlank { "Episode $episodeNumber" }, o.optString("direct_source").trim().ifBlank { fallback }, seasonNumber, episodeNumber, o.optString("info").ifBlank { null })
+                episodes += SeriesEpisode(id, o.optString("title").ifBlank { "Episode $episodeNumber" }, o.optString("direct_source").trim().ifBlank { fallback }, seasonNumber, episodeNumber, o.optString("info").ifBlank { null })
             }
         }
         return episodes.sortedWith(compareBy({ it.season ?: 0 }, { it.episode ?: 0 }))
     }
 
+    /**
+     * Provider-tolerant EPG loading. Different Xtream-compatible panels expose
+     * guide data through different actions and timestamp/title encodings.
+     */
     fun loadEpg(config: XtreamConfig, channel: IptvChannel, limit: Int = 12): List<EpgProgram> {
         val safeLimit = limit.coerceIn(1, 50)
-        val primary = parseEpgResponse(get(api(config, "get_short_epg", "stream_id" to channel.id, "limit" to safeLimit.toString())))
-        val objects = if (primary.isNotEmpty()) primary else runCatching {
-            parseEpgResponse(get(api(config, "get_simple_data_table", "stream_id" to channel.id)))
-        }.getOrDefault(emptyList())
-        return objects.mapNotNull { o ->
-            val start = parseXtreamTime(o.optString("start").ifBlank { o.optString("start_timestamp") }) ?: return@mapNotNull null
-            var end = parseXtreamTime(o.optString("end").ifBlank { o.optString("stop_timestamp") }) ?: return@mapNotNull null
-            if (end <= start && end + 24 * 60 * 60 * 1000L > start) end += 24 * 60 * 60 * 1000L
-            if (end <= start) return@mapNotNull null
-            val title = decodeProviderText(o.optString("title").ifBlank { o.optString("name") }.ifBlank { "Program" })
-            val description = decodeProviderText(o.optString("description").ifBlank { null })
-            EpgProgram(channel.id, title, start, end, description)
-        }.sortedBy { it.startUtcMs }
+        val responses = mutableListOf<List<JSONObject>>()
+
+        fun attempt(action: String, vararg params: Pair<String, String>) {
+            runCatching { parseEpgResponse(get(api(config, action, *params))) }
+                .getOrNull()
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { responses += it }
+        }
+
+        // Most panels use stream_id. Some only populate the simple data table.
+        attempt("get_short_epg", "stream_id" to channel.id, "limit" to safeLimit.toString())
+        if (responses.isEmpty()) attempt("get_simple_data_table", "stream_id" to channel.id)
+
+        // A number of panels index EPG data by epg_channel_id rather than stream_id.
+        channel.epgChannelId?.takeIf { it.isNotBlank() && it != channel.id }?.let { epgId ->
+            attempt("get_short_epg", "stream_id" to epgId, "limit" to safeLimit.toString())
+            if (responses.isEmpty()) attempt("get_simple_data_table", "stream_id" to epgId)
+        }
+
+        // De-duplicate repeated provider responses while preserving provider order.
+        val seen = HashSet<String>()
+        return responses.asSequence()
+            .flatten()
+            .mapNotNull { o ->
+                val start = parseXtreamTime(firstNonBlank(o, "start", "start_timestamp", "start_time", "begin")) ?: return@mapNotNull null
+                var end = parseXtreamTime(firstNonBlank(o, "end", "stop", "stop_timestamp", "end_time", "stop_time"))
+                    ?: firstNonBlank(o, "duration", "duration_seconds").toLongOrNull()?.let { start + if (it < 100_000L) it * 1000L else it }
+                    ?: return@mapNotNull null
+                if (end <= start && end + 24 * 60 * 60 * 1000L > start) end += 24 * 60 * 60 * 1000L
+                if (end <= start) return@mapNotNull null
+                val title = decodeProviderText(firstNonBlank(o, "title", "name", "program", "programme").ifBlank { "Program" })
+                val description = decodeProviderText(firstNonBlank(o, "description", "desc", "plot"))
+                val key = "${start}|${end}|$title"
+                if (!seen.add(key)) return@mapNotNull null
+                EpgProgram(channel.id, title, start, end, description)
+            }
+            .sortedBy { it.startUtcMs }
+            .take(safeLimit)
+            .toList()
+    }
+
+    private fun firstNonBlank(o: JSONObject, vararg keys: String): String {
+        keys.forEach { key ->
+            val value = o.optString(key).trim()
+            if (value.isNotBlank() && value != "null") return value
+        }
+        return ""
     }
 
     private fun parseEpgResponse(rootText: String): List<JSONObject> = runCatching {
@@ -87,6 +125,7 @@ class XtreamClient {
             json.optJSONArray("epg_listings") != null -> parseJsonArray(json.getJSONArray("epg_listings"))
             json.optJSONArray("epg") != null -> parseJsonArray(json.getJSONArray("epg"))
             json.optJSONArray("programs") != null -> parseJsonArray(json.getJSONArray("programs"))
+            json.optJSONArray("data") != null -> parseJsonArray(json.getJSONArray("data"))
             else -> emptyList()
         }
     }
@@ -122,19 +161,30 @@ class XtreamClient {
         val raw = value.trim()
         if (raw.isBlank()) return null
         raw.toLongOrNull()?.let { epoch -> return if (epoch < 100_000_000_000L) epoch * 1000L else epoch }
+
+        val compact = Regex("^(\\d{4})(\\d{2})(\\d{2})[ T]?(\\d{2})(\\d{2})(\\d{2})$").matchEntire(raw)
+        if (compact != null) {
+            val (_, y, m, d, h, min, s) = compact.groupValues
+            return runCatching { java.time.LocalDateTime.of(y.toInt(), m.toInt(), d.toInt(), h.toInt(), min.toInt(), s.toInt()).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() }.getOrNull()
+        }
+
         return runCatching { java.time.OffsetDateTime.parse(raw).toInstant().toEpochMilli() }.getOrNull()
+            ?: runCatching { java.time.Instant.parse(raw).toEpochMilli() }.getOrNull()
             ?: runCatching { java.time.LocalDateTime.parse(raw.replace(" ", "T")).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() }.getOrNull()
     }
 
     private fun decodeProviderText(value: String?): String {
         val raw = value?.trim().takeUnless { it.isNullOrBlank() } ?: return ""
         if (raw.length < 8 || raw.length % 4 != 0 || !raw.matches(Regex("[A-Za-z0-9+/=_-]+"))) return raw
-        val decoded = runCatching { Base64.decode(raw, Base64.DEFAULT).toString(Charsets.UTF_8).trim() }.getOrNull()
-            ?: runCatching { Base64.decode(raw, Base64.URL_SAFE).toString(Charsets.UTF_8).trim() }.getOrNull()
-            ?: return raw
-        if (decoded.isBlank() || decoded.any { it == '\uFFFD' || it.code < 9 }) return raw
-        val useful = decoded.count { it.isLetterOrDigit() || it.isWhitespace() || "-–—:,.!?&()/+'".contains(it) }
-        return if (useful.toDouble() / decoded.length.coerceAtLeast(1) >= 0.82) decoded else raw
+        val candidates = listOf(
+            runCatching { Base64.decode(raw, Base64.DEFAULT).toString(Charsets.UTF_8).trim() }.getOrNull(),
+            runCatching { Base64.decode(raw, Base64.URL_SAFE).toString(Charsets.UTF_8).trim() }.getOrNull()
+        )
+        val decoded = candidates.firstOrNull { candidate ->
+            !candidate.isNullOrBlank() && candidate.none { it == '\uFFFD' || it.code < 9 } &&
+                candidate.count { it.isLetterOrDigit() || it.isWhitespace() || "-–—:,.!?&()/+'".contains(it) }.toDouble() / candidate.length.coerceAtLeast(1) >= 0.82
+        }
+        return decoded ?: raw
     }
 
     private fun get(url: String): String {
