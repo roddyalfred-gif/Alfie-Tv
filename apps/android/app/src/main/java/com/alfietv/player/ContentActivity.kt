@@ -13,11 +13,12 @@ import java.util.concurrent.Executors
 class ContentActivity : androidx.activity.ComponentActivity() {
     private val executor = Executors.newSingleThreadExecutor()
     private lateinit var config: XtreamConfig
-    private lateinit var list: ListView
+    private lateinit var list: GridView
     private lateinit var status: TextView
     private lateinit var search: EditText
     private lateinit var categoryRow: LinearLayout
     private var mode = "vod"
+    private var layoutMode = LayoutMode.GRID
     private var categories = emptyList<IptvCategory>()
     private var vod = emptyList<VodItem>()
     private var series = emptyList<SeriesItem>()
@@ -32,6 +33,8 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         mode = intent.getStringExtra("mode") ?: "vod"
         config = XtreamConfig(intent.getStringExtra("server") ?: "", intent.getStringExtra("username") ?: "", intent.getStringExtra("password") ?: "")
         pendingSeriesId = intent.getStringExtra("selected_series_id")
+        layoutMode = LayoutModeStore.get(this, screenKey(), LayoutMode.GRID)
+
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(20, 16, 20, 16) }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         val title = TextView(this).apply { text = if (mode == "series") "Series" else "Movies"; textSize = 26f; isFocusable = false }
@@ -51,14 +54,36 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         header.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
         header.addView(search, LinearLayout.LayoutParams(0, -2, 2f))
         header.addView(sort, LinearLayout.LayoutParams(0, -2, 0.8f))
+
+        val layoutControls = LayoutModeControls.create(this, screenKey(), LayoutMode.GRID) { selected ->
+            layoutMode = selected
+            applyLayoutMode()
+            render()
+            list.requestFocus()
+        }
+
         val cats = HorizontalScrollView(this).apply { isFocusable = false }
         categoryRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isFocusable = false }
-        categoryRow.addView(Button(this).apply { text = "All"; isAllCaps = false; isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { selectedCategory = null; render() } })
+        categoryRow.addView(Button(this).apply { text = "All"; isAllCaps = false; isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { selectedCategory = null; render(); list.requestFocus() } })
         cats.addView(categoryRow)
-        list = ListView(this).apply { isFocusable = true; isFocusableInTouchMode = true }
+
+        list = GridView(this).apply {
+            isFocusable = true
+            isFocusableInTouchMode = true
+            verticalSpacing = 12
+            horizontalSpacing = 12
+            stretchMode = GridView.STRETCH_COLUMN_WIDTH
+        }
+        applyLayoutMode()
         status = TextView(this).apply { text = "Loading..."; isFocusable = false }
-        root.addView(header); root.addView(cats, LinearLayout.LayoutParams(-1, -2)); root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f)); root.addView(status)
+
+        root.addView(header)
+        root.addView(layoutControls, LinearLayout.LayoutParams(-1, -2))
+        root.addView(cats, LinearLayout.LayoutParams(-1, -2))
+        root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(status)
         setContentView(root)
+
         search.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { render() }
@@ -89,6 +114,19 @@ class ContentActivity : androidx.activity.ComponentActivity() {
             }
         }
         load()
+    }
+
+    private fun screenKey(): String = if (mode == "series") "series" else "movies"
+
+    private fun applyLayoutMode() {
+        val columns = when (layoutMode) {
+            LayoutMode.LIST -> 1
+            LayoutMode.GRID -> if (resources.configuration.screenWidthDp >= 900) 3 else 2
+            LayoutMode.TILE -> if (resources.configuration.screenWidthDp >= 900) 5 else 4
+        }
+        list.numColumns = columns
+        list.verticalSpacing = if (layoutMode == LayoutMode.LIST) 6 else 14
+        list.horizontalSpacing = if (layoutMode == LayoutMode.LIST) 0 else 12
     }
 
     private fun load() {
@@ -137,19 +175,31 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private fun renderArtworkList(items: List<Any>, labels: List<String>, urls: List<String?>, placeholder: Int) {
         list.adapter = object : ArrayAdapter<Any>(this, android.R.layout.simple_list_item_1, items) {
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val vertical = layoutMode != LayoutMode.LIST
                 val row = LinearLayout(this@ContentActivity).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(14, 8, 14, 8)
-                    minimumHeight = 78
+                    orientation = if (vertical) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+                    gravity = if (vertical) Gravity.TOP else Gravity.CENTER_VERTICAL
+                    setPadding(if (vertical) 6 else 14, 8, if (vertical) 6 else 14, 8)
+                    minimumHeight = if (vertical) 170 else 78
                 }
                 val icon = ImageView(this@ContentActivity).apply {
-                    layoutParams = LinearLayout.LayoutParams(58, 68).apply { marginEnd = 16 }
                     scaleType = ImageView.ScaleType.CENTER_CROP
+                    layoutParams = if (vertical) {
+                        LinearLayout.LayoutParams(-1, if (layoutMode == LayoutMode.TILE) 190 else 220)
+                    } else {
+                        LinearLayout.LayoutParams(58, 68).apply { marginEnd = 16 }
+                    }
                 }
-                val text = TextView(this@ContentActivity).apply { textSize = 18f; isFocusable = false }
+                val text = TextView(this@ContentActivity).apply {
+                    textSize = if (vertical) 14f else 18f
+                    isFocusable = false
+                    maxLines = if (vertical) 2 else 1
+                    gravity = if (vertical) Gravity.CENTER_HORIZONTAL else Gravity.CENTER_VERTICAL
+                    setPadding(4, if (vertical) 8 else 0, 4, 0)
+                }
                 text.text = labels[position]
-                row.addView(icon); row.addView(text, LinearLayout.LayoutParams(0, -2, 1f))
+                row.addView(icon)
+                row.addView(text, if (vertical) LinearLayout.LayoutParams(-1, -2) else LinearLayout.LayoutParams(0, -2, 1f))
                 ArtworkLoader.load(urls.getOrNull(position), icon, placeholder)
                 return row
             }
@@ -161,17 +211,17 @@ class ContentActivity : androidx.activity.ComponentActivity() {
             val items = filteredVod()
             val labels = items.mapIndexed { i, x -> "${i + 1}. ${if (UserLibraryStore.isFavorite(this, config, x.toLibraryItem())) "★ " else ""}${x.name}" }
             renderArtworkList(items, labels, items.map { it.posterUrl }, android.R.drawable.ic_menu_gallery)
-            if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} movies • Select to play • Long-press to favorite"
+            if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} movies • ${layoutMode.name.lowercase()} • Select to play • Long-press to favorite"
         } else if (episodes.isEmpty()) {
             val items = filteredSeries()
             val labels = items.mapIndexed { i, x -> "${i + 1}. ${if (UserLibraryStore.isFavorite(this, config, x.toLibraryItem())) "★ " else ""}${x.name}" }
             renderArtworkList(items, labels, items.map { it.posterUrl }, android.R.drawable.ic_menu_gallery)
-            if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} series • Select for episodes • Long-press to favorite"
+            if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} series • ${layoutMode.name.lowercase()} • Select for episodes • Long-press to favorite"
         } else {
             val items = episodes.sortedWith(compareBy<SeriesEpisode> { it.season ?: 0 }.thenBy { it.episode ?: 0 })
             val labels = items.map { e -> "S${e.season ?: 0} E${e.episode ?: 0}  ${if (UserLibraryStore.isFavorite(this, config, e.toLibraryItem(selectedSeriesId))) "★ " else ""}${e.name}" }
             renderArtworkList(items, labels, List(items.size) { null }, android.R.drawable.ic_media_play)
-            if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} episodes • Long-press to favorite"
+            if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} episodes • ${layoutMode.name.lowercase()} • Long-press to favorite"
         }
         list.post { if (!search.hasFocus()) list.requestFocus() }
     }
