@@ -7,19 +7,19 @@ module.exports = String.raw`
     if (item.direct_source) return String(item.direct_source);
     if (item.stream_url) return String(item.stream_url);
     if (item.url) return String(item.url);
-    if (!window.config || !window.config.server) return '';
-    const base = clean(window.config.server);
-    const user = encoded(window.config.username);
-    const pass = encoded(window.config.password);
+    const cfg = typeof config !== 'undefined' ? config : window.config;
+    if (!cfg || !cfg.server) return '';
+    const base = clean(cfg.server);
+    const user = encoded(cfg.username);
+    const pass = encoded(cfg.password);
     const id = encoded(item.stream_id ?? item.id);
     if (!id) return '';
     if (type === 'live') return `${base}/live/${user}/${pass}/${id}`;
     const folder = type === 'movie' ? 'movie' : 'series';
-    const ext = String(item.container_extension || (type === 'movie' ? 'mp4' : 'mp4')).replace(/^\./, '') || 'mp4';
+    const ext = String(item.container_extension || 'mp4').replace(/^\./, '') || 'mp4';
     return `${base}/${folder}/${user}/${pass}/${id}.${ext}`;
   };
   window.streamUrl = providerStreamUrl;
-
   const installVideoGuard = () => {
     const video = document.querySelector('#video');
     if (!video || video.dataset.alfieGuard === '1') return;
