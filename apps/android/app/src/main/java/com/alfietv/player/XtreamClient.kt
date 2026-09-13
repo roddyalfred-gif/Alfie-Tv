@@ -1,9 +1,11 @@
 package com.alfietv.player
 
+import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URI
+import java.time.ZoneId
 
 class XtreamClient {
     fun load(config: XtreamConfig): Pair<List<IptvCategory>, List<IptvChannel>> {
@@ -13,8 +15,18 @@ class XtreamClient {
         val categories = parseArray(get(api(config, "get_live_categories"))).map { IptvCategory(it.optString("category_id"), it.optString("category_name"), "live") }
         val channels = parseArray(get(api(config, "get_live_streams"))).mapNotNull { o ->
             val id = o.optString("stream_id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            val fallback = "$base/live/${enc(config.username)}/${enc(config.password)}/$id.m3u8"
-            IptvChannel(id, o.optString("name"), o.optString("direct_source").trim().ifBlank { fallback }, o.optString("category_id").ifBlank { null }, o.optString("stream_icon").ifBlank { null }, o.optString("epg_channel_id").ifBlank { null })
+            // Xtream servers most commonly expose live streams as MPEG-TS. The old
+            // client forced .m3u8, which made otherwise valid providers fail to play.
+            val fallback = "$base/live/${enc(config.username)}/${enc(config.password)}/$id.ts"
+            val direct = o.optString("direct_source").trim()
+            IptvChannel(
+                id,
+                o.optString("name"),
+                direct.takeIf { it.startsWith("http://") || it.startsWith("https://") } ?: fallback,
+                o.optString("category_id").ifBlank { null },
+                o.optString("stream_icon").ifBlank { null },
+                o.optString("epg_channel_id").ifBlank { null }
+            )
         }
         return categories to channels
     }
@@ -53,7 +65,7 @@ class XtreamClient {
                 val episodeNumber = o.optInt("episode_num", 0).takeIf { it > 0 }
                 val ext = o.optString("container_extension").ifBlank { "mp4" }
                 val fallback = "${checkedBase(config)}/series/${enc(config.username)}/${enc(config.password)}/$id.$ext"
-                episodes += SeriesEpisode(id, o.optString("title").ifBlank { "Episode $episodeNumber" }, o.optString("direct_source").trim().ifBlank { fallback }, seasonNumber, episodeNumber, o.optString("info").ifBlank { null })
+                SeriesEpisode(id, o.optString("title").ifBlank { "Episode $episodeNumber" }, o.optString("direct_source").trim().ifBlank { fallback }, seasonNumber, episodeNumber, o.optString("info").ifBlank { null })
             }
         }
         return episodes.sortedWith(compareBy({ it.season ?: 0 }, { it.episode ?: 0 }))
@@ -61,22 +73,42 @@ class XtreamClient {
 
     fun loadEpg(config: XtreamConfig, channel: IptvChannel, limit: Int = 12): List<EpgProgram> {
         val safeLimit = limit.coerceIn(1, 50)
-        val url = api(config, "get_short_epg", "stream_id" to channel.id, "limit" to safeLimit.toString())
-        val root = get(url)
-        val objects = runCatching { parseArray(root) }.getOrElse {
-            val json = JSONObject(root)
-            when {
-                json.optJSONArray("epg_listings") != null -> parseJsonArray(json.getJSONArray("epg_listings"))
-                json.optJSONArray("epg") != null -> parseJsonArray(json.getJSONArray("epg"))
-                else -> emptyList()
-            }
-        }
+        val shortUrl = api(config, "get_short_epg", "stream_id" to channel.id, "limit" to safeLimit.toString())
+        val primary = parseEpgResponse(get(shortUrl))
+        // A number of Xtream-compatible panels return an empty short-EPG result even
+        // when their simple table endpoint has data. Try that endpoint before reporting
+        // that the guide is empty.
+        val objects = if (primary.isNotEmpty()) primary else runCatching {
+            parseEpgResponse(get(api(config, "get_simple_data_table", "stream_id" to channel.id)))
+        }.getOrDefault(emptyList())
+
         return objects.mapNotNull { o ->
             val start = parseXtreamTime(o.optString("start").ifBlank { o.optString("start_timestamp") }) ?: return@mapNotNull null
-            val end = parseXtreamTime(o.optString("end").ifBlank { o.optString("stop_timestamp") }) ?: return@mapNotNull null
+            var end = parseXtreamTime(o.optString("end").ifBlank { o.optString("stop_timestamp") }) ?: return@mapNotNull null
+            // Some panels send an overnight programme as 21:00 -> 09:00. If the
+            // timestamps resolve to the same/previous day, treat the end as next day.
+            if (end <= start && end + 24 * 60 * 60 * 1000L > start) end += 24 * 60 * 60 * 1000L
             if (end <= start) return@mapNotNull null
-            EpgProgram(channel.id, o.optString("title").ifBlank { o.optString("name") }.ifBlank { "Program" }, start, end, o.optString("description").ifBlank { null })
+            EpgProgram(
+                channel.id,
+                decodeProviderText(o.optString("title").ifBlank { o.optString("name") }.ifBlank { "Program" }),
+                start,
+                end,
+                decodeProviderText(o.optString("description").ifBlank { null })
+            )
         }.sortedBy { it.startUtcMs }
+    }
+
+    private fun parseEpgResponse(rootText: String): List<JSONObject> = runCatching {
+        parseArray(rootText)
+    }.getOrElse {
+        val json = JSONObject(rootText)
+        when {
+            json.optJSONArray("epg_listings") != null -> parseJsonArray(json.getJSONArray("epg_listings"))
+            json.optJSONArray("epg") != null -> parseJsonArray(json.getJSONArray("epg"))
+            json.optJSONArray("programs") != null -> parseJsonArray(json.getJSONArray("programs"))
+            else -> emptyList()
+        }
     }
 
     private fun validateAuth(authJson: JSONObject) {
@@ -111,7 +143,21 @@ class XtreamClient {
         if (raw.isBlank()) return null
         raw.toLongOrNull()?.let { epoch -> return if (epoch < 100_000_000_000L) epoch * 1000L else epoch }
         return runCatching { java.time.OffsetDateTime.parse(raw).toInstant().toEpochMilli() }.getOrNull()
-            ?: runCatching { java.time.LocalDateTime.parse(raw.replace(" ", "T")).toInstant(java.time.ZoneOffset.UTC).toEpochMilli() }.getOrNull()
+            ?: runCatching {
+                java.time.LocalDateTime.parse(raw.replace(" ", "T"))
+                    .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            }.getOrNull()
+    }
+
+    private fun decodeProviderText(value: String?): String? {
+        val raw = value?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        if (raw.length < 8 || raw.length % 4 != 0 || !raw.matches(Regex("[A-Za-z0-9+/=_-]+"))) return raw
+        val decoded = runCatching { Base64.decode(raw, Base64.DEFAULT).toString(Charsets.UTF_8).trim() }.getOrNull()
+            ?: runCatching { Base64.decode(raw, Base64.URL_SAFE).toString(Charsets.UTF_8).trim() }.getOrNull()
+            ?: return raw
+        if (decoded.isBlank() || decoded.any { it == '\uFFFD' || it.code < 9 }) return raw
+        val useful = decoded.count { it.isLetterOrDigit() || it.isWhitespace() || "-–—:,.!?&()/+'".contains(it) }
+        return if (useful.toDouble() / decoded.length.coerceAtLeast(1) >= 0.82) decoded else raw
     }
 
     private fun get(url: String): String {
