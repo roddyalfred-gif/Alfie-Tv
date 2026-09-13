@@ -173,7 +173,15 @@ class LiveTvActivity : ComponentActivity() {
             override fun afterTextChanged(s: Editable?) = Unit
         })
         search.setOnEditorActionListener { _, _, _ -> list.requestFocus(); true }
-        list.setOnItemClickListener { _, _, position, _ -> filteredChannels().getOrNull(position)?.let(::play) }
+        list.setOnItemClickListener { _, _, position, _ ->
+            filteredChannels().getOrNull(position)?.let { channel ->
+                selectedIndex = position
+                list.setSelection(position)
+                showEpg(channel)
+                list.invalidateViews()
+                play(channel)
+            }
+        }
         list.setOnItemLongClickListener { _, _, position, _ ->
             filteredChannels().getOrNull(position)?.let { channel ->
                 val added = UserLibraryStore.toggleFavorite(this, config, channel.toLibraryItem())
@@ -204,7 +212,7 @@ class LiveTvActivity : ComponentActivity() {
             text = name; isAllCaps = false; textSize = 14f; setTextColor(Color.WHITE); background = roundedBackground(row, 12f)
             isFocusable = true; isFocusableInTouchMode = true; stateListAnimator = null; setPadding(18, 0, 18, 0)
             setOnFocusChangeListener { view, focused -> view.background = roundedBackground(if (focused) accent else row, 12f); animateFocus(view, focused) }
-            setOnClickListener { selectedCategory = id; setBaseStatus("${filteredChannels().size} channels • OK to play • Long-press favorite"); render(); list.requestFocus() }
+            setOnClickListener { selectedCategory = id; selectedIndex = -1; setBaseStatus("${filteredChannels().size} channels • OK to play • Long-press favorite"); render(); list.requestFocus() }
             setOnKeyListener { _, keyCode, event -> if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_DOWN) { list.requestFocus(); true } else false }
         }
         categoryRow.addView(button, LinearLayout.LayoutParams(-2, 46).apply { marginEnd = 8 })
@@ -346,7 +354,7 @@ class LiveTvActivity : ComponentActivity() {
         epgMeta.text = "Program guide • ${channel.categoryId ?: "Live TV"}"
         animatePanel()
         val cached = EpgCache.read(this, config, channel)
-        cached?.let { epgContainer.post { renderEpg(channel, it.programs, it.savedAt) } }
+        cached?.let { epgContainer.post { if (selectedEpgChannel?.id == channel.id) renderEpg(channel, it.programs, it.savedAt) } }
         if (cached != null && EpgCache.isFresh(cached)) return
         executor.execute {
             try {
@@ -381,6 +389,11 @@ class LiveTvActivity : ComponentActivity() {
     private fun formatTime(epochMs: Long): String = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(epochMs))
 
     private fun play(channel: IptvChannel) {
+        val streamUrl = channel.streamUrl.trim()
+        if (streamUrl.isBlank()) {
+            setBaseStatus("${channel.name} has no stream URL • Provider refresh required")
+            return
+        }
         val visibleChannels = filteredChannels()
         val channelIndex = visibleChannels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
         val channelUrls = ArrayList(visibleChannels.map { it.streamUrl })
@@ -389,7 +402,7 @@ class LiveTvActivity : ComponentActivity() {
         val channelNumbers = ArrayList(visibleChannels.indices.map { (it + 1).toString() })
         prefs.edit().putString(lastChannelKey(), channel.id).apply()
         val intent = android.content.Intent(this, VideoPlayerActivity::class.java).apply {
-            putExtra("url", channel.streamUrl); putExtra("stream_url", channel.streamUrl); putExtra("title", channel.name)
+            putExtra("url", streamUrl); putExtra("stream_url", streamUrl); putExtra("title", channel.name)
             putExtra("content_id", channel.id); putExtra("content_type", "LIVE"); putExtra("channel_id", channel.id)
             putExtra("channel_number", (channelIndex + 1).toString()); putExtra("channel_urls", channelUrls)
             putExtra("channel_titles", channelTitles); putExtra("channel_ids", channelIds); putExtra("channel_numbers", channelNumbers)
