@@ -83,7 +83,7 @@ class LiveTvActivity : ComponentActivity() {
         header.addView(search, LinearLayout.LayoutParams(0, 52, 1.7f))
         root.addView(header, LinearLayout.LayoutParams(-1, 56))
 
-        val categoryScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; overScrollMode = View.OVER_SCROLL_IF_CONTENTS_SCROLLS; isFocusable = false }
+        val categoryScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS; isFocusable = false }
         categoryRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         categoryScroll.addView(categoryRow)
         addCategoryButton("All", null)
@@ -106,7 +106,7 @@ class LiveTvActivity : ComponentActivity() {
         }
         content.addView(list, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.62f))
 
-        val epgScroll = ScrollView(this).apply { isFillViewport = true; isFocusable = false; overScrollMode = View.OVER_SCROLL_IF_CONTENTS_SCROLLS }
+        val epgScroll = ScrollView(this).apply { isFillViewport = true; isFocusable = false; overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS }
         epgContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(18, 18, 18, 18); setBackgroundColor(panel); isFocusable = true; isFocusableInTouchMode = true
             setOnKeyListener { _, keyCode, event ->
