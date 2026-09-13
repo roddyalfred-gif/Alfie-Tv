@@ -91,7 +91,9 @@ object EpgCache {
     fun clear(context: Context) {
         context.fileList().filter { it.startsWith("epg_") && it.endsWith(".json") }.forEach { context.deleteFile(it) }
         val prefs = context.getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
-        prefs.edit().remove("epg_clear_marker").apply()
+        val editor = prefs.edit()
+        prefs.all.keys.filter { it.startsWith("epg_") }.forEach(editor::remove)
+        editor.apply()
     }
 
     private fun fileName(config: XtreamConfig, channel: IptvChannel): String =
