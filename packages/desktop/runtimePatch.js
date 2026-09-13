@@ -4,9 +4,9 @@ module.exports = String.raw`
   const encoded = (value) => encodeURIComponent(String(value || ''));
   const providerStreamUrl = (item, type = 'live') => {
     if (!item) return '';
-    if (item.direct_source) return String(item.direct_source);
-    if (item.stream_url) return String(item.stream_url);
-    if (item.url) return String(item.url);
+    if (item.direct_source) return String(item.direct_source).trim();
+    if (item.stream_url) return String(item.stream_url).trim();
+    if (item.url) return String(item.url).trim();
     const cfg = typeof config !== 'undefined' ? config : window.config;
     if (!cfg || !cfg.server) return '';
     const base = clean(cfg.server);
@@ -14,7 +14,10 @@ module.exports = String.raw`
     const pass = encoded(cfg.password);
     const id = encoded(item.stream_id ?? item.id);
     if (!id) return '';
-    if (type === 'live') return base + '/live/' + user + '/' + pass + '/' + id;
+    if (type === 'live') {
+      const ext = String(item.container_extension || item.extension || '').replace(/^\./, '').trim();
+      return base + '/live/' + user + '/' + pass + '/' + id + (ext ? '.' + ext : '.ts');
+    }
     const folder = type === 'movie' ? 'movie' : 'series';
     const ext = String(item.container_extension || 'mp4').replace(/^\./, '') || 'mp4';
     return base + '/' + folder + '/' + user + '/' + pass + '/' + id + '.' + ext;
