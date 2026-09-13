@@ -62,10 +62,6 @@ class XtreamClient {
         return episodes.sortedWith(compareBy({ it.season ?: 0 }, { it.episode ?: 0 }))
     }
 
-    /**
-     * Provider-tolerant EPG loading. Different Xtream-compatible panels expose
-     * guide data through different actions and timestamp/title encodings.
-     */
     fun loadEpg(config: XtreamConfig, channel: IptvChannel, limit: Int = 12): List<EpgProgram> {
         val safeLimit = limit.coerceIn(1, 50)
         val responses = mutableListOf<List<JSONObject>>()
@@ -77,17 +73,14 @@ class XtreamClient {
                 ?.let { responses += it }
         }
 
-        // Most panels use stream_id. Some only populate the simple data table.
         attempt("get_short_epg", "stream_id" to channel.id, "limit" to safeLimit.toString())
         if (responses.isEmpty()) attempt("get_simple_data_table", "stream_id" to channel.id)
 
-        // A number of panels index EPG data by epg_channel_id rather than stream_id.
-        channel.epgChannelId?.takeIf { it.isNotBlank() && it != channel.id }?.let { epgId ->
+        channel.epgId?.takeIf { it.isNotBlank() && it != channel.id }?.let { epgId ->
             attempt("get_short_epg", "stream_id" to epgId, "limit" to safeLimit.toString())
             if (responses.isEmpty()) attempt("get_simple_data_table", "stream_id" to epgId)
         }
 
-        // De-duplicate repeated provider responses while preserving provider order.
         val seen = HashSet<String>()
         return responses.asSequence()
             .flatten()
@@ -164,7 +157,13 @@ class XtreamClient {
 
         val compact = Regex("^(\\d{4})(\\d{2})(\\d{2})[ T]?(\\d{2})(\\d{2})(\\d{2})$").matchEntire(raw)
         if (compact != null) {
-            val (_, y, m, d, h, min, s) = compact.groupValues
+            val groups = compact.groupValues
+            val y = groups[1]
+            val m = groups[2]
+            val d = groups[3]
+            val h = groups[4]
+            val min = groups[5]
+            val s = groups[6]
             return runCatching { java.time.LocalDateTime.of(y.toInt(), m.toInt(), d.toInt(), h.toInt(), min.toInt(), s.toInt()).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() }.getOrNull()
         }
 
