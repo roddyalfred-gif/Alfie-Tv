@@ -24,6 +24,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private var series = emptyList<SeriesItem>()
     private var episodes = emptyList<SeriesEpisode>()
     private var selectedCategory: String? = null
+    private var selectedSeason: Int? = null
     private var selectedSeriesId: String? = null
     private var pendingSeriesId: String? = null
     private var sortMode = 0
@@ -92,7 +93,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         search.setOnEditorActionListener { _, _, _ -> list.requestFocus(); true }
         list.setOnItemClickListener { _, _, position, _ ->
             if (mode == "vod") playVod(filteredVod()[position])
-            else if (episodes.isNotEmpty()) playEpisode(episodes[position])
+            else if (episodes.isNotEmpty()) playEpisode(filteredEpisodes()[position])
             else loadEpisodes(filteredSeries()[position].id)
         }
         list.setOnItemLongClickListener { _, _, position, _ ->
@@ -102,7 +103,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
                 status.text = if (added) "★ Added to favorites: ${item.name}" else "Removed from favorites: ${item.name}"
                 render(); true
             } else if (episodes.isNotEmpty()) {
-                val item = episodes[position]
+                val item = filteredEpisodes()[position]
                 val added = UserLibraryStore.toggleFavorite(this, config, item.toLibraryItem(selectedSeriesId))
                 status.text = if (added) "★ Added to favorites: ${item.name}" else "Removed from favorites: ${item.name}"
                 render(); true
@@ -155,12 +156,38 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private fun apply(newCategories: List<IptvCategory>, newVod: List<VodItem>, newSeries: List<SeriesItem>) {
         categories = newCategories
         if (mode == "vod") vod = newVod else series = newSeries
-        while (categoryRow.childCount > 1) categoryRow.removeViewAt(1)
-        categories.forEach { c -> categoryRow.addView(Button(this).apply { text = c.name; isAllCaps = false; isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { selectedCategory = c.id; render(); list.requestFocus() } }) }
+        rebuildCategoryButtons()
         if (selectedCategory != null && categories.none { it.id == selectedCategory }) selectedCategory = null
         render()
         if (mode == "series" && episodes.isEmpty() && selectedSeriesId == null) {
             pendingSeriesId?.let { id -> if (series.any { it.id == id }) { pendingSeriesId = null; loadEpisodes(id) } }
+        }
+    }
+
+    private fun rebuildCategoryButtons() {
+        while (categoryRow.childCount > 0) categoryRow.removeViewAt(0)
+        categoryRow.addView(Button(this).apply { text = "All"; isAllCaps = false; isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { selectedCategory = null; render(); list.requestFocus() } })
+        categories.forEach { c -> categoryRow.addView(Button(this).apply { text = c.name; isAllCaps = false; isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { selectedCategory = c.id; render(); list.requestFocus() } }) }
+    }
+
+    private fun rebuildSeasonButtons() {
+        while (categoryRow.childCount > 0) categoryRow.removeViewAt(0)
+        val seasons = episodes.mapNotNull { it.season }.distinct().sorted()
+        categoryRow.addView(Button(this).apply {
+            text = "All Seasons"
+            isAllCaps = false
+            isFocusable = true
+            isFocusableInTouchMode = true
+            setOnClickListener { selectedSeason = null; render(); list.requestFocus() }
+        })
+        seasons.forEach { season ->
+            categoryRow.addView(Button(this).apply {
+                text = "Season $season"
+                isAllCaps = false
+                isFocusable = true
+                isFocusableInTouchMode = true
+                setOnClickListener { selectedSeason = season; render(); list.requestFocus() }
+            })
         }
     }
 
@@ -169,6 +196,9 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private fun query() = search.text.toString().trim()
     private fun filteredVod() = sortVod(vod.filter { (selectedCategory == null || it.categoryId == selectedCategory) && query().let { q -> q.isBlank() || it.name.contains(q, true) } })
     private fun filteredSeries() = sortSeries(series.filter { (selectedCategory == null || it.categoryId == selectedCategory) && query().let { q -> q.isBlank() || it.name.contains(q, true) } })
+    private fun filteredEpisodes() = episodes.filter { selectedSeason == null || it.season == selectedSeason }.let { items ->
+        if (query().isBlank()) items else items.filter { it.name.contains(query(), true) }
+    }.sortedWith(compareBy<SeriesEpisode> { it.season ?: 0 }.thenBy { it.episode ?: 0 })
     private fun sortVod(items: List<VodItem>) = when (sortMode) { 1 -> items.sortedByDescending { it.name.lowercase() }; 2 -> items.sortedByDescending { it.year ?: "" }; else -> items.sortedBy { it.name.lowercase() } }
     private fun sortSeries(items: List<SeriesItem>) = when (sortMode) { 1 -> items.sortedByDescending { it.name.lowercase() }; 2 -> items.sortedByDescending { it.year ?: "" }; else -> items.sortedBy { it.name.lowercase() } }
 
@@ -218,24 +248,33 @@ class ContentActivity : androidx.activity.ComponentActivity() {
             renderArtworkList(items, labels, items.map { it.posterUrl }, android.R.drawable.ic_menu_gallery)
             if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} series • ${layoutMode.name.lowercase()} • Select for episodes • Long-press to favorite"
         } else {
-            val items = episodes.sortedWith(compareBy<SeriesEpisode> { it.season ?: 0 }.thenBy { it.episode ?: 0 })
+            val items = filteredEpisodes()
             val labels = items.map { e -> "S${e.season ?: 0} E${e.episode ?: 0}  ${if (UserLibraryStore.isFavorite(this, config, e.toLibraryItem(selectedSeriesId))) "★ " else ""}${e.name}" }
             renderArtworkList(items, labels, List(items.size) { null }, android.R.drawable.ic_media_play)
-            if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} episodes • ${layoutMode.name.lowercase()} • Long-press to favorite"
+            status.text = "${items.size} episodes • ${if (selectedSeason == null) "All Seasons" else "Season $selectedSeason"} • Select to play • Long-press to favorite"
         }
         list.post { if (!search.hasFocus()) list.requestFocus() }
     }
 
     private fun loadEpisodes(seriesId: String) {
         selectedSeriesId = seriesId
+        selectedSeason = null
         val cached = ContentCache.readEpisodes(this, config, seriesId)
-        if (cached != null) { episodes = cached.episodes; status.text = "${episodes.size} episodes • Cached ${ContentCache.ageText(cached)} • Refreshing..."; render() }
-        else { episodes = emptyList(); status.text = "Loading episodes..."; render() }
+        if (cached != null) { episodes = cached.episodes; rebuildSeasonButtons(); status.text = "${episodes.size} episodes • Cached ${ContentCache.ageText(cached)} • Refreshing..."; render() }
+        else { episodes = emptyList(); render() }
         executor.execute {
             try {
                 val fresh = XtreamClient().loadSeriesEpisodes(config, seriesId)
                 ContentCache.writeEpisodes(this, config, seriesId, fresh)
-                runOnUiThread { if (selectedSeriesId == seriesId) { episodes = fresh; status.text = "${fresh.size} episodes • Updated just now"; render() } }
+                runOnUiThread {
+                    if (selectedSeriesId == seriesId) {
+                        episodes = fresh
+                        selectedSeason = null
+                        rebuildSeasonButtons()
+                        status.text = "${fresh.size} episodes • Updated just now"
+                        render()
+                    }
+                }
             } catch (e: Exception) {
                 runOnUiThread { if (selectedSeriesId == seriesId) status.text = if (episodes.isNotEmpty()) "${episodes.size} episodes • Offline cache • Refresh failed" else "Unable to load episodes: ${e.message ?: "unknown error"}" }
             }
@@ -257,7 +296,14 @@ class ContentActivity : androidx.activity.ComponentActivity() {
             list.requestFocus()
             return
         }
-        if (mode == "series" && episodes.isNotEmpty()) { episodes = emptyList(); selectedSeriesId = null; render() } else super.onBackPressed()
+        if (mode == "series" && episodes.isNotEmpty()) {
+            if (selectedSeason != null) { selectedSeason = null; render(); list.requestFocus(); return }
+            episodes = emptyList()
+            selectedSeriesId = null
+            selectedSeason = null
+            rebuildCategoryButtons()
+            render()
+        } else super.onBackPressed()
     }
 
     override fun onDestroy() { executor.shutdownNow(); super.onDestroy() }
