@@ -62,15 +62,25 @@ const GUIDE_PATCH = String.raw`
     if (Array.isArray(response?.data)) return response.data;
     return [];
   };
-  const normalizeListings = (items) => items
-    .map((p) => ({ ...p, _start: parseGuideTime(p.start ?? p.start_timestamp), _end: parseGuideTime(p.end ?? p.stop_timestamp) }))
-    .filter((p) => Number.isFinite(p._start) && Number.isFinite(p._end) && p._end > p._start)
-    .sort((a, b) => a._start - b._start);
+  const normalizeListings = (items) => {
+    const listings = items
+      .map((p) => ({ ...p, _start: parseGuideTime(p.start ?? p.start_timestamp), _end: parseGuideTime(p.end ?? p.stop_timestamp) }))
+      .filter((p) => Number.isFinite(p._start) && Number.isFinite(p._end) && p._end > p._start)
+      .sort((a, b) => a._start - b._start);
+    const now = Date.now();
+    const currentIndex = listings.findIndex((p) => p._start <= now && now < p._end);
+    if (currentIndex > 0) {
+      const current = listings.splice(currentIndex, 1)[0];
+      listings.unshift(current);
+    }
+    return listings.map((p, index) => ({ ...p, _isNow: index === 0 && p._start <= now && now < p._end }));
+  };
 
   window.playLive = async (id) => {
     const channel = state.channels.find((x) => String(x.stream_id) === String(id));
     if (!channel) return;
     const requestId = ++guideRequest;
+    state.page = 'live';
     state.selected = {
       id: channel.stream_id,
       name: channel.name,
@@ -84,13 +94,8 @@ const GUIDE_PATCH = String.raw`
       const response = await api('get_short_epg', { stream_id: String(channel.stream_id), limit: '12' });
       if (requestId !== guideRequest) return;
       const listings = normalizeListings(extractListings(response));
-      const now = Date.now();
-      const currentIndex = listings.findIndex((p) => p._start <= now && now < p._end);
-      state.epg = listings.map((p, index) => ({
-        ...p,
-        _isNow: index === currentIndex,
-        _channelMatch: !p.channel_id || !channel.epg_channel_id || String(p.channel_id) === String(channel.epg_channel_id)
-      })).filter((p) => p._channelMatch);
+      const epgId = channel.epg_channel_id || channel.channel_id || '';
+      state.epg = listings.filter((p) => !p.channel_id || !epgId || String(p.channel_id) === String(epgId));
       render();
     } catch (error) {
       if (requestId !== guideRequest) return;
@@ -99,26 +104,7 @@ const GUIDE_PATCH = String.raw`
     }
   };
 
-  const originalGuide = window.guide;
-  window.guide = () => {
-    const channels = filtered(state.channels).slice(0, 80);
-    return `<div class="hero"><h2>TV Guide</h2><p class="muted">Each guide entry is requested using that channel's exact stream ID, so programmes are not mixed between channels.</p></div><div class="grid">${channels.map(c => `<div class="card" onclick="playLive('${esc(c.stream_id)}')"><div class="card-body"><div class="card-title">${esc(c.name)}</div><div class="small">EPG channel: ${esc(c.epg_channel_id || c.channel_id || 'Provider mapped')}</div><div class="small">Stream ID: ${esc(c.stream_id)}</div><button class="icon" style="margin-top:8px" onclick="event.stopPropagation();playLive('${esc(c.stream_id)}')">View Guide</button></div></div>`).join('') || '<div class="empty">No live channels found.</div>'}</div>`;
-  };
-
-  const originalLive = window.live;
-  window.live = () => {
-    let html = originalLive();
-    if (state.epg.length && state.selected) {
-      const now = state.epg.find((p) => p._isNow);
-      const label = now ? `Now: ${esc(now.title || now.name || 'Program')} • ${formatTime(now.start || now.start_timestamp)} – ${formatTime(now.end || now.stop_timestamp)}` : `Guide: ${state.epg.length} programmes loaded`;
-      html = html.replace('<div class="guide" style="margin-top:12px">', `<div class="guide" style="margin-top:12px"><div class="small" style="margin-bottom:10px"><b>${esc(state.selected.name)}</b> • ${label}</div>`);
-      html = html.replace(/class="now"/g, 'class="now"');
-      html = html.replace(/<b class="now">/g, '<b class="now">');
-    }
-    return html;
-  };
-
-  window.__alfieGuidePatch = { parseGuideTime, normalizeListings };
+  window.__alfieGuidePatch = true;
 })();
 `;
 
