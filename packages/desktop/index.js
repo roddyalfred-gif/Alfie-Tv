@@ -4,6 +4,7 @@ const https = require('https');
 let electron;
 try { electron = require('electron'); } catch { electron = null; }
 const LAYOUT_PATCH = require('./layoutPatch');
+const RUNTIME_PATCH = require('./runtimePatch');
 
 function requestJson(url) {
   return new Promise((resolve, reject) => {
@@ -85,7 +86,7 @@ const GUIDE_PATCH = String.raw`
     state.epg = [];
     render();
     try {
-      const response = await api('get_short_epg', { stream_id: String(channel.stream_id), limit: '12' });
+      const response = await api('get_short_epg', { stream_id: String(id), limit: '12' });
       if (requestId !== guideRequest) return;
       const listings = normalizeListings(extractListings(response));
       const epgId = channel.epg_channel_id || channel.channel_id || '';
@@ -163,6 +164,7 @@ function createWindow() {
   const win = new electron.BrowserWindow({ width: 1440, height: 900, minWidth: 1050, minHeight: 700, backgroundColor: '#050816', webPreferences: { nodeIntegration: true, contextIsolation: false } });
   win.loadFile(path.join(__dirname, 'index.html'));
   win.webContents.on('did-finish-load', () => {
+    win.webContents.executeJavaScript(RUNTIME_PATCH).catch(() => {});
     win.webContents.executeJavaScript(GUIDE_PATCH).catch(() => {});
     win.webContents.executeJavaScript(PLAYER_PATCH).catch(() => {});
     win.webContents.executeJavaScript(LAYOUT_PATCH).catch(() => {});
