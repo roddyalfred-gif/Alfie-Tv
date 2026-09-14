@@ -15,12 +15,15 @@ fun IptvChannel.toLibraryItem(): UserLibraryStore.Item =
         posterUrl = logoUrl
     )
 
-/** Legacy Live TV target that bridges the old url/title extras into MainActivity. */
+/** Live TV target that starts a fresh MainActivity playback session. */
 class VideoPlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val target = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            // Do not use SINGLE_TOP here. MainActivity reads the stream extras in onCreate;
+            // reusing an existing instance would deliver onNewIntent instead and leave the
+            // previous Live TV session stopped when a channel is selected from the TV Guide.
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             putExtra("stream_url", intent.getStringExtra("url") ?: intent.getStringExtra("stream_url") ?: "")
             putExtra("title", intent.getStringExtra("title") ?: "Alfie TV")
             putExtra("content_id", intent.getStringExtra("content_id"))
