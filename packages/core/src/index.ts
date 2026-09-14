@@ -18,3 +18,4 @@ export * from './preferences';
 export * from './playback-state';
 export * from './device-profile';
 export * from './vpn';
+export * from './test-provider';
