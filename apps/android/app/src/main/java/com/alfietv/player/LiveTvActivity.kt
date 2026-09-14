@@ -401,7 +401,7 @@ class LiveTvActivity : ComponentActivity() {
         if (previewPlayer == null) {
             previewPlayer = AlfiePlayer(this).also { it.attach(previewView) }
         }
-        previewPlayer?.play(streamUrl, channel.name, channelNumber = (filteredChannels().indexOfFirst { it.id == channel.id } + 1).coerceAtLeast(1))
+        previewPlayer?.play(streamUrl, channel.name, channelNumber = ((filteredChannels().indexOfFirst { it.id == channel.id } + 1).coerceAtLeast(1)).toString())
         previewView.post { previewView.requestLayout() }
     }
 
@@ -488,7 +488,7 @@ class LiveTvActivity : ComponentActivity() {
     private fun animateFocus(view: View, focused: Boolean) { ObjectAnimator.ofFloat(view, "scaleX", if (focused) 1.03f else 1f).setDuration(120).start(); ObjectAnimator.ofFloat(view, "scaleY", if (focused) 1.03f else 1f).setDuration(120).start() }
     override fun onDestroy() {
         mainHandler.removeCallbacks(epgTicker)
-        previewPlayer?.player?.stop()
+        previewPlayer?.release()
         previewPlayer = null
         executor.shutdownNow()
         super.onDestroy()
