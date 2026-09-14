@@ -15,15 +15,15 @@ fun IptvChannel.toLibraryItem(): UserLibraryStore.Item =
         posterUrl = logoUrl
     )
 
-/** Live TV target that starts a fresh MainActivity playback session. */
+/** Live TV target that starts an isolated MainActivity playback session. */
 class VideoPlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Always create a fresh player Activity for the second OK press.  Do not use
+        // CLEAR_TOP/SINGLE_TOP here: reusing an older MainActivity can leave it with
+        // stale playback state and can make the TV app appear to exit after the preview.
         val target = Intent(this, MainActivity::class.java).apply {
-            // Do not use SINGLE_TOP here. MainActivity reads the stream extras in onCreate;
-            // reusing an existing instance would deliver onNewIntent instead and leave the
-            // previous Live TV session stopped when a channel is selected from the TV Guide.
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             putExtra("stream_url", intent.getStringExtra("url") ?: intent.getStringExtra("stream_url") ?: "")
             putExtra("title", intent.getStringExtra("title") ?: "Alfie TV")
             putExtra("content_id", intent.getStringExtra("content_id"))
