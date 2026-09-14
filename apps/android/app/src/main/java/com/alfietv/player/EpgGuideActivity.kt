@@ -90,7 +90,7 @@ class EpgGuideActivity : ComponentActivity() {
         }
         actionRow.addView(refresh, LinearLayout.LayoutParams(-2, 42))
         actionRow.addView(TextView(this).apply {
-            text = "  ←/→ channels • ↑/↓ programmes • OK = watch live"
+            text = "  ←/→ channels • ↑/↓ programmes • OK = preview / watch full screen"
             textSize = 11f
             setTextColor(muted)
             gravity = Gravity.CENTER_VERTICAL
@@ -250,7 +250,7 @@ class EpgGuideActivity : ComponentActivity() {
     private fun renderUnavailable() {
         schedule.removeAllViews()
         schedule.addView(TextView(this).apply {
-            text = "EPG unavailable for this channel\n\nPress OK on the channel to watch live."
+            text = "EPG unavailable for this channel\n\nPress OK on the channel to preview live. Press OK again to watch full screen."
             textSize = 15f
             setTextColor(muted)
             setPadding(12, 28, 12, 28)
@@ -329,34 +329,30 @@ class EpgGuideActivity : ComponentActivity() {
         schedule.post { schedule.getChildAt(1)?.requestFocus() }
     }
 
+    /** Return to the actual Live TV screen; it will show the selected channel as a preview. */
     private fun playChannel(channel: IptvChannel) {
-        val channelIndex = channels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
-        val channelUrls = ArrayList(channels.map { it.streamUrl })
-        val channelTitles = ArrayList(channels.map { it.name })
-        val channelIds = ArrayList(channels.map { it.id })
-        val channelNumbers = ArrayList(channels.indices.map { (it + 1).toString() })
         val url = channel.streamUrl.trim()
         if (url.isBlank()) {
             status.text = "${channel.name} has no stream URL • Refresh Provider"
             return
         }
-        startActivity(Intent(this, VideoPlayerActivity::class.java).apply {
-            putExtra("url", url)
-            putExtra("stream_url", url)
-            putExtra("title", channel.name)
-            putExtra("content_id", channel.id)
-            putExtra("content_type", UserLibraryStore.Type.LIVE.name)
-            putExtra("channel_id", channel.id)
-            putExtra("channel_number", (channelIndex + 1).toString())
+        val channelIndex = channels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
+        val channelUrls = ArrayList(channels.map { it.streamUrl })
+        val channelTitles = ArrayList(channels.map { it.name })
+        val channelIds = ArrayList(channels.map { it.id })
+        val channelNumbers = ArrayList(channels.indices.map { (it + 1).toString() })
+        startActivity(Intent(this, LiveTvActivity::class.java).apply {
+            putExtra("server", config.serverUrl)
+            putExtra("username", config.username)
+            putExtra("password", config.password)
+            putExtra("preview_channel_id", channel.id)
+            putExtra("preview_channel_index", channelIndex)
             putExtra("channel_urls", channelUrls)
             putExtra("channel_titles", channelTitles)
             putExtra("channel_ids", channelIds)
             putExtra("channel_numbers", channelNumbers)
-            putExtra("channel_index", channelIndex)
-            putExtra("server", config.serverUrl)
-            putExtra("username", config.username)
-            putExtra("password", config.password)
         })
+        finish()
     }
 
     private fun rounded(color: Int, radiusDp: Float): GradientDrawable = GradientDrawable().apply {
