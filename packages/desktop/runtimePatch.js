@@ -41,6 +41,37 @@ module.exports = String.raw`
       if (message) message.remove();
     });
   };
+  let previewChannelId = null;
+  let playLiveWrapped = false;
+  const installLiveTwoPress = () => {
+    if (playLiveWrapped || typeof window.playLive !== 'function') return;
+    const originalPlayLive = window.playLive;
+    window.playLive = async (id) => {
+      const key = String(id);
+      if (previewChannelId === key) {
+        const video = document.querySelector('#video');
+        if (video) {
+          try {
+            if (document.fullscreenElement !== video) {
+              if (video.requestFullscreen) await video.requestFullscreen();
+              else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();
+            }
+            video.focus?.();
+            return;
+          } catch {}
+        }
+      }
+      previewChannelId = key;
+      await originalPlayLive(id);
+      const currentVideo = document.querySelector('#video');
+      if (currentVideo) {
+        currentVideo.setAttribute('data-alfie-preview', '1');
+        currentVideo.setAttribute('title', 'Press the channel again for full screen');
+        currentVideo.focus?.();
+      }
+    };
+    playLiveWrapped = true;
+  };
   const restoreProvider = () => {
     try {
       const raw = localStorage.getItem('alfie-provider');
@@ -57,9 +88,15 @@ module.exports = String.raw`
       if (saved.password) document.querySelector('#loginForm')?.requestSubmit();
     } catch {}
   };
-  new MutationObserver(() => { installVideoGuard(); restoreProvider(); }).observe(document.documentElement, { childList: true, subtree: true });
+  new MutationObserver(() => {
+    installVideoGuard();
+    restoreProvider();
+    if (window.__alfieGuidePatch) installLiveTwoPress();
+  }).observe(document.documentElement, { childList: true, subtree: true });
   installVideoGuard();
   setTimeout(restoreProvider, 0);
+  setTimeout(installLiveTwoPress, 250);
+  setTimeout(installLiveTwoPress, 1000);
   window.__alfieRuntimePatch = true;
 })();
 `;
