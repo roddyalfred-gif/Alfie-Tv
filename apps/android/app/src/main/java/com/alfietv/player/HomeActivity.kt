@@ -15,19 +15,21 @@ import android.widget.ScrollView
 import android.widget.TextView
 import java.util.concurrent.Executors
 
-/** Modern TV-first Alfie TV dashboard with remote-friendly navigation. */
+/** Tivi-inspired TV-first dashboard: persistent navigation, content-first home and remote-friendly focus. */
 class HomeActivity : androidx.activity.ComponentActivity() {
     private lateinit var config: XtreamConfig
     private val executor = Executors.newSingleThreadExecutor()
     private var status: TextView? = null
 
-    private val bg = Color.rgb(4, 7, 15)
-    private val panel = Color.rgb(13, 19, 32)
-    private val blue = Color.rgb(35, 168, 255)
-    private val purple = Color.rgb(122, 82, 255)
+    private val bg = Color.rgb(5, 7, 12)
+    private val rail = Color.rgb(11, 15, 24)
+    private val panel = Color.rgb(18, 24, 36)
+    private val panel2 = Color.rgb(24, 31, 46)
+    private val accent = Color.rgb(35, 168, 255)
+    private val purple = Color.rgb(126, 91, 255)
     private val cyan = Color.rgb(53, 224, 220)
     private val white = Color.WHITE
-    private val muted = Color.rgb(157, 170, 193)
+    private val muted = Color.rgb(153, 166, 188)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,272 +50,255 @@ class HomeActivity : androidx.activity.ComponentActivity() {
 
     private fun buildHome() {
         val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
+            orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(bg)
-            setPadding(30, 18, 30, 14)
         }
 
-        val header = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(4, 0, 4, 14)
+        val navigation = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.TOP
+            setPadding(14, 18, 14, 16)
+            setBackgroundColor(rail)
         }
-        val brand = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        brand.addView(TextView(this).apply {
-            text = "ALFIE TV"
-            textSize = 30f
+        navigation.addView(TextView(this).apply {
+            text = "ALFIE\nTV"
+            textSize = 22f
             setTextColor(white)
             typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = 0.10f
-        })
-        brand.addView(TextView(this).apply {
-            text = "YOUR ENTERTAINMENT HUB"
-            textSize = 9f
-            setTextColor(cyan)
-            letterSpacing = 0.16f
-            setPadding(0, 1, 0, 0)
-        })
-        header.addView(brand, LinearLayout.LayoutParams(0, -2, 1f))
+            gravity = Gravity.CENTER
+            letterSpacing = 0.08f
+            setPadding(0, 0, 0, 24)
+        }, LinearLayout.LayoutParams(94, 0, 0.22f))
+
+        val navHome = navButton(navigation, "⌂", "HOME", true) { buildHome() }
+        navButton(navigation, "▣", "LIVE TV") { open(LiveTvActivity::class.java) }
+        navButton(navigation, "GUIDE", "TV GUIDE") { open(EpgGuideActivity::class.java) }
+        navButton(navigation, "●", "MOVIES") { open(ContentActivity::class.java, "vod") }
+        navButton(navigation, "▶", "SERIES") { open(ContentActivity::class.java, "series") }
+        navButton(navigation, "★", "FAVORITES") { open(FavoritesActivity::class.java) }
+        navButton(navigation, "⚙", "SETTINGS") { open(SettingsActivity::class.java) }
+        navigation.addView(View(this), LinearLayout.LayoutParams(1, 0, 1f))
         status = TextView(this).apply {
-            text = "●  CONNECTED"
-            textSize = 10f
-            typeface = Typeface.DEFAULT_BOLD
+            text = "● ONLINE"
+            textSize = 9f
             gravity = Gravity.CENTER
             setTextColor(Color.rgb(120, 235, 175))
-            background = pill(Color.rgb(16, 55, 49))
-            setPadding(16, 8, 16, 8)
         }
-        header.addView(status)
-        root.addView(header)
+        navigation.addView(status, LinearLayout.LayoutParams(-1, 36))
+        root.addView(navigation, LinearLayout.LayoutParams(122, -1))
 
         val scroll = ScrollView(this).apply {
             isFillViewport = true
-            isFocusable = false
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
         }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, 0, 0, 10)
+            setPadding(28, 20, 28, 24)
         }
         scroll.addView(content)
+        root.addView(scroll, LinearLayout.LayoutParams(0, -1, 1f))
+
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(2, 0, 2, 16)
+        }
+        top.addView(TextView(this).apply {
+            text = "HOME"
+            textSize = 24f
+            setTextColor(white)
+            typeface = Typeface.DEFAULT_BOLD
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        top.addView(TextView(this).apply {
+            text = "⌕  Search"
+            textSize = 12f
+            setTextColor(muted)
+            background = rounded(panel)
+            setPadding(18, 11, 18, 11)
+        })
+        content.addView(top)
 
         val hero = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(26, 20, 26, 20)
-            background = gradient(Color.rgb(78, 48, 180), Color.rgb(15, 72, 105), 24f)
+            setPadding(28, 24, 28, 24)
+            background = gradient(Color.rgb(39, 37, 105), Color.rgb(10, 77, 103))
         }
         hero.addView(TextView(this).apply {
             text = "WELCOME BACK"
             textSize = 10f
             setTextColor(Color.rgb(214, 224, 255))
             typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = 0.14f
+            letterSpacing = 0.16f
         })
         hero.addView(TextView(this).apply {
-            text = "What do you want to watch?"
-            textSize = 24f
+            text = "Watch what you love."
+            textSize = 27f
             setTextColor(white)
             typeface = Typeface.DEFAULT_BOLD
-            setPadding(0, 5, 0, 2)
+            setPadding(0, 5, 0, 4)
         })
         hero.addView(TextView(this).apply {
-            text = "Live channels, TV Guide, movies and series — designed for your TV remote."
+            text = "Live TV • Guide • Movies • Series"
             textSize = 12f
             setTextColor(Color.rgb(226, 233, 248))
         })
-        content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 14 })
+        content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 18 })
 
-        addSection(content, "WATCH NOW", "Jump straight into live entertainment")
-        val liveRow = row(content, 94)
-        val live = card(liveRow, "LIVE TV", "Channels  •  Favorites", blue) {
-            open(LiveTvActivity::class.java)
-        }
-        card(liveRow, "TV GUIDE", "NOW  •  NEXT  •  Schedule", purple) {
-            open(EpgGuideActivity::class.java)
-        }
+        section(content, "LIVE TV", "Jump into your channels")
+        val liveRow = row(content, 112)
+        val live = card(liveRow, "LIVE TV", "Channels and categories", accent) { open(LiveTvActivity::class.java) }
+        card(liveRow, "TV GUIDE", "Now • Next • Full schedule", purple) { open(EpgGuideActivity::class.java) }
+        live.requestFocus()
 
-        addSection(content, "ON DEMAND", "Explore movies and series from your provider")
-        val vodRow = row(content, 86)
-        card(vodRow, "MOVIES", "Cinema  •  New releases", Color.rgb(226, 89, 137)) {
-            open(ContentActivity::class.java, "vod")
-        }
-        card(vodRow, "SERIES", "Shows  •  Seasons  •  Episodes", Color.rgb(45, 190, 151)) {
-            open(ContentActivity::class.java, "series")
-        }
+        section(content, "CONTINUE WATCHING", "Pick up where you left off")
+        val recent = row(content, 92)
+        card(recent, "RECENTLY WATCHED", "Continue your latest channels", Color.rgb(74, 129, 255)) { open(FavoritesActivity::class.java) }
+        card(recent, "FAVORITES", "Your saved channels and content", Color.rgb(244, 174, 65)) { open(FavoritesActivity::class.java) }
 
-        addSection(content, "MY SPACE", "Keep your favorite entertainment close")
-        val libraryRow = row(content, 86)
-        card(libraryRow, "FAVORITES", "Saved channels and content", Color.rgb(244, 174, 65)) {
-            open(FavoritesActivity::class.java)
-        }
-        card(libraryRow, "RECENT", "Continue your recent viewing", Color.rgb(92, 139, 255)) {
-            open(FavoritesActivity::class.java)
+        section(content, "ON DEMAND", "Browse your provider catalog")
+        val vod = row(content, 92)
+        card(vod, "MOVIES", "Cinema • New releases", Color.rgb(226, 89, 137)) { open(ContentActivity::class.java, "vod") }
+        card(vod, "SERIES", "Shows • Seasons • Episodes", Color.rgb(45, 190, 151)) { open(ContentActivity::class.java, "series") }
+
+        section(content, "QUICK ACTIONS", "Everything important in one place")
+        val tools = row(content, 80)
+        card(tools, "REFRESH", "Update channels and guide", cyan) { refreshProvider() }
+        card(tools, "CHANGE PROVIDER", "Connect another IPTV service", Color.rgb(86, 96, 120)) {
+            clearProviderCache(); SessionStore.clear(this); goToLogin()
         }
 
-        addSection(content, "CONTROL CENTER", "Connection and playback settings")
-        val toolsRow = row(content, 78)
-        card(toolsRow, "SETTINGS", "Player  •  Display  •  Playback", Color.rgb(108, 123, 146)) {
-            open(SettingsActivity::class.java)
-        }
-        card(toolsRow, "REFRESH", "Update channels and TV Guide", cyan) {
-            refreshProvider()
-        }
-        card(content, "CHANGE PROVIDER", "Sign out and connect another IPTV provider", Color.rgb(86, 96, 120)) {
-            clearProviderCache()
-            SessionStore.clear(this)
-            goToLogin()
-        }
-
-        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-
-        val footer = TextView(this).apply {
-            text = "← → Move   •   ↑ ↓ Browse   •   OK Select   •   BACK Return"
+        content.addView(TextView(this).apply {
+            text = "↑ ↓ Navigate   •   OK Select   •   BACK Return   •   MENU Provider"
             textSize = 10f
             gravity = Gravity.CENTER
             setTextColor(muted)
-            setPadding(0, 7, 0, 0)
-            isFocusable = false
-        }
-        root.addView(footer, LinearLayout.LayoutParams(-1, -2))
+            setPadding(0, 16, 0, 0)
+        })
 
         setContentView(root)
-        root.post { live.requestFocus() }
+        root.post { navHome.requestFocus() }
     }
 
-    private fun addSection(root: LinearLayout, title: String, subtitle: String) {
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(5, 5, 5, 6)
-            isFocusable = false
-        }
-        box.addView(TextView(this).apply {
+    private fun section(root: LinearLayout, title: String, subtitle: String) {
+        root.addView(TextView(this).apply {
             text = title
             textSize = 12f
             setTextColor(white)
             typeface = Typeface.DEFAULT_BOLD
             letterSpacing = 0.10f
+            setPadding(3, 2, 3, 2)
         })
-        box.addView(TextView(this).apply {
+        root.addView(TextView(this).apply {
             text = subtitle
             textSize = 10f
             setTextColor(muted)
-            setPadding(0, 2, 0, 0)
+            setPadding(3, 0, 3, 7)
         })
-        root.addView(box)
     }
 
     private fun row(root: LinearLayout, height: Int): LinearLayout {
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, 0, 0, 2)
-        }
-        root.addView(row, LinearLayout.LayoutParams(-1, height))
-        return row
+        val r = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        root.addView(r, LinearLayout.LayoutParams(-1, height).apply { bottomMargin = 4 })
+        return r
     }
 
-    private fun card(root: LinearLayout, title: String, subtitle: String, accent: Int, action: () -> Unit): Button {
-        val button = Button(this).apply {
-            text = "$title\n$subtitle"
+    private fun navButton(root: LinearLayout, icon: String, title: String, selected: Boolean = false, action: () -> Unit): Button {
+        val b = Button(this).apply {
+            text = "$icon\n$title"
             isAllCaps = false
-            textSize = 12f
-            minHeight = 0
-            gravity = Gravity.CENTER_VERTICAL or Gravity.START
-            setPadding(20, 0, 12, 0)
-            setTextColor(white)
-            background = cardBackground(panel)
+            textSize = 9f
+            gravity = Gravity.CENTER
+            setTextColor(if (selected) white else muted)
+            background = if (selected) selectedNav(accent) else rounded(rail)
             isFocusable = true
             isFocusableInTouchMode = true
             stateListAnimator = null
-            setOnFocusChangeListener { view, focused ->
-                view.background = if (focused) focusedBackground(accent) else cardBackground(panel)
-                animateFocus(view, focused)
-                if (focused) ensureVisible(view)
+            setOnFocusChangeListener { v, focused ->
+                v.background = if (focused) selectedNav(accent) else if (selected) selectedNav(Color.rgb(30, 47, 68)) else rounded(rail)
+                if (focused) animateFocus(v, true)
             }
             setOnClickListener { action() }
         }
-        root.addView(button, LinearLayout.LayoutParams(0, -1, 1f).apply {
-            leftMargin = 3
-            rightMargin = 3
-        })
-        return button
+        root.addView(b, LinearLayout.LayoutParams(-1, 64).apply { bottomMargin = 4 })
+        return b
+    }
+
+    private fun card(root: LinearLayout, title: String, subtitle: String, color: Int, action: () -> Unit): Button {
+        val b = Button(this).apply {
+            text = "$title\n$subtitle"
+            isAllCaps = false
+            textSize = 12f
+            gravity = Gravity.CENTER_VERTICAL or Gravity.START
+            setPadding(20, 0, 12, 0)
+            setTextColor(white)
+            background = rounded(panel)
+            isFocusable = true
+            isFocusableInTouchMode = true
+            stateListAnimator = null
+            setOnFocusChangeListener { v, focused ->
+                v.background = if (focused) focusedCard(color) else rounded(panel)
+                animateFocus(v, focused)
+            }
+            setOnClickListener { action() }
+        }
+        root.addView(b, LinearLayout.LayoutParams(0, -1, 1f).apply { leftMargin = 4; rightMargin = 4 })
+        return b
     }
 
     private fun animateFocus(view: View, focused: Boolean) {
-        val target = if (focused) 1.025f else 1f
-        ObjectAnimator.ofFloat(view, View.SCALE_X, view.scaleX, target).setDuration(130).start()
-        ObjectAnimator.ofFloat(view, View.SCALE_Y, view.scaleY, target).setDuration(130).start()
+        val target = if (focused) 1.035f else 1f
+        ObjectAnimator.ofFloat(view, View.SCALE_X, view.scaleX, target).setDuration(120).start()
+        ObjectAnimator.ofFloat(view, View.SCALE_Y, view.scaleY, target).setDuration(120).start()
     }
 
-    private fun ensureVisible(view: View) {
-        val scroll = view.parent?.parent?.parent as? ScrollView
-        scroll?.post { scroll.smoothScrollTo(0, (view.top - 80).coerceAtLeast(0)) }
+    private fun rounded(color: Int) = GradientDrawable().apply {
+        setColor(color); cornerRadius = 16f * resources.displayMetrics.density
     }
 
-    private fun refreshProvider() {
-        status?.text = "↻  REFRESHING…"
-        executor.execute {
-            try {
-                val (categories, channels) = XtreamClient().load(config)
-                LiveTvCache.write(this, config, categories, channels)
-                runOnUiThread { status?.text = "●  ${channels.size} CHANNELS READY" }
-            } catch (_: Exception) {
-                runOnUiThread { status?.text = "⚠  REFRESH FAILED" }
-            }
-        }
+    private fun focusedCard(color: Int) = GradientDrawable().apply {
+        setColor(panel2); setStroke((2 * resources.displayMetrics.density).toInt(), color)
+        cornerRadius = 16f * resources.displayMetrics.density
     }
 
-    private fun cardBackground(color: Int) = GradientDrawable().apply {
-        setColor(color)
-        cornerRadius = 18f * resources.displayMetrics.density
+    private fun selectedNav(color: Int) = GradientDrawable().apply {
+        setColor(Color.rgb(25, 40, 59)); setStroke((1.5f * resources.displayMetrics.density).toInt(), color)
+        cornerRadius = 14f * resources.displayMetrics.density
     }
 
-    private fun focusedBackground(accent: Int) = GradientDrawable().apply {
-        setColor(Color.rgb(25, 35, 54))
-        setStroke((2 * resources.displayMetrics.density).toInt(), accent)
-        cornerRadius = 18f * resources.displayMetrics.density
-    }
-
-    private fun pill(color: Int) = GradientDrawable().apply {
-        setColor(color)
-        cornerRadius = 24f * resources.displayMetrics.density
-    }
-
-    private fun gradient(start: Int, end: Int, radiusDp: Float) = GradientDrawable(
-        GradientDrawable.Orientation.TL_BR,
-        intArrayOf(start, end)
-    ).apply { cornerRadius = radiusDp * resources.displayMetrics.density }
+    private fun gradient(start: Int, end: Int) = GradientDrawable(
+        GradientDrawable.Orientation.TL_BR, intArrayOf(start, end)
+    ).apply { cornerRadius = 20f * resources.displayMetrics.density }
 
     private fun open(clazz: Class<*>, mode: String? = null) {
         startActivity(Intent(this, clazz).apply {
-            putExtra("server", config.serverUrl)
-            putExtra("username", config.username)
-            putExtra("password", config.password)
+            putExtra("server", config.serverUrl); putExtra("username", config.username); putExtra("password", config.password)
             mode?.let { putExtra("mode", it) }
         })
     }
 
-    private fun clearProviderCache() {
-        LiveTvCache.clear(this)
-        EpgCache.clear(this)
+    private fun refreshProvider() {
+        status?.text = "↻ REFRESH"
+        executor.execute {
+            try {
+                val (categories, channels) = XtreamClient().load(config)
+                LiveTvCache.write(this, config, categories, channels)
+                runOnUiThread { status?.text = "● ${channels.size} CH" }
+            } catch (_: Exception) {
+                runOnUiThread { status?.text = "⚠ OFFLINE" }
+            }
+        }
     }
 
+    private fun clearProviderCache() { LiveTvCache.clear(this); EpgCache.clear(this) }
+
     private fun goToLogin() {
-        startActivity(Intent(this, LoginActivity::class.java).apply { putExtra("forceLogin", true) })
-        finish()
+        startActivity(Intent(this, LoginActivity::class.java).apply { putExtra("forceLogin", true) }); finish()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_MENU) {
-            clearProviderCache()
-            SessionStore.clear(this)
-            goToLogin()
-            return true
-        }
+        if (keyCode == KeyEvent.KEYCODE_MENU) { clearProviderCache(); SessionStore.clear(this); goToLogin(); return true }
         return super.onKeyDown(keyCode, event)
     }
 
-    override fun onDestroy() {
-        executor.shutdownNow()
-        super.onDestroy()
-    }
+    override fun onDestroy() { executor.shutdownNow(); super.onDestroy() }
 }
