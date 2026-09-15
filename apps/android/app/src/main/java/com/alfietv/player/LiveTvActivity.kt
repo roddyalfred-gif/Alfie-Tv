@@ -119,73 +119,44 @@ class LiveTvActivity : ComponentActivity() {
             currentLayoutMode = selected
             applyLayoutMode()
             render()
-            setBaseStatus("${filteredChannels().size} channels • ${layoutModeLabel()} view")
-            list.requestFocus()
-        }, LinearLayout.LayoutParams(0, 44, 1f))
-        root.addView(layoutRow, LinearLayout.LayoutParams(-1, 46).apply { bottomMargin = 6 })
+        })
+        root.addView(layoutRow, LinearLayout.LayoutParams(-1, 44))
 
-        val content = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val content = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; weightSum = 2f }
         list = GridView(this).apply {
-            isFocusable = true; isFocusableInTouchMode = true; clipToPadding = false
-            verticalSpacing = 8; horizontalSpacing = 8; stretchMode = GridView.STRETCH_COLUMN_WIDTH
-            setPadding(0, 2, 8, 2)
-            setOnKeyListener { _, keyCode, event ->
-                if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) return@setOnKeyListener false
-                when (keyCode) {
-                    KeyEvent.KEYCODE_CHANNEL_UP -> { moveChannel(-1); true }
-                    KeyEvent.KEYCODE_CHANNEL_DOWN -> { moveChannel(1); true }
-                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                        // Explicitly own the TV remote activation key. This avoids
-                        // GridView/child focus dispatch differences across Android TV
-                        // devices and guarantees one OK press = one state transition.
-                        filteredChannels().getOrNull(selectedItemPosition.coerceAtLeast(0))?.let { channel ->
-                            selectedIndex = selectedItemPosition.coerceAtLeast(0)
-                            showEpg(channel)
-                            handleChannelClick(channel)
-                        }
-                        true
-                    }
-                    KeyEvent.KEYCODE_DPAD_RIGHT -> { epgContainer.requestFocus(); true }
-                    KeyEvent.KEYCODE_DPAD_UP -> {
-                        val columns = maxOf(1, numColumns)
-                        if (selectedItemPosition in 0 until columns) {
-                            categoryRow.getChildAt(0)?.requestFocus(); true
-                        } else false
-                    }
-                    else -> false
-                }
-            }
-            setOnFocusChangeListener { _, focused ->
-                if (focused && selectedItemPosition >= 0) filteredChannels().getOrNull(selectedItemPosition)?.let(::showEpg)
-            }
+            numColumns = 1
+            verticalSpacing = 8
+            horizontalSpacing = 8
+            stretchMode = GridView.STRETCH_COLUMN_WIDTH
+            isFocusable = true
+            isFocusableInTouchMode = true
         }
-        content.addView(list, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1.62f))
+        content.addView(list, LinearLayout.LayoutParams(0, 0, 1.05f))
 
-        val epgScroll = ScrollView(this).apply {
-            isFillViewport = true; isFocusable = false; overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-        }
-        epgContainer = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(18, 18, 18, 18); setBackgroundColor(panel)
-            isFocusable = true; isFocusableInTouchMode = true
-            setOnKeyListener { _, keyCode, event -> if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_LEFT) { list.requestFocus(); true } else false }
+        val right = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(10, 0, 0, 0)
         }
         previewView = PlayerView(this).apply {
             useController = false
-            controllerAutoShow = false
-            setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
-            resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
-            isFocusable = false
             setBackgroundColor(Color.BLACK)
+            isFocusable = false
         }
-        epgContainer.addView(previewView, LinearLayout.LayoutParams(-1, 190).apply { bottomMargin = 10 })
-        epgTitle = TextView(this).apply { text = "LIVE PREVIEW"; textSize = 21f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD }
-        epgNow = TextView(this).apply { textSize = 17f; setTextColor(accent); setPadding(0, 18, 0, 8) }
-        epgProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; progress = 0; isIndeterminate = false }
-        epgNext = TextView(this).apply { textSize = 15f; setTextColor(Color.WHITE); setPadding(0, 14, 0, 8) }
-        epgMeta = TextView(this).apply { textSize = 13f; setTextColor(muted); setPadding(0, 10, 0, 0) }
-        epgContainer.addView(epgTitle); epgContainer.addView(epgNow); epgContainer.addView(epgProgress, LinearLayout.LayoutParams(-1, 8)); epgContainer.addView(epgNext); epgContainer.addView(epgMeta)
-        epgScroll.addView(epgContainer)
-        content.addView(epgScroll, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 0.92f).apply { leftMargin = 8 })
+        right.addView(previewView, LinearLayout.LayoutParams(-1, 0, 1.25f))
+        epgContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(14, 12, 14, 10)
+            background = roundedBackground(panel, 14f)
+        }
+        epgTitle = TextView(this).apply { text = "LIVE PREVIEW"; textSize = 18f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD }
+        epgNow = TextView(this).apply { textSize = 15f; setTextColor(Color.WHITE); setPadding(0, 10, 0, 2) }
+        epgNext = TextView(this).apply { textSize = 14f; setTextColor(muted); setPadding(0, 2, 0, 6) }
+        epgProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; progress = 0 }
+        epgMeta = TextView(this).apply { textSize = 12f; setTextColor(muted); setPadding(0, 6, 0, 0) }
+        epgContainer.addView(epgTitle); epgContainer.addView(epgNow); epgContainer.addView(epgNext)
+        epgContainer.addView(epgProgress, LinearLayout.LayoutParams(-1, 6)); epgContainer.addView(epgMeta)
+        right.addView(epgContainer, LinearLayout.LayoutParams(-1, 0, 0.75f).apply { topMargin = 10 })
+        content.addView(right, LinearLayout.LayoutParams(0, 0, 0.95f))
         root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
 
         status = TextView(this).apply { text = baseStatus; textSize = 13f; setTextColor(muted); setPadding(4, 7, 4, 2) }
@@ -194,13 +165,12 @@ class LiveTvActivity : ComponentActivity() {
 
         search.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { render() }
+            override fun onTextChanged(s: CharSequence?, before: Int, count: Int, after: Int) { render() }
             override fun afterTextChanged(s: Editable?) = Unit
         })
         search.setOnEditorActionListener { _, _, _ -> list.requestFocus(); true }
 
-        // Touch activation remains on GridView; TV remote activation is handled
-        // explicitly above so a single OK cannot be delivered twice.
+        // GridView owns item activation. The child view must not also consume clicks.
         list.setOnItemClickListener { _, _, position, _ ->
             filteredChannels().getOrNull(position)?.let { channel ->
                 selectedIndex = position
@@ -379,7 +349,7 @@ class LiveTvActivity : ComponentActivity() {
     private fun moveChannel(delta: Int) {
         val channels = filteredChannels()
         if (channels.isEmpty()) return
-        val current = selectedItemPosition.takeIf { it >= 0 } ?: selectedIndex.coerceAtLeast(0)
+        val current = selectedIndex.coerceIn(0, channels.lastIndex)
         val next = (current + delta).coerceIn(0, channels.lastIndex)
         selectedIndex = next
         list.setSelection(next)
@@ -456,8 +426,6 @@ class LiveTvActivity : ComponentActivity() {
         if (awaitingFullscreenReturn) {
             awaitingFullscreenReturn = false
             fullscreenLaunchInProgress = false
-            // First BACK from the fullscreen player returns to this Live TV screen.
-            // Recreate the inline preview so the user lands back in the exact preview state.
             val channel = previewChannelId?.let { id -> allChannels.firstOrNull { it.id == id } }
             if (channel != null && channel.streamUrl.isNotBlank()) {
                 list.post {
@@ -536,5 +504,22 @@ class LiveTvActivity : ComponentActivity() {
         previewPlayer = null
         executor.shutdownNow()
         super.onDestroy()
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP -> { moveChannel(-1); return true }
+                KeyEvent.KEYCODE_DPAD_DOWN -> { moveChannel(1); return true }
+                KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER -> {
+                    if (!list.hasFocus()) list.requestFocus()
+                    val channels = filteredChannels()
+                    val position = selectedIndex.coerceIn(0, channels.lastIndex)
+                    channels.getOrNull(position)?.let { handleChannelClick(it) }
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 }
