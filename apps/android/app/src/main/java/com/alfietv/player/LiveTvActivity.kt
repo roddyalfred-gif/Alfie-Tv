@@ -58,6 +58,7 @@ class LiveTvActivity : ComponentActivity() {
     private var selectedEpgChannel: IptvChannel? = null
     private var selectedIndex = -1
     private var fullscreenLaunchInProgress = false
+    private var awaitingFullscreenReturn = false
 
     private val bg = Color.rgb(5, 9, 18)
     private val panel = Color.rgb(13, 21, 35)
@@ -118,7 +119,7 @@ class LiveTvActivity : ComponentActivity() {
             currentLayoutMode = selected
             applyLayoutMode()
             render()
-            setBaseStatus("${filteredChannels().size} channels • ${layoutModeLabel() } view")
+            setBaseStatus("${filteredChannels().size} channels • ${layoutModeLabel()} view")
             list.requestFocus()
         }, LinearLayout.LayoutParams(0, 44, 1f))
         root.addView(layoutRow, LinearLayout.LayoutParams(-1, 46).apply { bottomMargin = 6 })
@@ -129,10 +130,21 @@ class LiveTvActivity : ComponentActivity() {
             verticalSpacing = 8; horizontalSpacing = 8; stretchMode = GridView.STRETCH_COLUMN_WIDTH
             setPadding(0, 2, 8, 2)
             setOnKeyListener { _, keyCode, event ->
-                if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) return@setOnKeyListener false
                 when (keyCode) {
                     KeyEvent.KEYCODE_CHANNEL_UP -> { moveChannel(-1); true }
                     KeyEvent.KEYCODE_CHANNEL_DOWN -> { moveChannel(1); true }
+                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                        // Explicitly own the TV remote activation key. This avoids
+                        // GridView/child focus dispatch differences across Android TV
+                        // devices and guarantees one OK press = one state transition.
+                        filteredChannels().getOrNull(selectedItemPosition.coerceAtLeast(0))?.let { channel ->
+                            selectedIndex = selectedItemPosition.coerceAtLeast(0)
+                            showEpg(channel)
+                            handleChannelClick(channel)
+                        }
+                        true
+                    }
                     KeyEvent.KEYCODE_DPAD_RIGHT -> { epgContainer.requestFocus(); true }
                     KeyEvent.KEYCODE_DPAD_UP -> {
                         val columns = maxOf(1, numColumns)
@@ -155,9 +167,7 @@ class LiveTvActivity : ComponentActivity() {
         epgContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(18, 18, 18, 18); setBackgroundColor(panel)
             isFocusable = true; isFocusableInTouchMode = true
-            setOnKeyListener { _, keyCode, event ->
-                if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_LEFT) { list.requestFocus(); true } else false
-            }
+            setOnKeyListener { _, keyCode, event -> if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_LEFT) { list.requestFocus(); true } else false }
         }
         previewView = PlayerView(this).apply {
             useController = false
@@ -189,9 +199,8 @@ class LiveTvActivity : ComponentActivity() {
         })
         search.setOnEditorActionListener { _, _, _ -> list.requestFocus(); true }
 
-        // IMPORTANT: GridView owns item activation. The child view must not also
-        // consume clicks, otherwise one remote/touch press can dispatch twice and
-        // turn the first preview activation into an unintended fullscreen launch.
+        // Touch activation remains on GridView; TV remote activation is handled
+        // explicitly above so a single OK cannot be delivered twice.
         list.setOnItemClickListener { _, _, position, _ ->
             filteredChannels().getOrNull(position)?.let { channel ->
                 selectedIndex = position
@@ -357,10 +366,6 @@ class LiveTvActivity : ComponentActivity() {
                 }
                 textBox.addView(name); textBox.addView(sub)
                 item.addView(icon); item.addView(textBox, LinearLayout.LayoutParams(if (currentLayoutMode == LayoutMode.LIST) 0 else -1, -2, if (currentLayoutMode == LayoutMode.LIST) 1f else 0f))
-
-                // Do not install a child click listener here. GridView's single
-                // OnItemClickListener is the only activation path for OK/tap.
-                // This prevents duplicate dispatch on Android TV remotes.
                 item.setOnFocusChangeListener { view, hasFocus ->
                     if (hasFocus) { selectedIndex = position; showEpg(channel) }
                     view.background = roundedBackground(if (hasFocus) Color.rgb(0, 85, 160) else row, 12f)
@@ -374,14 +379,15 @@ class LiveTvActivity : ComponentActivity() {
     private fun moveChannel(delta: Int) {
         val channels = filteredChannels()
         if (channels.isEmpty()) return
-        val next = (selectedIndex + delta).coerceIn(0, channels.lastIndex)
+        val current = selectedItemPosition.takeIf { it >= 0 } ?: selectedIndex.coerceAtLeast(0)
+        val next = (current + delta).coerceIn(0, channels.lastIndex)
         selectedIndex = next
         list.setSelection(next)
         channels.getOrNull(next)?.let { showEpg(it) }
         list.invalidateViews()
     }
 
-    /** First OK shows an inline video preview. A second OK on the same channel opens full screen. */
+    /** First OK shows an inline video preview. Second OK on the same channel opens full screen. */
     private fun handleChannelClick(channel: IptvChannel) {
         if (fullscreenLaunchInProgress) return
         if (previewChannelId == channel.id) {
@@ -416,6 +422,7 @@ class LiveTvActivity : ComponentActivity() {
             return
         }
         fullscreenLaunchInProgress = true
+        awaitingFullscreenReturn = true
         val channelIndex = filteredChannels().indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
         val channelUrls = ArrayList(filteredChannels().map { it.streamUrl })
         val channelTitles = ArrayList(filteredChannels().map { it.name })
@@ -423,9 +430,6 @@ class LiveTvActivity : ComponentActivity() {
         val channelNumbers = ArrayList(filteredChannels().indices.map { (it + 1).toString() })
         prefs.edit().putString(lastChannelKey(), channel.id).apply()
 
-        // Release the inline player before transferring the same stream to the
-        // fullscreen Activity. This avoids two Media3 sessions fighting over the
-        // same decoder/audio focus during the handoff.
         previewPlayer?.release()
         previewPlayer = null
         previewView.player = null
@@ -441,6 +445,7 @@ class LiveTvActivity : ComponentActivity() {
             startActivity(launchIntent)
         } catch (e: Exception) {
             fullscreenLaunchInProgress = false
+            awaitingFullscreenReturn = false
             setBaseStatus("Unable to open fullscreen player: ${e.message ?: "unknown error"}")
             preview(channel)
         }
@@ -448,10 +453,22 @@ class LiveTvActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // A failed/cancelled fullscreen launch must never permanently lock the
-        // channel activation path. A successful handoff has already released the
-        // preview player, so there is nothing to resume here.
-        fullscreenLaunchInProgress = false
+        if (awaitingFullscreenReturn) {
+            awaitingFullscreenReturn = false
+            fullscreenLaunchInProgress = false
+            // First BACK from the fullscreen player returns to this Live TV screen.
+            // Recreate the inline preview so the user lands back in the exact preview state.
+            val channel = previewChannelId?.let { id -> allChannels.firstOrNull { it.id == id } }
+            if (channel != null && channel.streamUrl.isNotBlank()) {
+                list.post {
+                    selectedIndex = filteredChannels().indexOfFirst { it.id == channel.id }.takeIf { it >= 0 } ?: selectedIndex
+                    list.setSelection(selectedIndex.coerceAtLeast(0))
+                    showEpg(channel)
+                    preview(channel)
+                    list.invalidateViews()
+                }
+            }
+        }
     }
 
     private fun showEpg(channel: IptvChannel) {
