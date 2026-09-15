@@ -57,6 +57,7 @@ class LiveTvActivity : ComponentActivity() {
     private var baseStatus = "Loading channels..."
     private var selectedEpgChannel: IptvChannel? = null
     private var selectedIndex = -1
+    private var fullscreenLaunchInProgress = false
 
     private val bg = Color.rgb(5, 9, 18)
     private val panel = Color.rgb(13, 21, 35)
@@ -117,7 +118,7 @@ class LiveTvActivity : ComponentActivity() {
             currentLayoutMode = selected
             applyLayoutMode()
             render()
-            setBaseStatus("${filteredChannels().size} channels • ${layoutModeLabel()} view")
+            setBaseStatus("${filteredChannels().size} channels • ${layoutModeLabel() } view")
             list.requestFocus()
         }, LinearLayout.LayoutParams(0, 44, 1f))
         root.addView(layoutRow, LinearLayout.LayoutParams(-1, 46).apply { bottomMargin = 6 })
@@ -187,6 +188,10 @@ class LiveTvActivity : ComponentActivity() {
             override fun afterTextChanged(s: Editable?) = Unit
         })
         search.setOnEditorActionListener { _, _, _ -> list.requestFocus(); true }
+
+        // IMPORTANT: GridView owns item activation. The child view must not also
+        // consume clicks, otherwise one remote/touch press can dispatch twice and
+        // turn the first preview activation into an unintended fullscreen launch.
         list.setOnItemClickListener { _, _, position, _ ->
             filteredChannels().getOrNull(position)?.let { channel ->
                 selectedIndex = position
@@ -352,13 +357,10 @@ class LiveTvActivity : ComponentActivity() {
                 }
                 textBox.addView(name); textBox.addView(sub)
                 item.addView(icon); item.addView(textBox, LinearLayout.LayoutParams(if (currentLayoutMode == LayoutMode.LIST) 0 else -1, -2, if (currentLayoutMode == LayoutMode.LIST) 1f else 0f))
-                item.setOnClickListener {
-                    selectedIndex = position
-                    list.setSelection(position)
-                    showEpg(channel)
-                    list.invalidateViews()
-                    handleChannelClick(channel)
-                }
+
+                // Do not install a child click listener here. GridView's single
+                // OnItemClickListener is the only activation path for OK/tap.
+                // This prevents duplicate dispatch on Android TV remotes.
                 item.setOnFocusChangeListener { view, hasFocus ->
                     if (hasFocus) { selectedIndex = position; showEpg(channel) }
                     view.background = roundedBackground(if (hasFocus) Color.rgb(0, 85, 160) else row, 12f)
@@ -381,6 +383,7 @@ class LiveTvActivity : ComponentActivity() {
 
     /** First OK shows an inline video preview. A second OK on the same channel opens full screen. */
     private fun handleChannelClick(channel: IptvChannel) {
+        if (fullscreenLaunchInProgress) return
         if (previewChannelId == channel.id) {
             playFullscreen(channel)
         } else {
@@ -406,25 +409,49 @@ class LiveTvActivity : ComponentActivity() {
     }
 
     private fun playFullscreen(channel: IptvChannel) {
-        val channelIndex = filteredChannels().indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
-        val channelUrls = ArrayList(filteredChannels().map { it.streamUrl })
-        val channelTitles = ArrayList(filteredChannels().map { it.name })
-        val channelIds = ArrayList(filteredChannels().map { it.id })
-        val channelNumbers = ArrayList(filteredChannels().indices.map { (it + 1).toString() })
+        if (fullscreenLaunchInProgress) return
         val streamUrl = channel.streamUrl.trim()
         if (streamUrl.isBlank()) {
             setBaseStatus("${channel.name} has no stream URL • Provider refresh required")
             return
         }
+        fullscreenLaunchInProgress = true
+        val channelIndex = filteredChannels().indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
+        val channelUrls = ArrayList(filteredChannels().map { it.streamUrl })
+        val channelTitles = ArrayList(filteredChannels().map { it.name })
+        val channelIds = ArrayList(filteredChannels().map { it.id })
+        val channelNumbers = ArrayList(filteredChannels().indices.map { (it + 1).toString() })
         prefs.edit().putString(lastChannelKey(), channel.id).apply()
-        val intent = android.content.Intent(this, VideoPlayerActivity::class.java).apply {
+
+        // Release the inline player before transferring the same stream to the
+        // fullscreen Activity. This avoids two Media3 sessions fighting over the
+        // same decoder/audio focus during the handoff.
+        previewPlayer?.release()
+        previewPlayer = null
+        previewView.player = null
+
+        val launchIntent = android.content.Intent(this, VideoPlayerActivity::class.java).apply {
             putExtra("url", streamUrl); putExtra("stream_url", streamUrl); putExtra("title", channel.name)
             putExtra("content_id", channel.id); putExtra("content_type", "LIVE"); putExtra("channel_id", channel.id)
             putExtra("channel_number", (channelIndex + 1).toString()); putExtra("channel_urls", channelUrls)
             putExtra("channel_titles", channelTitles); putExtra("channel_ids", channelIds); putExtra("channel_numbers", channelNumbers)
             putExtra("channel_index", channelIndex); putExtra("server", config.serverUrl); putExtra("username", config.username); putExtra("password", config.password)
         }
-        startActivity(intent)
+        try {
+            startActivity(launchIntent)
+        } catch (e: Exception) {
+            fullscreenLaunchInProgress = false
+            setBaseStatus("Unable to open fullscreen player: ${e.message ?: "unknown error"}")
+            preview(channel)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // A failed/cancelled fullscreen launch must never permanently lock the
+        // channel activation path. A successful handoff has already released the
+        // preview player, so there is nothing to resume here.
+        fullscreenLaunchInProgress = false
     }
 
     private fun showEpg(channel: IptvChannel) {
