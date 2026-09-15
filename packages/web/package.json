@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:smart-tv": "vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext .ts,.tsx",
     "test": "vitest"
@@ -19,8 +20,8 @@
     "react-redux": "^9.3.0"
   },
   "devDependencies": {
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.5",
     "autoprefixer": "^10.4.0",
     "postcss": "^8.4.0",
