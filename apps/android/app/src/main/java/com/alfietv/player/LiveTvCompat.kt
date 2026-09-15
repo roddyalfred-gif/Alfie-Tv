@@ -1,5 +1,9 @@
 package com.alfietv.player
 
+import android.content.Intent
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+
 /** Shared conversion used by the TV-first Live TV screen. */
 fun IptvChannel.toLibraryItem(): UserLibraryStore.Item =
     UserLibraryStore.Item(
@@ -11,16 +15,31 @@ fun IptvChannel.toLibraryItem(): UserLibraryStore.Item =
         posterUrl = logoUrl
     )
 
-/**
- * Full-screen Live TV player.
- *
- * Reuse the proven MainActivity player implementation directly instead of
- * creating a second Activity and immediately replacing it. This keeps the
- * Android activity stack as LiveTvActivity -> VideoPlayerActivity, so Back
- * reliably returns to Live TV and the second OK press cannot race an Activity
- * handoff that leaves the user at the main menu/launcher.
- *
- * LiveTvActivity already supplies the stream URL, title, provider credentials,
- * and channel-zap arrays as intent extras, which MainActivity consumes.
- */
-class VideoPlayerActivity : MainActivity()
+/** Live TV target that starts an isolated MainActivity playback session. */
+class VideoPlayerActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        // Always create a fresh player Activity for the second OK press.  Do not use
+        // CLEAR_TOP/SINGLE_TOP here: reusing an older MainActivity can leave it with
+        // stale playback state and can make the TV app appear to exit after the preview.
+        val target = Intent(this, MainActivity::class.java).apply {
+            putExtra("stream_url", intent.getStringExtra("url") ?: intent.getStringExtra("stream_url") ?: "")
+            putExtra("title", intent.getStringExtra("title") ?: "Alfie TV")
+            putExtra("content_id", intent.getStringExtra("content_id"))
+            putExtra("content_type", intent.getStringExtra("content_type") ?: UserLibraryStore.Type.LIVE.name)
+            putExtra("server", intent.getStringExtra("server"))
+            putExtra("username", intent.getStringExtra("username"))
+            putExtra("password", intent.getStringExtra("password"))
+            putExtra("channel_id", intent.getStringExtra("channel_id"))
+            putExtra("channel_number", intent.getStringExtra("channel_number"))
+            putExtra("channel_urls", intent.getStringArrayListExtra("channel_urls"))
+            putExtra("channel_titles", intent.getStringArrayListExtra("channel_titles"))
+            putExtra("channel_ids", intent.getStringArrayListExtra("channel_ids"))
+            putExtra("channel_numbers", intent.getStringArrayListExtra("channel_numbers"))
+            putExtra("channel_index", intent.getIntExtra("channel_index", 0))
+        }
+        startActivity(target)
+        finish()
+    }
+}
