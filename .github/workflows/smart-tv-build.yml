@@ -1,0 +1,42 @@
+name: Smart TV Builds
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  smart-tv-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build shared web app
+        run: npm run build -w @alfie-tv/web
+      - name: Package Samsung Tizen and LG webOS shells
+        run: node scripts/package-smart-tvs.mjs
+      - name: Validate Tizen package structure
+        run: |
+          unzip -l dist/smart-tv/alfie-tv-tizen-unsigned.wgt | grep -E '(^|/)config.xml$'
+          unzip -l dist/smart-tv/alfie-tv-tizen-unsigned.wgt | grep -E '(^|/)index.html$'
+          unzip -l dist/smart-tv/alfie-tv-tizen-unsigned.wgt | grep -E '(^|/)platform-navigation.js$'
+      - name: Validate webOS package structure
+        run: |
+          ar t dist/smart-tv/alfie-tv-webos-unsigned.ipk
+          test -s dist/smart-tv/alfie-tv-webos-unsigned.ipk
+      - name: Upload smart TV packages
+        uses: actions/upload-artifact@v6
+        with:
+          name: alfie-tv-smart-tv-packages
+          path: |
+            dist/smart-tv/alfie-tv-tizen-unsigned.wgt
+            dist/smart-tv/alfie-tv-webos-unsigned.ipk
+          if-no-files-found: error
