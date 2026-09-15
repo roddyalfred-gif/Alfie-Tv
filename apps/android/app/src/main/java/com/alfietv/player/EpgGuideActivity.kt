@@ -9,6 +9,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.HorizontalScrollView
@@ -31,6 +32,7 @@ class EpgGuideActivity : ComponentActivity() {
     private lateinit var config: XtreamConfig
     private var channels = emptyList<IptvChannel>()
     private var selectedChannel: IptvChannel? = null
+    private var launchInProgress = false
     private val bg = Color.rgb(5, 9, 18)
     private val panel = Color.rgb(13, 21, 35)
     private val row = Color.rgb(18, 29, 47)
@@ -153,7 +155,15 @@ class EpgGuideActivity : ComponentActivity() {
         root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
 
-        channelList.setOnItemClickListener { _, _, position, _ -> channels.getOrNull(position)?.let(::selectChannel) }
+        channelList.setOnItemSelectedListener(object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                channels.getOrNull(position)?.let(::selectChannel)
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        })
+        channelList.setOnItemClickListener { _, _, position, _ ->
+            channels.getOrNull(position)?.let(::playChannel)
+        }
     }
 
     private fun loadChannels(forceRefresh: Boolean = false) {
@@ -331,6 +341,7 @@ class EpgGuideActivity : ComponentActivity() {
 
     /** Return to the actual Live TV screen; it will show the selected channel as a preview. */
     private fun playChannel(channel: IptvChannel) {
+        if (launchInProgress || isFinishing || isDestroyed) return
         val url = channel.streamUrl.trim()
         if (url.isBlank()) {
             status.text = "${channel.name} has no stream URL • Refresh Provider"
@@ -341,18 +352,24 @@ class EpgGuideActivity : ComponentActivity() {
         val channelTitles = ArrayList(channels.map { it.name })
         val channelIds = ArrayList(channels.map { it.id })
         val channelNumbers = ArrayList(channels.indices.map { (it + 1).toString() })
-        startActivity(Intent(this, LiveTvActivity::class.java).apply {
-            putExtra("server", config.serverUrl)
-            putExtra("username", config.username)
-            putExtra("password", config.password)
-            putExtra("preview_channel_id", channel.id)
-            putExtra("preview_channel_index", channelIndex)
-            putExtra("channel_urls", channelUrls)
-            putExtra("channel_titles", channelTitles)
-            putExtra("channel_ids", channelIds)
-            putExtra("channel_numbers", channelNumbers)
-        })
-        finish()
+        launchInProgress = true
+        try {
+            startActivity(Intent(this, LiveTvActivity::class.java).apply {
+                putExtra("server", config.serverUrl)
+                putExtra("username", config.username)
+                putExtra("password", config.password)
+                putExtra("preview_channel_id", channel.id)
+                putExtra("preview_channel_index", channelIndex)
+                putExtra("channel_urls", channelUrls)
+                putExtra("channel_titles", channelTitles)
+                putExtra("channel_ids", channelIds)
+                putExtra("channel_numbers", channelNumbers)
+            })
+            finish()
+        } catch (_: Exception) {
+            launchInProgress = false
+            status.text = "Unable to open ${channel.name} • Please try again"
+        }
     }
 
     private fun rounded(color: Int, radiusDp: Float): GradientDrawable = GradientDrawable().apply {
