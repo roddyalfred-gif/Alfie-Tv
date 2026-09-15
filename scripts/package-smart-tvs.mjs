@@ -8,10 +8,7 @@ const out = join(root, 'dist/smart-tv');
 const tizenDir = join(out, 'tizen');
 const webosDir = join(out, 'webos');
 
-if (!existsSync(webDist)) {
-  throw new Error('packages/web/dist is missing. Run npm run build -w @alfie-tv/web first.');
-}
-
+if (!existsSync(webDist)) throw new Error('packages/web/dist is missing. Run npm run build -w @alfie-tv/web first.');
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 
@@ -26,18 +23,17 @@ const prepare = (dir) => {
 prepare(tizenDir);
 prepare(webosDir);
 
-const tizenConfig = readFileSync(join(root, 'apps/tizen/config.xml'), 'utf8');
-writeFileSync(join(tizenDir, 'config.xml'), tizenConfig);
+writeFileSync(join(tizenDir, 'config.xml'), readFileSync(join(root, 'apps/tizen/config.xml'), 'utf8'));
 cpSync(join(root, 'apps/tizen/platform-navigation.js'), join(tizenDir, 'platform-navigation.js'));
+cpSync(join(root, 'apps/tizen/icon.png'), join(tizenDir, 'icon.png'));
 
 const webosInfo = JSON.parse(readFileSync(join(root, 'apps/webos/appinfo.json'), 'utf8'));
 writeFileSync(join(webosDir, 'appinfo.json'), JSON.stringify(webosInfo, null, 2));
 cpSync(join(root, 'apps/webos/platform-navigation.js'), join(webosDir, 'platform-navigation.js'));
+cpSync(join(root, 'apps/webos/icon.png'), join(webosDir, 'icon.png'));
 
-const zip = (source, target) => execFileSync('zip', ['-qr', target, '.'], { cwd: source, stdio: 'inherit' });
-zip(tizenDir, join(out, 'alfie-tv-tizen-unsigned.wgt'));
+execFileSync('zip', ['-qr', join(out, 'alfie-tv-tizen-unsigned.wgt'), '.'], { cwd: tizenDir, stdio: 'inherit' });
 
-// webOS .ipk files are ar archives containing debian-binary, control.tar.gz and data.tar.gz.
 const control = join(out, 'webos-control');
 const data = join(out, 'webos-data');
 rmSync(control, { recursive: true, force: true });
@@ -45,27 +41,10 @@ rmSync(data, { recursive: true, force: true });
 mkdirSync(control, { recursive: true });
 mkdirSync(data, { recursive: true });
 cpSync(webosDir, join(data, 'com.alfietv.player'), { recursive: true });
-writeFileSync(join(control, 'control'), [
-  'Package: com.alfietv.player',
-  'Version: 1.0.0',
-  'Architecture: all',
-  'Section: misc',
-  'Priority: optional',
-  'Maintainer: Alfie TV',
-  'Description: Alfie TV IPTV player for LG webOS TV',
-  ''
-].join('\n'));
+writeFileSync(join(control, 'control'), 'Package: com.alfietv.player\nVersion: 1.0.0\nArchitecture: all\nSection: misc\nPriority: optional\nMaintainer: Alfie TV\nDescription: Alfie TV IPTV player for LG webOS TV\n');
 writeFileSync(join(out, 'debian-binary'), '2.0\n');
 execFileSync('tar', ['-czf', join(out, 'control.tar.gz'), '-C', control, 'control']);
 execFileSync('tar', ['-czf', join(out, 'data.tar.gz'), '-C', data, 'com.alfietv.player']);
 execFileSync('ar', ['r', join(out, 'alfie-tv-webos-unsigned.ipk'), join(out, 'debian-binary'), join(out, 'control.tar.gz'), join(out, 'data.tar.gz')]);
-
-rmSync(control, { recursive: true, force: true });
-rmSync(data, { recursive: true, force: true });
-rmSync(join(out, 'debian-binary'));
-rmSync(join(out, 'control.tar.gz'));
-rmSync(join(out, 'data.tar.gz'));
-
-console.log('Smart TV packages created:');
-console.log(join(out, 'alfie-tv-tizen-unsigned.wgt'));
-console.log(join(out, 'alfie-tv-webos-unsigned.ipk'));
+for (const path of [control, data, join(out, 'debian-binary'), join(out, 'control.tar.gz'), join(out, 'data.tar.gz')]) rmSync(path, { recursive: true, force: true });
+console.log('Smart TV packages created in dist/smart-tv');
