@@ -25,9 +25,9 @@ jobs:
         run: node scripts/package-smart-tvs.mjs
       - name: Validate Tizen package structure
         run: |
-          unzip -l dist/smart-tv/alfie-tv-tizen-unsigned.wgt | grep -E '(^|/)config.xml$'
-          unzip -l dist/smart-tv/alfie-tv-tizen-unsigned.wgt | grep -E '(^|/)index.html$'
-          unzip -l dist/smart-tv/alfie-tv-tizen-unsigned.wgt | grep -E '(^|/)platform-navigation.js$'
+          unzip -l dist/smart-tv/alfie-tv-tizen-unsigned.wgt | grep -E '[[:space:]/]config.xml$'
+          unzip -l dist/smart-tv/alfie-tv-tizen-unsigned.wgt | grep -E '[[:space:]/]index.html$'
+          unzip -l dist/smart-tv/alfie-tv-tizen-unsigned.wgt | grep -E '[[:space:]/]platform-navigation.js$'
       - name: Validate webOS package structure
         run: |
           ar t dist/smart-tv/alfie-tv-webos-unsigned.ipk
