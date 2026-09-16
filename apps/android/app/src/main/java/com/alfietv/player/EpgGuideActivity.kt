@@ -329,7 +329,7 @@ class EpgGuideActivity : ComponentActivity() {
         schedule.post { schedule.getChildAt(1)?.requestFocus() }
     }
 
-    /** Return to the actual Live TV screen; it will show the selected channel as a preview. */
+    /** Return to the actual Live TV screen while keeping this Guide in the task back stack. */
     private fun playChannel(channel: IptvChannel) {
         val url = channel.streamUrl.trim()
         if (url.isBlank()) {
@@ -341,18 +341,23 @@ class EpgGuideActivity : ComponentActivity() {
         val channelTitles = ArrayList(channels.map { it.name })
         val channelIds = ArrayList(channels.map { it.id })
         val channelNumbers = ArrayList(channels.indices.map { (it + 1).toString() })
-        startActivity(Intent(this, LiveTvActivity::class.java).apply {
-            putExtra("server", config.serverUrl)
-            putExtra("username", config.username)
-            putExtra("password", config.password)
-            putExtra("preview_channel_id", channel.id)
-            putExtra("preview_channel_index", channelIndex)
-            putExtra("channel_urls", channelUrls)
-            putExtra("channel_titles", channelTitles)
-            putExtra("channel_ids", channelIds)
-            putExtra("channel_numbers", channelNumbers)
-        })
-        finish()
+        try {
+            startActivity(Intent(this, LiveTvActivity::class.java).apply {
+                putExtra("server", config.serverUrl)
+                putExtra("username", config.username)
+                putExtra("password", config.password)
+                putExtra("preview_channel_id", channel.id)
+                putExtra("preview_channel_index", channelIndex)
+                putExtra("channel_urls", channelUrls)
+                putExtra("channel_titles", channelTitles)
+                putExtra("channel_ids", channelIds)
+                putExtra("channel_numbers", channelNumbers)
+            })
+            // Keep the Guide alive underneath Live TV. If a playback activity fails,
+            // the user returns to the Guide instead of being dropped to the provider login.
+        } catch (e: Exception) {
+            status.text = "Unable to open Live TV: ${e.message ?: "unknown error"}"
+        }
     }
 
     private fun rounded(color: Int, radiusDp: Float): GradientDrawable = GradientDrawable().apply {
