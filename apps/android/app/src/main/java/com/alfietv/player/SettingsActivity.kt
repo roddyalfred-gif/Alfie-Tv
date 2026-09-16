@@ -44,7 +44,7 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
         addSwitch(content, "Player controls", "Show Media3 playback controls on the player", SettingsStore.playerControls(this)) { SettingsStore.setPlayerControls(this, it) }
         addSwitch(content, "Auto-retry playback", "Recover automatically from stream and audio failures", SettingsStore.autoRetry(this)) { SettingsStore.setAutoRetry(this, it) }
         addSwitch(content, "Remember last channel", "Return to the last selected live channel", SettingsStore.rememberChannel(this)) { SettingsStore.setRememberChannel(this, it) }
-        addChoice(content, "Picture size", "Fit preserves the full picture; Fill and Zoom use more of the screen", SettingsStore.aspectRatio(this), listOf("fit" to "Fit", "fill" to "Fill", "zoom" to "Zoom")) { SettingsStore.setAspectRatio(this, it) }
+        addChoice(content, "Picture size", "Auto uses the stream/device aspect ratio; Fit, Fill and Zoom are manual overrides", SettingsStore.aspectRatio(this), listOf("auto" to "Auto", "fit" to "Fit", "fill" to "Fill", "zoom" to "Zoom")) { SettingsStore.setAspectRatio(this, it) }
         addChoice(content, "Seek interval", "Skip amount for movies and episodes", SettingsStore.seekSeconds(this).toString(), listOf("5" to "5 sec", "10" to "10 sec", "15" to "15 sec", "30" to "30 sec", "60" to "60 sec")) { SettingsStore.setSeekSeconds(this, it.toInt()) }
 
         addHeader(content, "INTERFACE")
