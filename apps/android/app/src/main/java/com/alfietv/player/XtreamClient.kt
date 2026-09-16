@@ -12,12 +12,25 @@ class XtreamClient {
         val base = checkedBase(config)
         val authJson = JSONObject(get("$base/player_api.php?username=${enc(config.username)}&password=${enc(config.password)}"))
         validateAuth(authJson)
-        val categories = parseArray(get(api(config, "get_live_categories"))).map { IptvCategory(it.optString("category_id"), it.optString("category_name"), "live") }
+        val categories = parseArray(get(api(config, "get_live_categories")))
+            .mapNotNull { o ->
+                val id = normalizeId(o.optString("category_id")) ?: return@mapNotNull null
+                IptvCategory(id, o.optString("category_name").trim(), "live")
+            }
         val channels = parseArray(get(api(config, "get_live_streams"))).mapNotNull { o ->
-            val id = o.optString("stream_id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val id = normalizeId(o.optString("stream_id")) ?: return@mapNotNull null
             val fallback = "$base/live/${enc(config.username)}/${enc(config.password)}/$id.ts"
             val direct = o.optString("direct_source").trim()
-            IptvChannel(id, o.optString("name"), direct.takeIf { it.startsWith("http://") || it.startsWith("https://") } ?: fallback, o.optString("category_id").ifBlank { null }, o.optString("stream_icon").ifBlank { null }, o.optString("epg_channel_id").ifBlank { null })
+            val streamUrl = direct.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+                ?: fallback
+            IptvChannel(
+                id = id,
+                name = o.optString("name").trim().ifBlank { "Channel $id" },
+                streamUrl = streamUrl,
+                categoryId = normalizeId(o.optString("category_id")),
+                logoUrl = o.optString("stream_icon").trim().ifBlank { null },
+                epgId = o.optString("epg_channel_id").trim().ifBlank { null }
+            )
         }
         return categories to channels
     }
@@ -185,6 +198,8 @@ class XtreamClient {
         }
         return decoded ?: raw
     }
+
+    private fun normalizeId(value: String): String? = value.trim().takeIf { it.isNotBlank() && it != "0" && it != "null" }
 
     private fun get(url: String): String {
         val c = URI(url).toURL().openConnection() as HttpURLConnection
