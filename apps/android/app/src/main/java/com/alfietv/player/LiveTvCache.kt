@@ -7,7 +7,9 @@ import java.security.MessageDigest
 
 /** Disk cache for live TV data. Credentials are never stored in the cache. */
 object LiveTvCache {
-    private const val VERSION = 1
+    // Bump the cache format after changing stream URL construction so older
+    // cached channels cannot block Guide/Live TV playback with stale URLs.
+    private const val VERSION = 2
     private const val MAX_AGE_MS = 15 * 60 * 1000L
 
     data class Snapshot(val categories: List<IptvCategory>, val channels: List<IptvChannel>, val savedAt: Long)
@@ -31,8 +33,14 @@ object LiveTvCache {
             for (i in 0 until channelArray.length()) {
                 val o = channelArray.optJSONObject(i) ?: continue
                 val id = o.optString("id").takeIf { it.isNotBlank() } ?: continue
+                val storedUrl = o.optString("streamUrl").trim()
+                // Repair an empty legacy URL from the cached stream id. This is
+                // deliberately only a fallback; a valid direct_source remains intact.
+                val streamUrl = storedUrl.ifBlank {
+                    "${config.serverUrl.trimEnd('/')}/live/${enc(config.username)}/${enc(config.password)}/$id.ts"
+                }
                 channels += IptvChannel(
-                    id, o.optString("name"), o.optString("streamUrl"),
+                    id, o.optString("name"), streamUrl,
                     o.optString("categoryId").ifBlank { null },
                     o.optString("logoUrl").ifBlank { null },
                     o.optString("epgId").ifBlank { null }
@@ -75,4 +83,6 @@ object LiveTvCache {
 
     private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
         .digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+
+    private fun enc(value: String): String = java.net.URLEncoder.encode(value, Charsets.UTF_8.name())
 }
