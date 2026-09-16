@@ -28,9 +28,10 @@ object SettingsStore {
     fun playerControls(context: Context) = prefs(context).getBoolean(PLAYER_CONTROLS, true)
     fun setPlayerControls(context: Context, value: Boolean) = prefs(context).edit().putBoolean(PLAYER_CONTROLS, value).apply()
 
-    fun aspectRatio(context: Context) = prefs(context).getString(ASPECT_RATIO, "fit") ?: "fit"
+    /** Auto adapts the picture to the stream/device by default; manual Fit/Fill/Zoom remain available. */
+    fun aspectRatio(context: Context) = prefs(context).getString(ASPECT_RATIO, "auto") ?: "auto"
     fun setAspectRatio(context: Context, value: String) {
-        val safe = if (value in setOf("fit", "fill", "zoom")) value else "fit"
+        val safe = if (value in setOf("auto", "fit", "fill", "zoom")) value else "auto"
         prefs(context).edit().putString(ASPECT_RATIO, safe).apply()
     }
 
