@@ -25,11 +25,11 @@ import java.util.concurrent.Executors
 class EpgGuideActivity : ComponentActivity() {
     private val executor = Executors.newSingleThreadExecutor()
     private lateinit var grid: LinearLayout
-    private lateinit var gridScroll: HorizontalScrollView
     private lateinit var status: TextView
     private lateinit var config: XtreamConfig
     private var channels = emptyList<IptvChannel>()
     private val epgByChannel = linkedMapOf<String, List<EpgProgram>>()
+
     private val bg = Color.rgb(5, 9, 18)
     private val panel = Color.rgb(13, 21, 35)
     private val row = Color.rgb(18, 29, 47)
@@ -98,7 +98,7 @@ class EpgGuideActivity : ComponentActivity() {
         }, LinearLayout.LayoutParams(0, dp(40), 1f))
         root.addView(actionRow, LinearLayout.LayoutParams(-1, dp(42)))
 
-        gridScroll = HorizontalScrollView(this).apply {
+        val gridScroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = true
             isFillViewport = false
             isFocusable = false
@@ -155,8 +155,13 @@ class EpgGuideActivity : ComponentActivity() {
         value.forEach { channel ->
             try {
                 val cached = if (!forceRefresh) EpgCache.read(this, config, channel) else null
-                val programs = if (cached != null && EpgCache.isFresh(cached)) cached.programs
-                else XtreamClient().loadEpg(config, channel).also { EpgCache.write(this, config, channel, it) }
+                val programs = if (cached != null && EpgCache.isFresh(cached)) {
+                    cached.programs
+                } else {
+                    XtreamClient().loadEpg(config, channel).also {
+                        EpgCache.write(this, config, channel, it)
+                    }
+                }
                 synchronized(epgByChannel) { epgByChannel[channel.id] = programs }
             } catch (_: Exception) {
                 synchronized(epgByChannel) { epgByChannel[channel.id] = emptyList() }
@@ -202,13 +207,16 @@ class EpgGuideActivity : ComponentActivity() {
         val start = ((now / 60000L) - guideStartMinutes) * 60000L
         val end = start + 6L * 60L * 60L * 1000L
         val pxPerMinute = dp(minuteWidthDp)
-        val channelWidth = dp(channelWidthDp.toFloat())
+        val channelWidth = dp(channelWidthDp)
 
         grid.removeAllViews()
         grid.addView(buildTimeHeader(start, end, channelWidth, pxPerMinute), LinearLayout.LayoutParams(-2, dp(46)))
         channels.forEach { channel ->
             val programs = synchronized(epgByChannel) { epgByChannel[channel.id].orEmpty() }
-            grid.addView(buildChannelRow(channel, programs, start, end, channelWidth, pxPerMinute), LinearLayout.LayoutParams(-2, dp(rowHeightDp.toFloat())))
+            grid.addView(
+                buildChannelRow(channel, programs, start, end, channelWidth, pxPerMinute),
+                LinearLayout.LayoutParams(-2, dp(rowHeightDp))
+            )
         }
     }
 
@@ -243,7 +251,14 @@ class EpgGuideActivity : ComponentActivity() {
         return rowView
     }
 
-    private fun buildChannelRow(channel: IptvChannel, programs: List<EpgProgram>, start: Long, end: Long, channelWidth: Int, pxPerMinute: Float): View {
+    private fun buildChannelRow(
+        channel: IptvChannel,
+        programs: List<EpgProgram>,
+        start: Long,
+        end: Long,
+        channelWidth: Int,
+        pxPerMinute: Float
+    ): View {
         val rowView = FrameLayout(this).apply { setBackgroundColor(panel) }
         val channelCell = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -253,11 +268,13 @@ class EpgGuideActivity : ComponentActivity() {
             isFocusable = true
             isClickable = true
             contentDescription = "${channel.name}, channel"
-            setOnFocusChangeListener { view, focused -> view.background = rounded(if (focused) accent else row, 8f) }
+            setOnFocusChangeListener { view, focused ->
+                view.background = rounded(if (focused) accent else row, 8f)
+            }
             setOnClickListener { playChannel(channel) }
             setOnKeyListener { _, keyCode, event ->
                 if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                    rowView.getChildAt(1)?.requestFocus()
+                    rowView.findFocus()?.focusSearch(View.FOCUS_RIGHT)?.requestFocus()
                     true
                 } else false
             }
@@ -275,24 +292,33 @@ class EpgGuideActivity : ComponentActivity() {
             setTextColor(muted)
             maxLines = 1
         })
-        rowView.addView(channelCell, FrameLayout.LayoutParams(channelWidth, -1).apply { leftMargin = 0 })
+        rowView.addView(channelCell, FrameLayout.LayoutParams(channelWidth, -1))
 
         val programmeArea = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setBackgroundColor(Color.rgb(9, 15, 25))
         }
-        val visible = programs.sortedBy { it.startUtcMs }.filter { it.endUtcMs > start && it.startUtcMs < end }
+        val visible = programs.sortedBy { it.startUtcMs }
+            .filter { it.endUtcMs > start && it.startUtcMs < end }
         var cursor = start
         visible.forEach { program ->
-            if (program.startUtcMs > cursor) programmeArea.addView(spacer(((program.startUtcMs - cursor) / 60000f * pxPerMinute).toInt()))
+            if (program.startUtcMs > cursor) {
+                programmeArea.addView(spacer(((program.startUtcMs - cursor) / 60000f * pxPerMinute).toInt()))
+            }
             val clippedStart = maxOf(program.startUtcMs, start)
             val clippedEnd = minOf(program.endUtcMs, end)
-            val width = ((clippedEnd - clippedStart) / 60000f * pxPerMinute).toInt().coerceAtLeast(dp(82))
-            programmeArea.addView(buildProgrammeCard(program, channel, width), LinearLayout.LayoutParams(width, -1).apply { marginEnd = dp(2) })
+            val width = ((clippedEnd - clippedStart) / 60000f * pxPerMinute)
+                .toInt().coerceAtLeast(dp(82))
+            programmeArea.addView(
+                buildProgrammeCard(program, channel),
+                LinearLayout.LayoutParams(width, -1).apply { marginEnd = dp(2) }
+            )
             cursor = maxOf(cursor, program.endUtcMs)
         }
-        if (cursor < end) programmeArea.addView(spacer(((end - cursor) / 60000f * pxPerMinute).toInt()))
+        if (cursor < end) {
+            programmeArea.addView(spacer(((end - cursor) / 60000f * pxPerMinute).toInt()))
+        }
         if (visible.isEmpty()) {
             programmeArea.addView(TextView(this).apply {
                 text = "No programme data  •  OK to preview live"
@@ -301,13 +327,18 @@ class EpgGuideActivity : ComponentActivity() {
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(12), 0, dp(12), 0)
                 isFocusable = true
+                isClickable = true
                 setOnClickListener { playChannel(channel) }
             }, LinearLayout.LayoutParams(dp(360), -1))
         }
-        rowView.addView(programmeArea, FrameLayout.LayoutParams(-2, -1).apply { leftMargin = channelWidth + dp(2) })
+        rowView.addView(
+            programmeArea,
+            FrameLayout.LayoutParams(-2, -1).apply { leftMargin = channelWidth + dp(2) }
+        )
 
-        if (nowInRange(System.currentTimeMillis(), start, end)) {
-            val markerX = channelWidth + dp(2) + ((System.currentTimeMillis() - start) / 60000f * pxPerMinute).toInt()
+        val now = System.currentTimeMillis()
+        if (nowInRange(now, start, end)) {
+            val markerX = channelWidth + dp(2) + ((now - start) / 60000f * pxPerMinute).toInt()
             rowView.addView(View(this).apply { setBackgroundColor(accent) }, FrameLayout.LayoutParams(dp(2), -1).apply {
                 leftMargin = markerX
                 topMargin = 0
@@ -316,7 +347,7 @@ class EpgGuideActivity : ComponentActivity() {
         return rowView
     }
 
-    private fun buildProgrammeCard(program: EpgProgram, channel: IptvChannel, width: Int): View {
+    private fun buildProgrammeCard(program: EpgProgram, channel: IptvChannel): View {
         val now = System.currentTimeMillis()
         val current = now in program.startUtcMs until program.endUtcMs
         val upcoming = program.startUtcMs > now
@@ -328,9 +359,13 @@ class EpgGuideActivity : ComponentActivity() {
             isFocusable = true
             isClickable = true
             contentDescription = if (current) "${program.title}, now playing" else "${program.title}, upcoming programme"
-            setOnFocusChangeListener { view, focused -> view.background = rounded(if (focused || current) accent else row, 8f) }
+            setOnFocusChangeListener { view, focused ->
+                view.background = rounded(if (focused || current) accent else row, 8f)
+            }
             setOnClickListener {
-                if (current) playChannel(channel) else if (upcoming) showFutureProgramme(program, channel) else playChannel(channel)
+                if (current) playChannel(channel)
+                else if (upcoming) showFutureProgramme(program, channel)
+                else playChannel(channel)
             }
             addView(TextView(this@EpgGuideActivity).apply {
                 text = if (current) "NOW" else DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(program.startUtcMs))
@@ -365,7 +400,9 @@ class EpgGuideActivity : ComponentActivity() {
             .setMessage("${channel.name}\n$start – $end\n\nThis programme has not started yet. You can set a reminder or dismiss this notice.")
             .setNegativeButton("Dismiss", null)
             .setPositiveButton("Remind me") { _, _ ->
-                getPreferences(MODE_PRIVATE).edit().putLong("reminder_${channel.id}_${program.startUtcMs}", program.startUtcMs).apply()
+                getPreferences(MODE_PRIVATE).edit()
+                    .putLong("reminder_${channel.id}_${program.startUtcMs}", program.startUtcMs)
+                    .apply()
                 status.text = "Reminder set for ${program.title}"
             }
             .show()
@@ -403,8 +440,12 @@ class EpgGuideActivity : ComponentActivity() {
         layoutParams = LinearLayout.LayoutParams(width.coerceAtLeast(0), -1)
     }
 
-    private fun nowInRange(now: Long, start: Long, end: Long) = now in start..end
-    private fun dp(value: Float): Int = (value * resources.displayMetrics.density).toInt().coerceAtLeast(1)
+    private fun nowInRange(now: Long, start: Long, end: Long): Boolean = now in start..end
+
+    /** Accept Int and Float dp arguments so Kotlin never widens Int layout values incorrectly. */
+    private fun dp(value: Number): Int = (value.toFloat() * resources.displayMetrics.density)
+        .toInt().coerceAtLeast(1)
+
     private fun rounded(color: Int, radiusDp: Float): GradientDrawable = GradientDrawable().apply {
         setColor(color)
         cornerRadius = radiusDp * resources.displayMetrics.density
