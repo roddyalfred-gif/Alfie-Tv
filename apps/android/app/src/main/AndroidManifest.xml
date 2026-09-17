@@ -14,6 +14,7 @@
         <activity android:name=".VideoPlayerActivity" android:screenOrientation="unspecified" android:configChanges="orientation|screenSize|smallestScreenSize" android:exported="false" />
         <activity android:name=".LiveTvActivity" android:screenOrientation="unspecified" android:configChanges="orientation|screenSize|smallestScreenSize" android:exported="true" />
         <activity android:name=".EpgGuideActivity" android:screenOrientation="unspecified" android:configChanges="orientation|screenSize|smallestScreenSize" android:exported="false" />
+        <activity android:name=".SafeEpgGuideActivity" android:screenOrientation="unspecified" android:configChanges="orientation|screenSize|smallestScreenSize" android:exported="false" />
         <activity android:name=".ContentActivity" android:screenOrientation="unspecified" android:configChanges="orientation|screenSize|smallestScreenSize" android:exported="false" />
         <activity android:name=".FavoritesActivity" android:screenOrientation="unspecified" android:configChanges="orientation|screenSize|smallestScreenSize" android:exported="false" />
         <activity android:name=".SettingsActivity" android:screenOrientation="unspecified" android:configChanges="orientation|screenSize|smallestScreenSize" android:exported="false" />
