@@ -47,6 +47,7 @@ class DiagnosticsListener(private val diagnostics: PlaybackDiagnostics) : Player
         val active = audioSessionId != androidx.media3.common.C.AUDIO_SESSION_ID_UNSET
         diagnostics.audioOutputActive = active
         if (active) diagnostics.audioOutputEverActive = true
+        else if (diagnostics.audioOutputEverActive) diagnostics.audioTrackAvailable = false
     }
 
     override fun onPlayerError(error: PlaybackException) {
