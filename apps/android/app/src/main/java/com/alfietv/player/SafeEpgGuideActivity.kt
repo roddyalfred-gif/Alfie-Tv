@@ -45,6 +45,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
     private val muted = Color.rgb(160, 170, 185)
     private val accent = Color.rgb(0, 140, 255)
     private val current = Color.rgb(0, 85, 160)
+    private val focusStroke = Color.WHITE
     private val compact get() = resources.configuration.screenWidthDp < 600
     private val labelWidth get() = dp(if (compact) 132 else 180)
     private val pxPerMinute get() = if (compact) 2.2f * resources.displayMetrics.density else 3f * resources.displayMetrics.density
@@ -110,6 +111,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
             dividerHeight = 0
             setBackgroundColor(bg)
             isVerticalScrollBarEnabled = true
+            descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
         }
         adapter = GuideAdapter()
         list.adapter = adapter
@@ -135,6 +137,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 runOnUiThread {
                     status.text = "${channels.size} channels • Loading provider EPG…"
                     adapter.notifyDataSetChanged()
+                    focusSelectedChannel()
                 }
 
                 if (channels.isEmpty()) {
@@ -168,6 +171,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                                 runOnUiThread {
                                     status.text = "${channels.size} channels • ${count} with EPG • Guide ready"
                                     adapter.notifyDataSetChanged()
+                                    focusSelectedChannel()
                                 }
                             }
                         }
@@ -184,6 +188,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                     } else {
                         "Unable to load provider channels • ${error.message ?: "check provider connection"}"
                     }
+                    focusSelectedChannel()
                 }
             }
         }
@@ -212,10 +217,13 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 gravity = Gravity.CENTER_VERTICAL
                 maxLines = 2
                 setPadding(dp(8), dp(4), dp(8), dp(4))
-                background = rounded(if (selected) accent else row, 8f)
+                background = guideCellBackground(if (selected) accent else row, false)
                 isFocusable = true
                 isClickable = true
                 contentDescription = "${channel.name}, live channel preview"
+                setOnFocusChangeListener { view, hasFocus ->
+                    view.background = guideCellBackground(if (channel.id == selectedChannelId) accent else row, hasFocus)
+                }
                 setOnClickListener { activateChannel(channel) }
             }
             root.addView(channelCell, LinearLayout.LayoutParams(labelWidth, dp(if (compact) 68 else 74)).apply { marginEnd = dp(3) })
@@ -254,10 +262,13 @@ class SafeEpgGuideActivity : ComponentActivity() {
                     gravity = Gravity.CENTER_VERTICAL
                     maxLines = 2
                     setPadding(dp(8), dp(3), dp(8), dp(3))
-                    background = rounded(if (currentProgram) current else row, 8f)
+                    background = guideCellBackground(if (currentProgram) current else row, false)
                     isFocusable = true
                     isClickable = true
                     contentDescription = "${program.title}, ${if (currentProgram) "now playing" else "upcoming programme"}"
+                    setOnFocusChangeListener { view, hasFocus ->
+                        view.background = guideCellBackground(if (currentProgram) current else row, hasFocus)
+                    }
                     setOnClickListener {
                         if (program.startUtcMs <= now) activateChannel(channel) else showFuture(program, channel)
                     }
@@ -273,6 +284,10 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 setPadding(dp(10), 0, dp(10), 0)
                 isFocusable = true
                 isClickable = true
+                contentDescription = "No programme data, select live channel"
+                setOnFocusChangeListener { view, hasFocus ->
+                    view.background = guideCellBackground(bg, hasFocus)
+                }
                 setOnClickListener { activateChannel(channel) }
             }, LinearLayout.LayoutParams(timeWidth(end - cursor).coerceAtLeast(dp(260)), -1))
             scroll.addView(schedule, ViewGroup.LayoutParams(-2, -1))
@@ -291,6 +306,20 @@ class SafeEpgGuideActivity : ComponentActivity() {
         selectedChannelId = channel.id
         status.text = "${channel.name} selected • press again to open fullscreen"
         adapter.notifyDataSetChanged()
+        focusSelectedChannel()
+    }
+
+    private fun focusSelectedChannel() {
+        val id = selectedChannelId ?: return
+        val position = channels.indexOfFirst { it.id == id }
+        if (position < 0 || !::list.isInitialized) return
+        list.post {
+            list.setSelection(position)
+            val first = list.firstVisiblePosition
+            val child = list.getChildAt(position - first) as? ViewGroup
+            val channelCell = child?.getChildAt(0)
+            if (channelCell?.isFocusable == true) channelCell.requestFocus()
+        }
     }
 
     private fun syncGuideScroll(scrollX: Int, source: HorizontalScrollView) {
@@ -311,6 +340,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
         try {
             val first = list.firstVisiblePosition
             val last = list.lastVisiblePosition
+            if (last < first) return
             for (position in first..last) {
                 val child = list.getChildAt(position - first) as? ViewGroup ?: continue
                 for (index in 0 until child.childCount) {
@@ -386,6 +416,12 @@ class SafeEpgGuideActivity : ComponentActivity() {
     private fun rounded(color: Int, radius: Float) = GradientDrawable().apply {
         setColor(color)
         cornerRadius = radius * resources.displayMetrics.density
+    }
+
+    private fun guideCellBackground(fill: Int, focused: Boolean) = GradientDrawable().apply {
+        setColor(fill)
+        cornerRadius = 8f * resources.displayMetrics.density
+        if (focused) setStroke(dp(if (compact) 2 else 3), focusStroke)
     }
 
     override fun onDestroy() {
