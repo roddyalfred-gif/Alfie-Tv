@@ -10,6 +10,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -202,11 +203,9 @@ class EpgGuideActivity : ComponentActivity() {
         val end = start + 6L * 60L * 60L * 1000L
         val pxPerMinute = dp(minuteWidthDp)
         val channelWidth = dp(channelWidthDp.toFloat())
-        val headerHeight = dp(46)
 
         grid.removeAllViews()
-        grid.addView(buildTimeHeader(start, end, channelWidth, pxPerMinute), LinearLayout.LayoutParams(-2, headerHeight))
-
+        grid.addView(buildTimeHeader(start, end, channelWidth, pxPerMinute), LinearLayout.LayoutParams(-2, dp(46)))
         channels.forEach { channel ->
             val programs = synchronized(epgByChannel) { epgByChannel[channel.id].orEmpty() }
             grid.addView(buildChannelRow(channel, programs, start, end, channelWidth, pxPerMinute), LinearLayout.LayoutParams(-2, dp(rowHeightDp.toFloat())))
@@ -244,18 +243,8 @@ class EpgGuideActivity : ComponentActivity() {
         return rowView
     }
 
-    private fun buildChannelRow(
-        channel: IptvChannel,
-        programs: List<EpgProgram>,
-        start: Long,
-        end: Long,
-        channelWidth: Int,
-        pxPerMinute: Float
-    ): View {
-        val rowView = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(panel)
-        }
+    private fun buildChannelRow(channel: IptvChannel, programs: List<EpgProgram>, start: Long, end: Long, channelWidth: Int, pxPerMinute: Float): View {
+        val rowView = FrameLayout(this).apply { setBackgroundColor(panel) }
         val channelCell = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
@@ -264,6 +253,7 @@ class EpgGuideActivity : ComponentActivity() {
             isFocusable = true
             isClickable = true
             contentDescription = "${channel.name}, channel"
+            setOnFocusChangeListener { view, focused -> view.background = rounded(if (focused) accent else row, 8f) }
             setOnClickListener { playChannel(channel) }
             setOnKeyListener { _, keyCode, event ->
                 if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
@@ -285,7 +275,7 @@ class EpgGuideActivity : ComponentActivity() {
             setTextColor(muted)
             maxLines = 1
         })
-        rowView.addView(channelCell, LinearLayout.LayoutParams(channelWidth, -1).apply { marginEnd = dp(2) })
+        rowView.addView(channelCell, FrameLayout.LayoutParams(channelWidth, -1).apply { leftMargin = 0 })
 
         val programmeArea = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -295,9 +285,7 @@ class EpgGuideActivity : ComponentActivity() {
         val visible = programs.sortedBy { it.startUtcMs }.filter { it.endUtcMs > start && it.startUtcMs < end }
         var cursor = start
         visible.forEach { program ->
-            if (program.startUtcMs > cursor) {
-                programmeArea.addView(spacer(((program.startUtcMs - cursor) / 60000f * pxPerMinute).toInt()))
-            }
+            if (program.startUtcMs > cursor) programmeArea.addView(spacer(((program.startUtcMs - cursor) / 60000f * pxPerMinute).toInt()))
             val clippedStart = maxOf(program.startUtcMs, start)
             val clippedEnd = minOf(program.endUtcMs, end)
             val width = ((clippedEnd - clippedStart) / 60000f * pxPerMinute).toInt().coerceAtLeast(dp(82))
@@ -316,16 +304,14 @@ class EpgGuideActivity : ComponentActivity() {
                 setOnClickListener { playChannel(channel) }
             }, LinearLayout.LayoutParams(dp(360), -1))
         }
-        rowView.addView(programmeArea, LinearLayout.LayoutParams(-2, -1))
+        rowView.addView(programmeArea, FrameLayout.LayoutParams(-2, -1).apply { leftMargin = channelWidth + dp(2) })
 
-        // A thin NOW marker is positioned over the schedule when the current time is inside the grid window.
         if (nowInRange(System.currentTimeMillis(), start, end)) {
             val markerX = channelWidth + dp(2) + ((System.currentTimeMillis() - start) / 60000f * pxPerMinute).toInt()
-            rowView.post {
-                rowView.overlay.clear()
-                val marker = View(this).apply { setBackgroundColor(accent) }
-                rowView.overlay.add(marker, android.widget.FrameLayout.LayoutParams(dp(2), -1).apply { leftMargin = markerX })
-            }
+            rowView.addView(View(this).apply { setBackgroundColor(accent) }, FrameLayout.LayoutParams(dp(2), -1).apply {
+                leftMargin = markerX
+                topMargin = 0
+            })
         }
         return rowView
     }
@@ -334,7 +320,7 @@ class EpgGuideActivity : ComponentActivity() {
         val now = System.currentTimeMillis()
         val current = now in program.startUtcMs until program.endUtcMs
         val upcoming = program.startUtcMs > now
-        val card = LinearLayout(this).apply {
+        return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), dp(5), dp(10), dp(5))
@@ -342,37 +328,33 @@ class EpgGuideActivity : ComponentActivity() {
             isFocusable = true
             isClickable = true
             contentDescription = if (current) "${program.title}, now playing" else "${program.title}, upcoming programme"
-            setOnFocusChangeListener { view, focused ->
-                view.background = rounded(if (focused || current) accent else row, 8f)
-            }
+            setOnFocusChangeListener { view, focused -> view.background = rounded(if (focused || current) accent else row, 8f) }
             setOnClickListener {
-                if (current) playChannel(channel) else if (upcoming) showFutureProgramme(program, channel)
-                else playChannel(channel)
+                if (current) playChannel(channel) else if (upcoming) showFutureProgramme(program, channel) else playChannel(channel)
+            }
+            addView(TextView(this@EpgGuideActivity).apply {
+                text = if (current) "NOW" else DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(program.startUtcMs))
+                textSize = 10f
+                setTextColor(if (current) Color.WHITE else muted)
+                typeface = Typeface.DEFAULT_BOLD
+            })
+            addView(TextView(this@EpgGuideActivity).apply {
+                text = program.title
+                textSize = 13f
+                setTextColor(Color.WHITE)
+                typeface = Typeface.DEFAULT_BOLD
+                maxLines = 2
+            })
+            if (current) {
+                val duration = (program.endUtcMs - program.startUtcMs).coerceAtLeast(1L)
+                val elapsed = (now - program.startUtcMs).coerceAtLeast(0L)
+                val pct = ((elapsed.toDouble() / duration.toDouble()) * 100).toInt().coerceIn(0, 100)
+                addView(ProgressBar(this@EpgGuideActivity, null, android.R.attr.progressBarStyleHorizontal).apply {
+                    max = 100
+                    progress = pct
+                }, LinearLayout.LayoutParams(-1, dp(4)).apply { topMargin = dp(4) })
             }
         }
-        card.addView(TextView(this).apply {
-            text = if (current) "NOW" else DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(program.startUtcMs))
-            textSize = 10f
-            setTextColor(if (current) Color.WHITE else muted)
-            typeface = Typeface.DEFAULT_BOLD
-        })
-        card.addView(TextView(this).apply {
-            text = program.title
-            textSize = 13f
-            setTextColor(Color.WHITE)
-            typeface = Typeface.DEFAULT_BOLD
-            maxLines = 2
-        })
-        if (current) {
-            val duration = (program.endUtcMs - program.startUtcMs).coerceAtLeast(1L)
-            val elapsed = (now - program.startUtcMs).coerceAtLeast(0L)
-            val pct = ((elapsed.toDouble() / duration.toDouble()) * 100).toInt().coerceIn(0, 100)
-            card.addView(ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-                max = 100
-                progress = pct
-            }, LinearLayout.LayoutParams(-1, dp(4)).apply { topMargin = dp(4) })
-        }
-        return card
     }
 
     private fun showFutureProgramme(program: EpgProgram, channel: IptvChannel) {
@@ -422,7 +404,6 @@ class EpgGuideActivity : ComponentActivity() {
     }
 
     private fun nowInRange(now: Long, start: Long, end: Long) = now in start..end
-
     private fun dp(value: Float): Int = (value * resources.displayMetrics.density).toInt().coerceAtLeast(1)
     private fun rounded(color: Int, radiusDp: Float): GradientDrawable = GradientDrawable().apply {
         setColor(color)
