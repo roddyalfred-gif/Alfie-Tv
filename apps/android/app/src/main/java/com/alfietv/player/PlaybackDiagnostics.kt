@@ -57,7 +57,11 @@ class DiagnosticsListener(private val diagnostics: PlaybackDiagnostics) : Player
     }
 
     override fun onAudioDisabled(eventTime: AnalyticsListener.EventTime, decoderCounters: DecoderCounters) {
-        if (diagnostics.audioOutputEverActive) diagnostics.audioOutputActive = false
+        if (diagnostics.audioOutputEverActive) {
+            diagnostics.audioOutputActive = false
+            diagnostics.audioTrackAvailable = false
+            diagnostics.lastAudioTrackChangeAt = System.currentTimeMillis()
+        }
     }
 
     override fun onPlayerError(error: PlaybackException) {
