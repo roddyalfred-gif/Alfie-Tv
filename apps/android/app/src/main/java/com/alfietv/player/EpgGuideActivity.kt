@@ -7,8 +7,8 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
-import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
@@ -40,11 +40,7 @@ class EpgGuideActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        config = XtreamConfig(
-            intent.getStringExtra("server") ?: "",
-            intent.getStringExtra("username") ?: "",
-            intent.getStringExtra("password") ?: ""
-        )
+        config = XtreamConfig(intent.getStringExtra("server") ?: "", intent.getStringExtra("username") ?: "", intent.getStringExtra("password") ?: "")
         buildUi()
         loadGuide()
     }
@@ -71,8 +67,8 @@ class EpgGuideActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.rgb(9, 15, 25))
         }
-        vertical.addView(grid, ScrollView.LayoutParams(-2, -2))
-        horizontal.addView(vertical, HorizontalScrollView.LayoutParams(-1, -1))
+        vertical.addView(grid, ViewGroup.LayoutParams(-2, -2))
+        horizontal.addView(vertical, ViewGroup.LayoutParams(-1, -1))
         root.addView(horizontal, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
     }
@@ -84,7 +80,6 @@ class EpgGuideActivity : ComponentActivity() {
                 val (categories, loadedChannels) = XtreamClient().load(config)
                 channels = loadedChannels
                 LiveTvCache.write(this, config, categories, channels)
-
                 channels.forEach { channel ->
                     EpgCache.read(this, config, channel)?.let { snapshot ->
                         synchronized(epgByChannel) { epgByChannel[channel.id] = snapshot.programs }
@@ -94,7 +89,6 @@ class EpgGuideActivity : ComponentActivity() {
                     status.text = "${channels.size} channels • Loading provider EPG…"
                     renderGrid()
                 }
-
                 channels.forEach { channel ->
                     try {
                         val programs = XtreamClient().loadEpg(config, channel)
@@ -103,9 +97,7 @@ class EpgGuideActivity : ComponentActivity() {
                             EpgCache.write(this, config, channel, programs)
                             runOnUiThread { renderGrid() }
                         }
-                    } catch (_: Exception) {
-                        // Keep cached EPG, if present; channels remain playable without EPG.
-                    }
+                    } catch (_: Exception) { }
                 }
                 runOnUiThread {
                     val epgCount = synchronized(epgByChannel) { epgByChannel.size }
@@ -116,11 +108,7 @@ class EpgGuideActivity : ComponentActivity() {
                 channels = cached?.channels.orEmpty()
                 runOnUiThread {
                     renderGrid()
-                    status.text = if (channels.isNotEmpty()) {
-                        "Provider unavailable • using ${channels.size} cached channels"
-                    } else {
-                        "Unable to load provider channels • ${error.message ?: "check provider connection"}"
-                    }
+                    status.text = if (channels.isNotEmpty()) "Provider unavailable • using ${channels.size} cached channels" else "Unable to load provider channels • ${error.message ?: "check provider connection"}"
                 }
             }
         }
@@ -148,24 +136,17 @@ class EpgGuideActivity : ComponentActivity() {
     }
 
     private fun renderGrid() {
-        if (channels.isEmpty()) {
-            renderUnavailableGrid()
-            return
-        }
+        if (channels.isEmpty()) { renderUnavailableGrid(); return }
         val now = System.currentTimeMillis()
         val start = ((now / 60000L) - guideStartMinutes) * 60000L
         val end = start + 6L * 60L * 60L * 1000L
         val pxPerMinute = minuteWidthDp * resources.displayMetrics.density
         val channelWidth = dp(channelWidthDp)
-
         grid.removeAllViews()
         grid.addView(buildTimeHeader(start, end, channelWidth, pxPerMinute), LinearLayout.LayoutParams(-2, dp(46)))
         channels.forEach { channel ->
             val programs = synchronized(epgByChannel) { epgByChannel[channel.id].orEmpty() }
-            grid.addView(
-                buildChannelRow(channel, programs, start, end, channelWidth, pxPerMinute),
-                LinearLayout.LayoutParams(-2, dp(rowHeightDp))
-            )
+            grid.addView(buildChannelRow(channel, programs, start, end, channelWidth, pxPerMinute), LinearLayout.LayoutParams(-2, dp(rowHeightDp)))
         }
     }
 
@@ -200,14 +181,7 @@ class EpgGuideActivity : ComponentActivity() {
         return rowView
     }
 
-    private fun buildChannelRow(
-        channel: IptvChannel,
-        programs: List<EpgProgram>,
-        start: Long,
-        end: Long,
-        channelWidth: Int,
-        pxPerMinute: Float
-    ): View {
+    private fun buildChannelRow(channel: IptvChannel, programs: List<EpgProgram>, start: Long, end: Long, channelWidth: Int, pxPerMinute: Float): View {
         val rowView = FrameLayout(this).apply { setBackgroundColor(panel) }
         val channelCell = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -220,26 +194,11 @@ class EpgGuideActivity : ComponentActivity() {
             setOnFocusChangeListener { view, focused -> view.background = rounded(if (focused) accent else row, 8f) }
             setOnClickListener { playChannel(channel) }
         }
-        channelCell.addView(TextView(this).apply {
-            text = channel.name
-            textSize = 14f
-            setTextColor(Color.WHITE)
-            typeface = Typeface.DEFAULT_BOLD
-            maxLines = 1
-        })
-        channelCell.addView(TextView(this).apply {
-            text = channel.categoryId ?: "Live TV"
-            textSize = 10f
-            setTextColor(muted)
-            maxLines = 1
-        })
+        channelCell.addView(TextView(this).apply { text = channel.name; textSize = 14f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD; maxLines = 1 })
+        channelCell.addView(TextView(this).apply { text = channel.categoryId ?: "Live TV"; textSize = 10f; setTextColor(muted); maxLines = 1 })
         rowView.addView(channelCell, FrameLayout.LayoutParams(channelWidth, -1))
 
-        val programmeArea = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(Color.rgb(9, 15, 25))
-        }
+        val programmeArea = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(Color.rgb(9, 15, 25)) }
         val visible = programs.sortedBy { it.startUtcMs }.filter { it.endUtcMs > start && it.startUtcMs < end }
         var cursor = start
         visible.forEach { program ->
@@ -264,7 +223,6 @@ class EpgGuideActivity : ComponentActivity() {
             }, LinearLayout.LayoutParams(dp(360), -1))
         }
         rowView.addView(programmeArea, FrameLayout.LayoutParams(-2, -1).apply { leftMargin = channelWidth + dp(2) })
-
         val current = System.currentTimeMillis()
         if (current in start until end) {
             val markerX = channelWidth + dp(2) + ((current - start) / 60000f * pxPerMinute).toInt()
@@ -286,30 +244,14 @@ class EpgGuideActivity : ComponentActivity() {
             isClickable = true
             contentDescription = if (current) "${program.title}, now playing" else "${program.title}, upcoming programme"
             setOnFocusChangeListener { view, focused -> view.background = rounded(if (focused || current) accent else row, 8f) }
-            setOnClickListener {
-                if (upcoming) showFutureProgramme(program, channel) else playChannel(channel)
-            }
-            addView(TextView(this@EpgGuideActivity).apply {
-                text = if (current) "NOW" else DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(program.startUtcMs))
-                textSize = 10f
-                setTextColor(if (current) Color.WHITE else muted)
-                typeface = Typeface.DEFAULT_BOLD
-            })
-            addView(TextView(this@EpgGuideActivity).apply {
-                text = program.title
-                textSize = 13f
-                setTextColor(Color.WHITE)
-                typeface = Typeface.DEFAULT_BOLD
-                maxLines = 2
-            })
+            setOnClickListener { if (upcoming) showFutureProgramme(program, channel) else playChannel(channel) }
+            addView(TextView(this@EpgGuideActivity).apply { text = if (current) "NOW" else DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(program.startUtcMs)); textSize = 10f; setTextColor(if (current) Color.WHITE else muted); typeface = Typeface.DEFAULT_BOLD })
+            addView(TextView(this@EpgGuideActivity).apply { text = program.title; textSize = 13f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD; maxLines = 2 })
             if (current) {
                 val duration = (program.endUtcMs - program.startUtcMs).coerceAtLeast(1L)
                 val elapsed = (now - program.startUtcMs).coerceAtLeast(0L)
                 val pct = ((elapsed.toDouble() / duration.toDouble()) * 100).toInt().coerceIn(0, 100)
-                addView(ProgressBar(this@EpgGuideActivity, null, android.R.attr.progressBarStyleHorizontal).apply {
-                    max = 100
-                    progress = pct
-                }, LinearLayout.LayoutParams(-1, dp(4)).apply { topMargin = dp(4) })
+                addView(ProgressBar(this@EpgGuideActivity, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; progress = pct }, LinearLayout.LayoutParams(-1, dp(4)).apply { topMargin = dp(4) })
             }
         }
     }
@@ -317,49 +259,31 @@ class EpgGuideActivity : ComponentActivity() {
     private fun showFutureProgramme(program: EpgProgram, channel: IptvChannel) {
         val start = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(program.startUtcMs))
         val end = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(program.endUtcMs))
-        AlertDialog.Builder(this)
-            .setTitle(program.title)
+        AlertDialog.Builder(this).setTitle(program.title)
             .setMessage("${channel.name}\n$start – $end\n\nThis programme has not started yet. You can set a reminder or dismiss this notice.")
             .setNegativeButton("Dismiss", null)
             .setPositiveButton("Remind me") { _, _ ->
                 getPreferences(MODE_PRIVATE).edit().putLong("reminder_${channel.id}_${program.startUtcMs}", program.startUtcMs).apply()
                 status.text = "Reminder set for ${program.title}"
-            }
-            .show()
+            }.show()
     }
 
     private fun playChannel(channel: IptvChannel) {
-        if (channel.streamUrl.trim().isBlank()) {
-            status.text = "${channel.name} has no stream URL"
-            return
-        }
+        if (channel.streamUrl.trim().isBlank()) { status.text = "${channel.name} has no stream URL"; return }
         val channelIndex = channels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
         try {
             startActivity(Intent(this, LiveTvActivity::class.java).apply {
-                putExtra("server", config.serverUrl)
-                putExtra("username", config.username)
-                putExtra("password", config.password)
-                putExtra("preview_channel_id", channel.id)
-                putExtra("preview_channel_index", channelIndex)
-                putExtra("channel_urls", ArrayList(channels.map { it.streamUrl }))
-                putExtra("channel_titles", ArrayList(channels.map { it.name }))
-                putExtra("channel_ids", ArrayList(channels.map { it.id }))
-                putExtra("channel_numbers", ArrayList(channels.indices.map { (it + 1).toString() }))
+                putExtra("server", config.serverUrl); putExtra("username", config.username); putExtra("password", config.password)
+                putExtra("preview_channel_id", channel.id); putExtra("preview_channel_index", channelIndex)
+                putExtra("channel_urls", ArrayList(channels.map { it.streamUrl })); putExtra("channel_titles", ArrayList(channels.map { it.name }))
+                putExtra("channel_ids", ArrayList(channels.map { it.id })); putExtra("channel_numbers", ArrayList(channels.indices.map { (it + 1).toString() }))
             })
-        } catch (e: Exception) {
-            status.text = "Unable to open Live TV: ${e.message ?: "unknown error"}"
-        }
+        } catch (e: Exception) { status.text = "Unable to open Live TV: ${e.message ?: "unknown error"}" }
     }
 
     private fun spacer(width: Int): View = View(this).apply { layoutParams = LinearLayout.LayoutParams(width.coerceAtLeast(0), -1) }
     private fun dp(value: Number): Int = (value.toFloat() * resources.displayMetrics.density).toInt().coerceAtLeast(1)
-    private fun rounded(color: Int, radiusDp: Float): GradientDrawable = GradientDrawable().apply {
-        setColor(color)
-        cornerRadius = radiusDp * resources.displayMetrics.density
-    }
+    private fun rounded(color: Int, radiusDp: Float): GradientDrawable = GradientDrawable().apply { setColor(color); cornerRadius = radiusDp * resources.displayMetrics.density }
 
-    override fun onDestroy() {
-        executor.shutdownNow()
-        super.onDestroy()
-    }
+    override fun onDestroy() { executor.shutdownNow(); super.onDestroy() }
 }
