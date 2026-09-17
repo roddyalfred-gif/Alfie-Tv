@@ -20,12 +20,14 @@ import java.text.DateFormat
 import java.util.Date
 import java.util.concurrent.Executors
 
-/** Crash-safe provider-driven TV Guide. Uses ListView row recycling instead of building every channel view at once. */
+/** Crash-safe provider-driven TV Guide with an adaptive time-aligned schedule grid. */
 class SafeEpgGuideActivity : ComponentActivity() {
     private lateinit var status: TextView
     private lateinit var list: ListView
     private lateinit var adapter: GuideAdapter
     private lateinit var config: XtreamConfig
+    private lateinit var timeHeader: LinearLayout
+    private lateinit var timeHeaderScroll: HorizontalScrollView
     private val executor = Executors.newFixedThreadPool(4)
     private val epgByChannel = mutableMapOf<String, List<EpgProgram>>()
     private var channels: List<IptvChannel> = emptyList()
@@ -38,8 +40,10 @@ class SafeEpgGuideActivity : ComponentActivity() {
     private val row = Color.rgb(28, 37, 51)
     private val muted = Color.rgb(160, 170, 185)
     private val accent = Color.rgb(0, 140, 255)
-
+    private val current = Color.rgb(0, 85, 160)
     private val compact get() = resources.configuration.screenWidthDp < 600
+    private val labelWidth get() = dp(if (compact) 132 else 180)
+    private val pxPerMinute get() = if (compact) 2.2f * resources.displayMetrics.density else 3f * resources.displayMetrics.density
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,6 +71,29 @@ class SafeEpgGuideActivity : ComponentActivity() {
 
         val loading = ProgressBar(this).apply { isIndeterminate = true }
         root.addView(loading, LinearLayout.LayoutParams(-1, dp(3)))
+
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        header.addView(TextView(this).apply {
+            text = "CHANNEL"
+            textSize = if (compact) 10f else 11f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(muted)
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), 0, dp(8), 0)
+            background = rounded(panel, 8f)
+        }, LinearLayout.LayoutParams(labelWidth, dp(42)))
+        timeHeaderScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            isFillViewport = false
+        }
+        timeHeader = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        timeHeaderScroll.addView(timeHeader)
+        header.addView(timeHeaderScroll, LinearLayout.LayoutParams(0, dp(42), 1f))
+        root.addView(header, LinearLayout.LayoutParams(-1, dp(42)))
+        renderTimeHeader()
 
         list = ListView(this).apply {
             divider = null
@@ -174,7 +201,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                     playChannel(channel)
                 }
             }
-            root.addView(channelCell, LinearLayout.LayoutParams(dp(if (compact) 132 else 180), dp(if (compact) 68 else 74)).apply { marginEnd = dp(3) })
+            root.addView(channelCell, LinearLayout.LayoutParams(labelWidth, dp(if (compact) 68 else 74)).apply { marginEnd = dp(3) })
 
             val scroll = HorizontalScrollView(this@SafeEpgGuideActivity).apply {
                 isHorizontalScrollBarEnabled = false
@@ -197,18 +224,18 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 if (from > cursor) schedule.addView(View(this@SafeEpgGuideActivity), LinearLayout.LayoutParams(timeWidth(from - cursor), -1))
                 val card = TextView(this@SafeEpgGuideActivity).apply {
                     val now = System.currentTimeMillis()
-                    val current = now in program.startUtcMs until program.endUtcMs
-                    text = if (current) "NOW\n${program.title}" else "${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(program.startUtcMs))}\n${program.title}"
+                    val currentProgram = now in program.startUtcMs until program.endUtcMs
+                    text = if (currentProgram) "NOW\n${program.title}" else "${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(program.startUtcMs))}\n${program.title}"
                     textSize = if (compact) 10f else 11f
                     setTextColor(Color.WHITE)
                     gravity = Gravity.CENTER_VERTICAL
                     maxLines = 2
                     setPadding(dp(8), dp(3), dp(8), dp(3))
-                    background = rounded(if (current) Color.rgb(0, 85, 160) else row, 8f)
+                    background = rounded(if (currentProgram) current else row, 8f)
                     isFocusable = true
                     isClickable = true
-                    contentDescription = "${program.title}, ${if (current) "now playing" else "upcoming programme"}"
-                    setOnClickListener { if (current || program.startUtcMs <= now) playChannel(channel) else showFuture(program, channel) }
+                    contentDescription = "${program.title}, ${if (currentProgram) "now playing" else "upcoming programme"}"
+                    setOnClickListener { if (currentProgram || program.startUtcMs <= now) playChannel(channel) else showFuture(program, channel) }
                 }
                 schedule.addView(card, LinearLayout.LayoutParams(timeWidth(to - from), -1).apply { marginEnd = dp(2) })
                 cursor = maxOf(cursor, to)
@@ -229,11 +256,27 @@ class SafeEpgGuideActivity : ComponentActivity() {
         }
     }
 
+    private fun renderTimeHeader() {
+        if (!::timeHeader.isInitialized) return
+        timeHeader.removeAllViews()
+        val start = guideStart()
+        repeat(13) { index ->
+            val time = start + index * 30L * 60L * 1000L
+            timeHeader.addView(TextView(this).apply {
+                text = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(time))
+                textSize = if (compact) 10f else 11f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(if (index == 1) Color.WHITE else muted)
+                gravity = Gravity.CENTER
+                background = rounded(if (index == 1) current else row, 6f)
+            }, LinearLayout.LayoutParams(timeWidth(30L * 60L * 1000L), dp(40)).apply { marginEnd = dp(1) })
+        }
+    }
+
     private fun guideStart(): Long = ((System.currentTimeMillis() / 60000L) - 30L) * 60000L
 
     private fun timeWidth(durationMs: Long): Int {
-        val minutes = (durationMs.coerceAtLeast(1L) / 60000f)
-        val pxPerMinute = if (compact) 2.2f * resources.displayMetrics.density else 3f * resources.displayMetrics.density
+        val minutes = durationMs.coerceAtLeast(1L) / 60000f
         return (minutes * pxPerMinute).toInt().coerceAtLeast(dp(if (compact) 72 else 82))
     }
 
