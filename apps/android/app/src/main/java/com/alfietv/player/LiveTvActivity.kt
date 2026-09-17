@@ -63,6 +63,20 @@ class LiveTvActivity : ComponentActivity() {
     private val accent = Color.rgb(0, 168, 255)
     private val muted = Color.rgb(170, 181, 200)
 
+    private val widthDp: Int get() = resources.configuration.screenWidthDp
+    private val heightDp: Int get() = resources.configuration.screenHeightDp
+    private val compact get() = widthDp < 600 || (widthDp < 720 && heightDp < 520)
+    private val phone get() = widthDp < 600
+    private val wide get() = widthDp >= 900
+    private val contentPadding get() = dp(if (widthDp < 360) 8 else if (phone) 12 else if (wide) 20 else 16)
+    private val previewHeight get() = when {
+        widthDp < 360 -> 170
+        phone -> if (isPortrait()) 220 else 190
+        widthDp < 900 -> 230
+        else -> 300
+    }
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt().coerceAtLeast(1)
+
     private val ticker = object : Runnable {
         override fun run() { selectedChannel()?.let { refreshEpg(it) }; mainHandler.postDelayed(this, 30_000L) }
     }
@@ -78,23 +92,23 @@ class LiveTvActivity : ComponentActivity() {
     }
 
     private fun buildUi() {
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(12, 10, 12, 8); setBackgroundColor(bg) }
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(contentPadding, dp(if (compact) 8 else 10), contentPadding, dp(if (compact) 6 else 8)); setBackgroundColor(bg) }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        header.addView(TextView(this).apply { text = "LIVE TV"; textSize = 25f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD }, LinearLayout.LayoutParams(0, 52, 1f))
-        search = EditText(this).apply { hint = "⌕  Search channels"; setSingleLine(true); textSize = 15f; setTextColor(Color.WHITE); setHintTextColor(muted); background = roundedBackground(panel, 12f); setPadding(14, 0, 14, 0); isFocusable = true; isFocusableInTouchMode = true }
+        header.addView(TextView(this).apply { text = "LIVE TV"; textSize = if (compact) 21f else if (wide) 28f else 25f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD }, LinearLayout.LayoutParams(0, 52, 1f))
+        search = EditText(this).apply { hint = "⌕  Search channels"; setSingleLine(true); textSize = if (compact) 14f else 15f; setTextColor(Color.WHITE); setHintTextColor(muted); background = roundedBackground(panel, 12f); setPadding(dp(14), 0, dp(14), 0); isFocusable = true; isFocusableInTouchMode = true }
         header.addView(search, LinearLayout.LayoutParams(0, 50, 1.35f))
         root.addView(header)
         val categoryScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(0, 2, 0, 2) }
         categoryRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         categoryScroll.addView(categoryRow)
-        root.addView(categoryScroll, LinearLayout.LayoutParams(-1, 56))
+        root.addView(categoryScroll, LinearLayout.LayoutParams(-1, dp(if (compact) 52 else 56)))
         val tools = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         tools.addView(TextView(this).apply { text = "CATEGORIES"; textSize = 12f; setTextColor(muted); typeface = Typeface.DEFAULT_BOLD }, LinearLayout.LayoutParams(0, 42, 1f))
         tools.addView(iconButton("search", "Search") { search.requestFocus() })
         tools.addView(iconButton("favorite", "Favorites") { selectFavorites() })
         tools.addView(iconButton("grid", "Grid") { setColumns(3) })
         tools.addView(iconButton("list", "List") { setColumns(1) })
-        root.addView(tools, LinearLayout.LayoutParams(-1, 44))
+        root.addView(tools, LinearLayout.LayoutParams(-1, dp(if (compact) 46 else 50)))
         val content = LinearLayout(this).apply { orientation = if (isPortrait()) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL }
         list = GridView(this).apply {
             isFocusable = true; isFocusableInTouchMode = true; clipToPadding = false; verticalSpacing = 7; horizontalSpacing = 7; stretchMode = GridView.STRETCH_COLUMN_WIDTH; setPadding(0, 4, 6, 2)
@@ -110,19 +124,19 @@ class LiveTvActivity : ComponentActivity() {
             }
             setOnFocusChangeListener { _, focused -> if (focused) selectedChannel()?.let(::showEpg) }
         }
-        details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(12, 12, 12, 12); setBackgroundColor(panel); isFocusable = true; isFocusableInTouchMode = true }
+        details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(if (compact) 8 else 12), dp(if (compact) 8 else 12), dp(if (compact) 8 else 12), dp(if (compact) 8 else 12)); setBackgroundColor(panel); isFocusable = true; isFocusableInTouchMode = true }
         previewView = PlayerView(this).apply { useController = false; controllerAutoShow = false; setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS); resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT; setBackgroundColor(Color.BLACK) }
-        details.addView(previewView, LinearLayout.LayoutParams(-1, if (isPortrait()) 205 else 190).apply { bottomMargin = 8 })
+        details.addView(previewView, LinearLayout.LayoutParams(-1, previewHeight).apply { bottomMargin = dp(8) })
         epgTitle = label("LIVE PREVIEW", 20f, Color.WHITE, true)
         epgNow = label("NOW  —", 16f, accent, true)
         epgProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100 }
         epgNext = label("NEXT  —", 15f, Color.WHITE, false)
         epgMeta = label("Select a channel to preview", 12f, muted, false)
         details.addView(epgTitle); details.addView(epgNow); details.addView(epgProgress, LinearLayout.LayoutParams(-1, 8)); details.addView(epgNext); details.addView(epgMeta)
-        if (isPortrait()) { content.addView(details, LinearLayout.LayoutParams(-1, 300)); content.addView(list, LinearLayout.LayoutParams(-1, 0, 1f)) }
-        else { content.addView(list, LinearLayout.LayoutParams(0, -1, 1.6f)); content.addView(details, LinearLayout.LayoutParams(0, -1, 1f).apply { leftMargin = 8 }) }
+        if (isPortrait()) { content.addView(details, LinearLayout.LayoutParams(-1, previewHeight + dp(if (compact) 150 else 165))); content.addView(list, LinearLayout.LayoutParams(-1, 0, 1f)) }
+        else { content.addView(list, LinearLayout.LayoutParams(0, -1, 1.6f)); content.addView(details, LinearLayout.LayoutParams(0, -1, 1f).apply { leftMargin = dp(if (wide) 12 else 8) }) }
         root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
-        status = label("Loading channels…", 12f, muted, false); status.setPadding(4, 5, 4, 0); root.addView(status, LinearLayout.LayoutParams(-1, 28)); setContentView(root)
+        status = label("Loading channels…", if (compact) 11f else 12f, muted, false); status.setPadding(dp(4), dp(5), dp(4), 0); root.addView(status, LinearLayout.LayoutParams(-1, 28)); setContentView(root)
         search.addTextChangedListener(object : TextWatcher { override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit; override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { render() }; override fun afterTextChanged(s: Editable?) = Unit })
         list.setOnItemClickListener { _, _, position, _ -> displayedChannels.getOrNull(position)?.let { selectedIndex = position; handleChannelClick(it) } }
         list.setOnItemSelectedListener(object : AdapterView.OnItemSelectedListener { override fun onNothingSelected(parent: AdapterView<*>?) = Unit; override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { selectedIndex = position; displayedChannels.getOrNull(position)?.let(::showEpg); list.post { list.invalidateViews() } } })
@@ -152,7 +166,7 @@ class LiveTvActivity : ComponentActivity() {
     }
     private fun filteredChannels(): List<IptvChannel> { val q = search.text.toString().trim().lowercase(); if (favoritesMode) return displayedChannels.filter { q.isBlank() || it.name.lowercase().contains(q) }; return allChannels.filter { (selectedCategory == null || it.categoryId == selectedCategory) && (q.isBlank() || it.name.lowercase().contains(q)) } }
     private fun selectedChannel() = displayedChannels.getOrNull(list.selectedItemPosition.takeIf { it >= 0 } ?: selectedIndex)
-    private fun render() { if (!::list.isInitialized) return; displayedChannels = if (favoritesMode) displayedChannels.filter { favorite -> try { UserLibraryStore.isFavorite(this, config, favorite.toLibraryItem()) } catch (_: Exception) { false } } else { val q = search.text.toString().trim().lowercase(); allChannels.filter { (selectedCategory == null || it.categoryId == selectedCategory) && (q.isBlank() || it.name.lowercase().contains(q)) } }; val channels = displayedChannels; list.adapter = object : ArrayAdapter<IptvChannel>(this, android.R.layout.simple_list_item_1, channels) { override fun getView(position: Int, convertView: View?, parent: ViewGroup): View { val c = getItem(position) ?: return TextView(this@LiveTvActivity); val focused = position == selectedIndex; val favorite = try { UserLibraryStore.isFavorite(this@LiveTvActivity, config, c.toLibraryItem()) } catch (_: Exception) { false }; val item = LinearLayout(this@LiveTvActivity).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL; setPadding(10, 8, 10, 8); minimumHeight = if (isPortrait()) 82 else 88; background = roundedBackground(if (focused) Color.rgb(0, 85, 160) else row, 12f) }; val title = TextView(this@LiveTvActivity).apply { text = "${position + 1}. ${if (favorite) "★ " else ""}${c.name.ifBlank { "Channel ${position + 1}" }}"; textSize = if (isPortrait()) 14f else 15f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD; maxLines = 2 }; val meta = TextView(this@LiveTvActivity).apply { text = if (c.epgId.isNullOrBlank()) "● LIVE" else "● LIVE  •  EPG"; textSize = 10f; setTextColor(if (focused) Color.WHITE else muted) }; item.addView(title); item.addView(meta); return item } }; if (channels.isNotEmpty()) { selectedIndex = selectedIndex.coerceIn(0, channels.lastIndex); list.setSelection(selectedIndex) } else selectedIndex = -1 }
+    private fun render() { if (!::list.isInitialized) return; displayedChannels = if (favoritesMode) displayedChannels.filter { favorite -> try { UserLibraryStore.isFavorite(this, config, favorite.toLibraryItem()) } catch (_: Exception) { false } } else { val q = search.text.toString().trim().lowercase(); allChannels.filter { (selectedCategory == null || it.categoryId == selectedCategory) && (q.isBlank() || it.name.lowercase().contains(q)) } }; val channels = displayedChannels; list.adapter = object : ArrayAdapter<IptvChannel>(this, android.R.layout.simple_list_item_1, channels) { override fun getView(position: Int, convertView: View?, parent: ViewGroup): View { val c = getItem(position) ?: return TextView(this@LiveTvActivity); val focused = position == list.selectedItemPosition || position == selectedIndex; val favorite = try { UserLibraryStore.isFavorite(this@LiveTvActivity, config, c.toLibraryItem()) } catch (_: Exception) { false }; val item = LinearLayout(this@LiveTvActivity).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL; setPadding(10, 8, 10, 8); minimumHeight = dp(if (compact) 72 else if (wide) 92 else 84); background = channelCardBackground(focused, false) }; val title = TextView(this@LiveTvActivity).apply { text = "${position + 1}. ${if (favorite) "★ " else ""}${c.name.ifBlank { "Channel ${position + 1}" }}"; textSize = if (isPortrait()) 14f else 15f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD; maxLines = 2 }; val meta = TextView(this@LiveTvActivity).apply { text = if (c.epgId.isNullOrBlank()) "● LIVE" else "● LIVE  •  EPG"; textSize = 10f; setTextColor(if (focused) Color.WHITE else muted) }; item.addView(title); item.addView(meta); item.isFocusable = true; item.isFocusableInTouchMode = true; item.contentDescription = "${c.name.ifBlank { "Channel ${position + 1}" }}"; item.setOnFocusChangeListener { v, hasFocus -> v.background = channelCardBackground(position == selectedIndex, hasFocus) }; return item } }; if (channels.isNotEmpty()) { selectedIndex = selectedIndex.coerceIn(0, channels.lastIndex); list.setSelection(selectedIndex) } else selectedIndex = -1 }
     private fun handleChannelClick(channel: IptvChannel) { if (fullscreenLaunchInProgress) return; if (previewChannelId == channel.id) playFullscreen(channel) else preview(channel) }
     private fun preview(channel: IptvChannel) { val url = channel.streamUrl.trim(); if (url.isBlank()) { status.text = "${channel.name} has no stream URL"; return }; previewChannelId = channel.id; previewCategoryId = channel.categoryId; if (!favoritesMode) selectedCategory = channel.categoryId; getSharedPreferences("alfie_tv", Context.MODE_PRIVATE).edit().putString("last_channel_${config.serverUrl}_${config.username}", channel.id).putString("last_category_${config.serverUrl}_${config.username}", channel.categoryId ?: "").apply(); rebuildCategories(); if (previewPlayer == null) previewPlayer = AlfiePlayer(this).also { it.attach(previewView) }; previewPlayer?.play(url, channel.name, channelNumber = (displayedChannels.indexOfFirst { it.id == channel.id } + 1).coerceAtLeast(1).toString()); epgTitle.text = "PREVIEW  •  ${channel.name}"; status.text = "${channel.name}  •  Preview playing  •  OK again = fullscreen"; showEpg(channel); list.post { list.invalidateViews(); focusSelectedChannel() } }
     private fun playFullscreen(channel: IptvChannel) { if (fullscreenLaunchInProgress) return; val url = channel.streamUrl.trim(); if (url.isBlank()) return; fullscreenLaunchInProgress = true; awaitingFullscreenReturn = true; previewChannelId = channel.id; previewCategoryId = channel.categoryId; if (!favoritesMode) selectedCategory = channel.categoryId; val channels = displayedChannels; val index = channels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0); val intent = android.content.Intent(this, VideoPlayerActivity::class.java).apply { putExtra("url", url); putExtra("stream_url", url); putExtra("title", channel.name); putExtra("content_id", channel.id); putExtra("content_type", "LIVE"); putExtra("channel_id", channel.id); putExtra("channel_number", (index + 1).toString()); putExtra("preview_category_id", channel.categoryId); putExtra("channel_urls", ArrayList(channels.map { it.streamUrl })); putExtra("channel_titles", ArrayList(channels.map { it.name })); putExtra("channel_ids", ArrayList(channels.map { it.id })); putExtra("channel_numbers", ArrayList(channels.indices.map { (it + 1).toString() })); putExtra("channel_index", index); putExtra("server", config.serverUrl); putExtra("username", config.username); putExtra("password", config.password) }; previewPlayer?.release(); previewPlayer = null; previewView.player = null; try { startActivity(intent) } catch (e: Exception) { fullscreenLaunchInProgress = false; awaitingFullscreenReturn = false; preview(channel); status.text = "Unable to open fullscreen player: ${e.message ?: "unknown error"}" } }
@@ -198,6 +212,11 @@ class LiveTvActivity : ComponentActivity() {
     private fun selectFavorites() { favoritesMode = true; selectedCategory = null; val favorites = allChannels.filter { try { UserLibraryStore.isFavorite(this, config, it.toLibraryItem()) } catch (_: Exception) { false } }; displayedChannels = favorites; rebuildCategories(); selectedIndex = if (favorites.isNotEmpty()) 0 else -1; render(); status.text = "★ Favorites  •  ${favorites.size} channels"; if (favorites.isNotEmpty()) { list.setSelection(0); list.requestFocus() } }
     private fun moveChannel(delta: Int) { val channels = displayedChannels; if (channels.isEmpty()) return; val current = list.selectedItemPosition.takeIf { it >= 0 } ?: selectedIndex; selectedIndex = (current + delta).coerceIn(0, channels.lastIndex); list.setSelection(selectedIndex); showEpg(channels[selectedIndex]) }
     private fun roundedBackground(color: Int, radiusDp: Float) = GradientDrawable().apply { setColor(color); cornerRadius = radiusDp * resources.displayMetrics.density }
+    private fun channelCardBackground(selected: Boolean, focused: Boolean) = GradientDrawable().apply {
+        setColor(if (selected) Color.rgb(0, 85, 160) else row)
+        cornerRadius = 12f * resources.displayMetrics.density
+        if (focused) setStroke(dp(if (compact) 2 else 3), Color.WHITE)
+    }
     private fun animateFocus(view: View, focused: Boolean) { ObjectAnimator.ofFloat(view, "scaleX", if (focused) 1.03f else 1f).setDuration(120).start(); ObjectAnimator.ofFloat(view, "scaleY", if (focused) 1.03f else 1f).setDuration(120).start() }
     override fun onBackPressed() { if (search.hasFocus() && search.text.isNotEmpty()) { search.text.clear(); list.requestFocus(); return }; super.onBackPressed() }
     override fun onDestroy() { mainHandler.removeCallbacks(ticker); previewPlayer?.release(); previewPlayer = null; executor.shutdownNow(); super.onDestroy() }
