@@ -154,7 +154,38 @@ class LiveTvActivity : ComponentActivity() {
     private fun handleChannelClick(channel: IptvChannel) { if (fullscreenLaunchInProgress) return; if (previewChannelId == channel.id) playFullscreen(channel) else preview(channel) }
     private fun preview(channel: IptvChannel) { val url = channel.streamUrl.trim(); if (url.isBlank()) { status.text = "${channel.name} has no stream URL"; return }; previewChannelId = channel.id; previewCategoryId = channel.categoryId; selectedCategory = channel.categoryId; getSharedPreferences("alfie_tv", Context.MODE_PRIVATE).edit().putString("last_channel_${config.serverUrl}_${config.username}", channel.id).putString("last_category_${config.serverUrl}_${config.username}", channel.categoryId ?: "").apply(); rebuildCategories(); if (previewPlayer == null) previewPlayer = AlfiePlayer(this).also { it.attach(previewView) }; previewPlayer?.play(url, channel.name, channelNumber = (filteredChannels().indexOfFirst { it.id == channel.id } + 1).coerceAtLeast(1).toString()); epgTitle.text = "PREVIEW  •  ${channel.name}"; status.text = "${channel.name}  •  Preview playing  •  OK again = fullscreen"; showEpg(channel); list.post { list.invalidateViews(); focusSelectedChannel() } }
     private fun playFullscreen(channel: IptvChannel) { if (fullscreenLaunchInProgress) return; val url = channel.streamUrl.trim(); if (url.isBlank()) return; fullscreenLaunchInProgress = true; awaitingFullscreenReturn = true; previewChannelId = channel.id; previewCategoryId = channel.categoryId; selectedCategory = channel.categoryId; val channels = filteredChannels(); val index = channels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0); val intent = android.content.Intent(this, VideoPlayerActivity::class.java).apply { putExtra("url", url); putExtra("stream_url", url); putExtra("title", channel.name); putExtra("content_id", channel.id); putExtra("content_type", "LIVE"); putExtra("channel_id", channel.id); putExtra("channel_number", (index + 1).toString()); putExtra("preview_category_id", channel.categoryId); putExtra("channel_urls", ArrayList(channels.map { it.streamUrl })); putExtra("channel_titles", ArrayList(channels.map { it.name })); putExtra("channel_ids", ArrayList(channels.map { it.id })); putExtra("channel_numbers", ArrayList(channels.indices.map { (it + 1).toString() })); putExtra("channel_index", index); putExtra("server", config.serverUrl); putExtra("username", config.username); putExtra("password", config.password) }; previewPlayer?.release(); previewPlayer = null; previewView.player = null; try { startActivity(intent) } catch (e: Exception) { fullscreenLaunchInProgress = false; awaitingFullscreenReturn = false; preview(channel); status.text = "Unable to open fullscreen player: ${e.message ?: "unknown error"}" } }
-    override fun onResume() { super.onResume(); if (awaitingFullscreenReturn) { awaitingFullscreenReturn = false; fullscreenLaunchInProgress = false; selectedCategory = previewCategoryId ?: selectedCategory; rebuildCategories(); previewChannelId?.let { id -> allChannels.firstOrNull { it.id == id }?.let { c -> selectedCategory = c.categoryId ?: previewCategoryId ?: selectedCategory; previewCategoryId = c.categoryId; selectedIndex = filteredChannels().indexOfFirst { it.id == c.id }.coerceAtLeast(0); list.post { list.setSelection(selectedIndex); preview(c); list.invalidateViews(); focusSelectedChannel() } } } } }
+    override fun onResume() {
+        super.onResume()
+        if (!awaitingFullscreenReturn) return
+        awaitingFullscreenReturn = false
+        fullscreenLaunchInProgress = false
+
+        val prefs = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
+        val persistedId = prefs.getString("last_channel_${config.serverUrl}_${config.username}", null)
+        val persistedCategory = prefs.getString("last_category_${config.serverUrl}_${config.username}", null)
+        val returnId = persistedId ?: previewChannelId
+        val returnChannel = allChannels.firstOrNull { it.id == returnId }
+
+        if (returnChannel != null) {
+            selectedCategory = returnChannel.categoryId ?: persistedCategory ?: previewCategoryId ?: selectedCategory
+            previewCategoryId = returnChannel.categoryId ?: persistedCategory ?: previewCategoryId
+            previewChannelId = returnChannel.id
+            rebuildCategories()
+            selectedIndex = filteredChannels().indexOfFirst { it.id == returnChannel.id }.coerceAtLeast(0)
+            list.post {
+                list.setSelection(selectedIndex)
+                preview(returnChannel)
+                list.invalidateViews()
+                focusSelectedChannel()
+                highlightSelectedCategory()
+            }
+        } else {
+            selectedCategory = persistedCategory ?: previewCategoryId ?: selectedCategory
+            rebuildCategories()
+            focusSelectedChannel()
+            highlightSelectedCategory()
+        }
+    }
     private fun focusSelectedChannel() { val channels = filteredChannels(); if (channels.isEmpty()) return; selectedIndex = selectedIndex.coerceIn(0, channels.lastIndex); list.post { list.setSelection(selectedIndex); list.requestFocus(); list.invalidateViews() } }
     private fun highlightSelectedCategory() { val index = categories.indexOfFirst { it.id == selectedCategory }; val childIndex = if (index >= 0) index + 1 else 0; categoryRow.getChildAt(childIndex)?.let { view -> view.background = roundedBackground(accent, 12f) } }
     private fun showEpg(channel: IptvChannel) { epgTitle.text = if (previewChannelId == channel.id) "PREVIEW  •  ${channel.name}" else "LIVE PREVIEW  •  ${channel.name}"; epgNow.text = "NOW  Loading…"; epgNext.text = "NEXT  Loading…"; epgMeta.text = "EPG: ${channel.epgId ?: "not mapped"}"; epgProgress.progress = 0; executor.execute { try { val programs = XtreamClient().loadEpg(config, channel); runOnUiThread { if (previewChannelId == channel.id || selectedChannel()?.id == channel.id) renderEpg(channel, programs) } } catch (_: Exception) { runOnUiThread { if (selectedChannel()?.id == channel.id) { epgNow.text = "NOW  No programme data"; epgNext.text = "NEXT  Press OK to preview live" } } } } }
