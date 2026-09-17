@@ -2,6 +2,8 @@ package com.alfietv.player
 
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.decoder.DecoderCounters
 
 /** Runtime metrics used to diagnose long-running live TV and VOD playback. */
 data class PlaybackDiagnostics(
@@ -28,7 +30,7 @@ data class PlaybackDiagnostics(
     var lastVideoTrackChangeAt: Long? = null
 )
 
-class DiagnosticsListener(private val diagnostics: PlaybackDiagnostics) : Player.Listener {
+class DiagnosticsListener(private val diagnostics: PlaybackDiagnostics) : Player.Listener, AnalyticsListener {
     override fun onPlaybackStateChanged(playbackState: Int) {
         if (playbackState == Player.STATE_BUFFERING) diagnostics.rebufferCount++
     }
@@ -47,7 +49,15 @@ class DiagnosticsListener(private val diagnostics: PlaybackDiagnostics) : Player
         val active = audioSessionId != androidx.media3.common.C.AUDIO_SESSION_ID_UNSET
         diagnostics.audioOutputActive = active
         if (active) diagnostics.audioOutputEverActive = true
-        else if (diagnostics.audioOutputEverActive) diagnostics.audioTrackAvailable = false
+    }
+
+    override fun onAudioEnabled(eventTime: AnalyticsListener.EventTime, decoderCounters: DecoderCounters) {
+        diagnostics.audioOutputActive = true
+        diagnostics.audioOutputEverActive = true
+    }
+
+    override fun onAudioDisabled(eventTime: AnalyticsListener.EventTime, decoderCounters: DecoderCounters) {
+        if (diagnostics.audioOutputEverActive) diagnostics.audioOutputActive = false
     }
 
     override fun onPlayerError(error: PlaybackException) {
