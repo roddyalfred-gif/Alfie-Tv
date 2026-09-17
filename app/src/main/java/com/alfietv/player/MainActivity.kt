@@ -14,6 +14,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -36,6 +37,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var zapView: TextView
     private lateinit var zapProgress: ProgressBar
     private lateinit var trackPanel: LinearLayout
+    private lateinit var trackScroll: HorizontalScrollView
     private var channelUrls = emptyList<String>()
     private var channelTitles = emptyList<String>()
     private var channelIds = emptyList<String>()
@@ -81,11 +83,12 @@ class MainActivity : ComponentActivity() {
         channelIndex = intent.getIntExtra("channel_index", 0).coerceIn(0, (channelUrls.size - 1).coerceAtLeast(0))
         setupLibraryProgress()
         root = FrameLayout(this)
+        val compactPlayer = resources.configuration.screenWidthDp < 600
         playerView = PlayerView(this).apply {
             useController = SettingsStore.playerControls(this@MainActivity)
             controllerAutoShow = false
             controllerHideOnTouch = true
-            controllerShowTimeoutMs = 5000
+            controllerShowTimeoutMs = if (compactPlayer) 4000 else 5000
             setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
             resizeMode = loadResizeMode()
             isFocusable = true
@@ -116,6 +119,7 @@ class MainActivity : ComponentActivity() {
                     if (showingPlaybackRetry) {
                         showingPlaybackRetry = false
                         trackPanel.visibility = View.GONE
+                        trackScroll.visibility = View.GONE
                         playerView.requestFocus()
                     }
                     topOverlay.visibility = View.GONE
@@ -172,19 +176,45 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun buildOverlay() {
-        topOverlay = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(28, 20, 28, 16); setBackgroundColor(Color.argb(185, 0, 0, 0)) }
-        titleView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 22f }
-        statusView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 14f; setPadding(0, 6, 0, 0) }
-        formatView = TextView(this).apply { setTextColor(Color.LTGRAY); textSize = 13f; setPadding(0, 3, 0, 0) }
-        epgView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 14f; setPadding(0, 8, 0, 0) }
+        val compactPlayer = resources.configuration.screenWidthDp < 600
+        val horizontalPadding = if (compactPlayer) 16 else 28
+        val topPadding = if (compactPlayer) 12 else 20
+        topOverlay = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(horizontalPadding, topPadding, horizontalPadding, if (compactPlayer) 10 else 16)
+            setBackgroundColor(Color.argb(185, 0, 0, 0))
+        }
+        titleView = TextView(this).apply { setTextColor(Color.WHITE); textSize = if (compactPlayer) 18f else 22f; maxLines = 2 }
+        statusView = TextView(this).apply { setTextColor(Color.WHITE); textSize = if (compactPlayer) 12f else 14f; setPadding(0, 4, 0, 0) }
+        formatView = TextView(this).apply { setTextColor(Color.LTGRAY); textSize = if (compactPlayer) 11f else 13f; setPadding(0, 2, 0, 0); maxLines = 3 }
+        epgView = TextView(this).apply { setTextColor(Color.WHITE); textSize = if (compactPlayer) 12f else 14f; setPadding(0, 6, 0, 0); maxLines = 2 }
         topOverlay.addView(titleView); topOverlay.addView(statusView); topOverlay.addView(formatView); topOverlay.addView(epgView)
         root.addView(topOverlay, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP))
-        zapView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 26f; gravity = Gravity.CENTER; setPadding(32, 22, 32, 12); setBackgroundColor(Color.argb(205, 0, 0, 0)); visibility = View.GONE }
+        zapView = TextView(this).apply {
+            setTextColor(Color.WHITE)
+            textSize = if (compactPlayer) 22f else 26f
+            gravity = Gravity.CENTER
+            setPadding(if (compactPlayer) 24 else 32, if (compactPlayer) 16 else 22, if (compactPlayer) 24 else 32, if (compactPlayer) 10 else 12)
+            setBackgroundColor(Color.argb(205, 0, 0, 0))
+            visibility = View.GONE
+        }
         root.addView(zapView, FrameLayout.LayoutParams(-2, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
         zapProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; progress = 0; visibility = View.GONE }
-        root.addView(zapProgress, FrameLayout.LayoutParams(500, 10, Gravity.CENTER).apply { topMargin = 100 })
-        trackPanel = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(18, 12, 18, 18); setBackgroundColor(Color.argb(200, 0, 0, 0)); visibility = View.GONE }
-        root.addView(trackPanel, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
+        root.addView(zapProgress, FrameLayout.LayoutParams(-1, if (compactPlayer) 8 else 10, Gravity.CENTER).apply { leftMargin = if (compactPlayer) 20 else 60; rightMargin = if (compactPlayer) 20 else 60; topMargin = if (compactPlayer) 78 else 100 })
+        trackPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(if (compactPlayer) 10 else 18, if (compactPlayer) 8 else 12, if (compactPlayer) 10 else 18, if (compactPlayer) 12 else 18)
+            setBackgroundColor(Color.argb(200, 0, 0, 0))
+            visibility = View.GONE
+        }
+        trackScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            isFillViewport = true
+            visibility = View.GONE
+        }
+        trackScroll.addView(trackPanel, HorizontalScrollView.LayoutParams(-2, -2))
+        root.addView(trackScroll, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
     }
 
     private fun refreshOverlay() {
@@ -206,7 +236,7 @@ class MainActivity : ComponentActivity() {
         val next = (channelIndex + delta).coerceIn(0, channelUrls.lastIndex)
         if (next == channelIndex) return
         saveProgress()
-        channelIndex = next; showingPlaybackRetry = false; trackPanel.visibility = View.GONE
+        channelIndex = next; showingPlaybackRetry = false; trackPanel.visibility = View.GONE; trackScroll.visibility = View.GONE
         playerView.hideController(); topOverlay.visibility = View.VISIBLE
         alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle(), currentChannelNumber())
         channelIds.getOrNull(channelIndex)?.let { preferences.edit().putString("last_channel_id", it).apply() }
@@ -216,7 +246,7 @@ class MainActivity : ComponentActivity() {
     private fun switchToChannel(index: Int) {
         if (index !in channelUrls.indices || index == channelIndex) return
         saveProgress()
-        channelIndex = index; showingPlaybackRetry = false; trackPanel.visibility = View.GONE
+        channelIndex = index; showingPlaybackRetry = false; trackPanel.visibility = View.GONE; trackScroll.visibility = View.GONE
         playerView.hideController(); topOverlay.visibility = View.VISIBLE
         alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle(), currentChannelNumber())
         channelIds.getOrNull(channelIndex)?.let { preferences.edit().putString("last_channel_id", it).apply() }
@@ -238,6 +268,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showTrackPanel() {
         trackPanel.visibility = View.VISIBLE
+        trackScroll.visibility = View.VISIBLE
         trackPanel.removeAllViews()
         addTrackButton("AUDIO") { showAudioOptions(alfiePlayer.audioTracks()) }
         addTrackButton("SUBTITLES") { showSubtitleOptions(alfiePlayer.subtitleTracks()) }
@@ -245,7 +276,7 @@ class MainActivity : ComponentActivity() {
         addTrackButton("FIT") { setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
         addTrackButton("FILL") { setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL) }
         addTrackButton("ZOOM") { setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM) }
-        addTrackButton("REFRESH AUDIO") { alfiePlayer.refreshAudio(); trackPanel.visibility = View.GONE; playerView.requestFocus() }
+        addTrackButton("REFRESH AUDIO") { alfiePlayer.refreshAudio(); trackPanel.visibility = View.GONE; trackScroll.visibility = View.GONE; playerView.requestFocus() }
         if (showingPlaybackRetry) addTrackButton("RETRY PLAYBACK") { showingPlaybackRetry = false; alfiePlayer.retryCurrent() }
         trackPanel.getChildAt(0)?.requestFocus()
     }
@@ -256,32 +287,41 @@ class MainActivity : ComponentActivity() {
         playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         SettingsStore.setAspectRatio(this, "auto")
         trackPanel.visibility = View.GONE
+        trackScroll.visibility = View.GONE
         playerView.requestFocus()
     }
 
     private fun setResizeMode(mode: Int) {
         playerView.resizeMode = mode
         val value = when (mode) { AspectRatioFrameLayout.RESIZE_MODE_FILL -> "fill"; AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> "zoom"; else -> "fit" }
-        SettingsStore.setAspectRatio(this, value); trackPanel.visibility = View.GONE; playerView.requestFocus()
+        SettingsStore.setAspectRatio(this, value); trackPanel.visibility = View.GONE; trackScroll.visibility = View.GONE; playerView.requestFocus()
     }
 
     private fun showAudioOptions(options: List<TrackOption>) {
         trackPanel.removeAllViews()
         if (options.isEmpty()) addTrackButton("No audio tracks") { showTrackPanel() }
-        options.forEach { option -> addTrackButton(option.label) { alfiePlayer.selectAudio(option); trackPanel.visibility = View.GONE; playerView.requestFocus() } }
+        options.forEach { option -> addTrackButton(option.label) { alfiePlayer.selectAudio(option); trackPanel.visibility = View.GONE; trackScroll.visibility = View.GONE; playerView.requestFocus() } }
         addTrackButton("BACK") { showTrackPanel() }; trackPanel.getChildAt(0)?.requestFocus()
     }
 
     private fun showSubtitleOptions(options: List<TrackOption>) {
         trackPanel.removeAllViews()
-        addTrackButton("OFF") { alfiePlayer.selectSubtitle(null); trackPanel.visibility = View.GONE; playerView.requestFocus() }
-        options.forEach { option -> addTrackButton(option.label) { alfiePlayer.selectSubtitle(option); trackPanel.visibility = View.GONE; playerView.requestFocus() } }
+        addTrackButton("OFF") { alfiePlayer.selectSubtitle(null); trackPanel.visibility = View.GONE; trackScroll.visibility = View.GONE; playerView.requestFocus() }
+        options.forEach { option -> addTrackButton(option.label) { alfiePlayer.selectSubtitle(option); trackPanel.visibility = View.GONE; trackScroll.visibility = View.GONE; playerView.requestFocus() } }
         addTrackButton("BACK") { showTrackPanel() }; trackPanel.getChildAt(0)?.requestFocus()
     }
 
     private fun addTrackButton(label: String, action: () -> Unit) {
-        val button = Button(this).apply { text = label; isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { action() } }
-        trackPanel.addView(button, LinearLayout.LayoutParams(0, FrameLayout.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(6, 0, 6, 0) })
+        val compactPlayer = resources.configuration.screenWidthDp < 600
+        val button = Button(this).apply {
+            text = label
+            isFocusable = true
+            isFocusableInTouchMode = true
+            minHeight = if (compactPlayer) 48 else 52
+            minWidth = if (compactPlayer) 112 else 128
+            setOnClickListener { action() }
+        }
+        trackPanel.addView(button, LinearLayout.LayoutParams(if (compactPlayer) 120 else 136, FrameLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(4, 0, 4, 0) })
     }
 
     private fun seekBy(deltaMs: Long) {
@@ -301,6 +341,7 @@ class MainActivity : ComponentActivity() {
         if (trackPanel.visibility == View.VISIBLE) {
             showingPlaybackRetry = false
             trackPanel.visibility = View.GONE
+            trackScroll.visibility = View.GONE
             playerView.requestFocus()
             return true
         }
