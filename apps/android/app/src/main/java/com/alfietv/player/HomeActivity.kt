@@ -74,7 +74,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
 
         val navHome = navButton(navigation, "⌂", "HOME", true) { buildHome() }
         navButton(navigation, "▣", "LIVE TV") { open(LiveTvActivity::class.java) }
-        navButton(navigation, "GUIDE", "TV GUIDE") { open(EpgGuideActivity::class.java) }
+        navButton(navigation, "GUIDE", "TV GUIDE") { open(SafeEpgGuideActivity::class.java) }
         navButton(navigation, "●", "MOVIES") { open(ContentActivity::class.java, "vod") }
         navButton(navigation, "▶", "SERIES") { open(ContentActivity::class.java, "series") }
         navButton(navigation, "★", "FAVORITES") { open(FavoritesActivity::class.java) }
@@ -151,7 +151,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         section(content, "LIVE TV", "Jump into your channels")
         val liveRow = row(content, if (compact) 104 else 112)
         val live = card(liveRow, "LIVE TV", "Channels and categories", accent) { open(LiveTvActivity::class.java) }
-        card(liveRow, "TV GUIDE", "Now • Next • Full schedule", purple) { open(EpgGuideActivity::class.java) }
+        card(liveRow, "TV GUIDE", "Now • Next • Full schedule", purple) { open(SafeEpgGuideActivity::class.java) }
         live.requestFocus()
 
         section(content, "CONTINUE WATCHING", "Pick up where you left off")
@@ -209,7 +209,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     private fun navButton(root: LinearLayout, icon: String, title: String, selected: Boolean = false, action: () -> Unit): Button {
         val compact = resources.configuration.screenWidthDp < 600
         val b = Button(this).apply {
-            text = if (compact) "$icon\n$title" else "$icon\n$title"
+            text = "$icon\n$title"
             isAllCaps = false
             textSize = if (compact) 8f else 9f
             gravity = Gravity.CENTER
