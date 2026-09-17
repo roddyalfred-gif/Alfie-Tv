@@ -190,7 +190,7 @@ class LiveTvActivity : ComponentActivity() {
             val lastId = prefs.getString("last_channel_${config.serverUrl}_${config.username}", null)
             val lastCategory = prefs.getString("last_category_${config.serverUrl}_${config.username}", null)
             if (!lastCategory.isNullOrBlank()) selectedCategory = lastCategory
-            lastId?.let { id -> channels.firstOrNull { it.id == id }?.let { selectedCategory = it.categoryId ?: selectedCategory; previewCategoryId = it.categoryId; selectedIndex = filteredChannels().indexOfFirst { c -> c.id == it.id }.coerceAtLeast(0); rebuildCategories(); list.post { list.setSelection(selectedIndex); showEpg(it); focusSelectedChannel() } }
+            lastId?.let { id -> channels.firstOrNull { it.id == id }?.let { selectedCategory = it.categoryId ?: selectedCategory; previewCategoryId = it.categoryId; selectedIndex = filteredChannels().indexOfFirst { c -> c.id == it.id }.coerceAtLeast(0); rebuildCategories(); list.post { list.setSelection(selectedIndex); showEpg(it); focusSelectedChannel() } } }
         }
         status.text = "${channels.size} channels  •  ${categories.size} categories  •  OK = preview  •  OK again = fullscreen"
     }
