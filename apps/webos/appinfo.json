@@ -1,0 +1,13 @@
+{
+  "id":"com.alfietv.player",
+  "version":"1.0.0",
+  "vendor":"Alfie TV",
+  "type":"web",
+  "main":"index.html",
+  "title":"Alfie TV",
+  "icon":"icon.png",
+  "largeIcon":"icon.png",
+  "resolution":"1920x1080",
+  "disableBackHistoryAPI":true,
+  "noSplashOnLaunch":false
+}
