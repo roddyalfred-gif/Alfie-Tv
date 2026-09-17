@@ -77,7 +77,9 @@ class AlfiePlayer(context: Context) {
             setSeekBackIncrementMs(seekMs)
             setSeekForwardIncrementMs(seekMs)
             autoRetryEnabled = SettingsStore.autoRetry(appContext)
-            addListener(DiagnosticsListener(diagnostics))
+            val diagnosticsListener = DiagnosticsListener(diagnostics)
+            addListener(diagnosticsListener)
+            addAnalyticsListener(diagnosticsListener)
             addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (playbackState == Player.STATE_BUFFERING) {
@@ -135,6 +137,7 @@ class AlfiePlayer(context: Context) {
         diagnostics.lastErrorCodeName = null; diagnostics.lastErrorMessage = null
         diagnostics.audioTrackAvailable = false; diagnostics.videoTrackAvailable = false
         diagnostics.firstFrameRendered = false; diagnostics.audioSessionId = null
+        diagnostics.audioOutputActive = false; diagnostics.audioOutputEverActive = false
         diagnostics.lastAudioTrackChangeAt = null; diagnostics.lastVideoTrackChangeAt = null
 
         val sourceType = inferSourceType(url)
