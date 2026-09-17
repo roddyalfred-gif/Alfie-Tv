@@ -149,14 +149,97 @@ class LiveTvActivity : ComponentActivity() {
     private fun addCategory(name: String, id: String?, selected: Boolean = false) { val chip = TextView(this).apply { text = "  ${if (selected) "✓ " else ""}$name  "; textSize = 14f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; isFocusable = true; isFocusableInTouchMode = true; background = roundedBackground(if (selected) accent else row, 12f); setPadding(8, 0, 8, 0); setOnFocusChangeListener { v, focused -> if (focused) v.background = roundedBackground(accent, 12f) else v.background = roundedBackground(if (selectedCategory == id) accent else row, 12f); animateFocus(v, focused) }; setOnClickListener { favoritesMode = false; selectedCategory = id; selectedIndex = -1; rebuildCategories(); render(); status.text = "${filteredChannels().size} channels  •  ${name.trim()}  •  OK = preview  •  OK again = fullscreen"; list.requestFocus() }; setOnKeyListener { _, keyCode, event -> if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_DOWN) { list.requestFocus(); true } else false } }; categoryRow.addView(chip, LinearLayout.LayoutParams(-2, 44).apply { marginEnd = 7 }) }
     private fun rebuildCategories() { categoryRow.removeAllViews(); addCategory("All", null, selectedCategory == null && !favoritesMode); categories.forEach { addCategory(it.name.ifBlank { "Category" }, it.id, it.id == selectedCategory && !favoritesMode) } }
     private fun load() { val cached = LiveTvCache.read(this, config); if (cached != null) applyChannels(cached.categories, cached.channels); executor.execute { try { val result = XtreamClient().load(config); LiveTvCache.write(this, config, result.first, result.second); runOnUiThread { applyChannels(result.first, result.second); status.text = "${result.second.size} channels  •  Updated just now  •  Categories visible above" } } catch (e: Exception) { runOnUiThread { status.text = if (allChannels.isNotEmpty()) "${allChannels.size} channels  •  Offline cache  •  Refresh failed" else "Unable to load channels: ${e.message ?: "unknown error"}" } } } }
-    private fun applyChannels(newCategories: List<IptvCategory>, channels: List<IptvChannel>) { categories = newCategories; allChannels = channels; rebuildCategories(); render(); val pendingId = intent.getStringExtra("preview_channel_id"); val hasPendingGuideChannel = !pendingId.isNullOrBlank(); if (hasPendingGuideChannel) channels.firstOrNull { it.id == pendingId }?.let { intent.removeExtra("preview_channel_id"); favoritesMode = false; selectedCategory = it.categoryId; previewCategoryId = it.categoryId; rebuildCategories(); selectedIndex = filteredChannels().indexOfFirst { c -> c.id == it.id }.coerceAtLeast(0); list.post { list.setSelection(selectedIndex); preview(it); focusSelectedChannel() } }; if (!hasPendingGuideChannel && !restoredLastChannel) { restoredLastChannel = true; val prefs = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE); val lastId = prefs.getString("last_channel_${config.serverUrl}_${config.username}", null); val lastCategory = prefs.getString("last_category_${config.serverUrl}_${config.username}", null); if (!lastCategory.isNullOrBlank()) selectedCategory = lastCategory; lastId?.let { id -> channels.firstOrNull { it.id == id }?.let { favoritesMode = false; selectedCategory = it.categoryId ?: selectedCategory; previewCategoryId = it.categoryId; selectedIndex = filteredChannels().indexOfFirst { c -> c.id == it.id }.coerceAtLeast(0); rebuildCategories(); list.post { list.setSelection(selectedIndex); showEpg(it); focusSelectedChannel() } } } } status.text = "${channels.size} channels  •  ${categories.size} categories  •  OK = preview  •  OK again = fullscreen" }
-    private fun filteredChannels(): List<IptvChannel> { val q = search.text.toString().trim().lowercase(); val source = if (favoritesMode) allChannels.filter { try { UserLibraryStore.isFavorite(this, config, it.toLibraryItem()) } catch (_: Exception) { false } } else allChannels; return source.filter { (favoritesMode || selectedCategory == null || it.categoryId == selectedCategory) && (q.isBlank() || it.name.lowercase().contains(q)) } }
+    private fun applyChannels(newCategories: List<IptvCategory>, channels: List<IptvChannel>) {
+        categories = newCategories; allChannels = channels; rebuildCategories(); render()
+        val pendingId = intent.getStringExtra("preview_channel_id")
+        val hasPendingGuideChannel = !pendingId.isNullOrBlank()
+        if (hasPendingGuideChannel) channels.firstOrNull { it.id == pendingId }?.let { intent.removeExtra("preview_channel_id"); favoritesMode = false; selectedCategory = it.categoryId; previewCategoryId = it.categoryId; rebuildCategories(); selectedIndex = filteredChannels().indexOfFirst { c -> c.id == it.id }.coerceAtLeast(0); list.post { list.setSelection(selectedIndex); preview(it); focusSelectedChannel() } }
+        if (!hasPendingGuideChannel && !restoredLastChannel) {
+            restoredLastChannel = true
+            val prefs = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
+            val lastId = prefs.getString("last_channel_${config.serverUrl}_${config.username}", null)
+            val lastCategory = prefs.getString("last_category_${config.serverUrl}_${config.username}", null)
+            if (!lastCategory.isNullOrBlank()) selectedCategory = lastCategory
+            lastId?.let { id -> channels.firstOrNull { it.id == id }?.let { favoritesMode = false; selectedCategory = it.categoryId ?: selectedCategory; previewCategoryId = it.categoryId; selectedIndex = filteredChannels().indexOfFirst { c -> c.id == it.id }.coerceAtLeast(0); rebuildCategories(); list.post { list.setSelection(selectedIndex); showEpg(it); focusSelectedChannel() } } }
+        }
+        status.text = "${channels.size} channels  •  ${categories.size} categories  •  OK = preview  •  OK again = fullscreen"
+    }
+    private fun filteredChannels(): List<IptvChannel> {
+        val q = search.text.toString().trim().lowercase()
+        val source = if (favoritesMode) allChannels.filter {
+            try { UserLibraryStore.isFavorite(this, config, it.toLibraryItem()) } catch (_: Exception) { false }
+        } else allChannels
+        return source.filter {
+            (favoritesMode || selectedCategory == null || it.categoryId == selectedCategory) &&
+                (q.isBlank() || it.name.lowercase().contains(q))
+        }
+    }
     private fun selectedChannel() = displayedChannels.getOrNull(list.selectedItemPosition.takeIf { it >= 0 } ?: selectedIndex)
-    private fun render() { if (!::list.isInitialized) return; val previousId = displayedChannels.getOrNull(selectedIndex)?.id; val channels = filteredChannels(); displayedChannels = channels; if (channels.isEmpty()) selectedIndex = -1 else { val preservedIndex = previousId?.let { id -> channels.indexOfFirst { it.id == id } } ?: -1; selectedIndex = when { preservedIndex >= 0 -> preservedIndex; selectedIndex >= 0 -> selectedIndex.coerceIn(0, channels.lastIndex); else -> 0 } }; list.adapter = object : ArrayAdapter<IptvChannel>(this, android.R.layout.simple_list_item_1, channels) { override fun getView(position: Int, convertView: View?, parent: ViewGroup): View { val c = getItem(position) ?: return TextView(this@LiveTvActivity); val focused = position == list.selectedItemPosition || position == selectedIndex; val favorite = try { UserLibraryStore.isFavorite(this@LiveTvActivity, config, c.toLibraryItem()) } catch (_: Exception) { false }; val item = LinearLayout(this@LiveTvActivity).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL; setPadding(10, 8, 10, 8); minimumHeight = dp(if (compact) 72 else if (wide) 92 else 84); background = channelCardBackground(position == selectedIndex, focused); isFocusable = true; isFocusableInTouchMode = true; contentDescription = c.name.ifBlank { "Channel ${position + 1}" } }; val title = TextView(this@LiveTvActivity).apply { text = "${position + 1}. ${if (favorite) "★ " else ""}${c.name.ifBlank { "Channel ${position + 1}" }}"; textSize = if (isPortrait()) 14f else 15f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD; maxLines = 2 }; val meta = TextView(this@LiveTvActivity).apply { text = if (c.epgId.isNullOrBlank()) "● LIVE" else "● LIVE  •  EPG"; textSize = 10f; setTextColor(if (focused) Color.WHITE else muted) }; item.addView(title); item.addView(meta); item.setOnFocusChangeListener { v, hasFocus -> v.background = channelCardBackground(position == selectedIndex, hasFocus); if (hasFocus) { selectedIndex = position; showEpg(c) } }; item.setOnClickListener { selectedIndex = position; handleChannelClick(c) }; return item } }; if (channels.isNotEmpty()) { list.setSelection(selectedIndex); list.post { list.invalidateViews() } } }
+    private fun render() {
+        if (!::list.isInitialized) return
+        val previousId = displayedChannels.getOrNull(selectedIndex)?.id
+        val channels = filteredChannels()
+        displayedChannels = channels
+
+        if (channels.isEmpty()) selectedIndex = -1
+        else {
+            val preservedIndex = previousId?.let { id -> channels.indexOfFirst { it.id == id } } ?: -1
+            selectedIndex = when { preservedIndex >= 0 -> preservedIndex; selectedIndex >= 0 -> selectedIndex.coerceIn(0, channels.lastIndex); else -> 0 }
+        }
+
+        list.adapter = object : ArrayAdapter<IptvChannel>(this, android.R.layout.simple_list_item_1, channels) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val c = getItem(position) ?: return TextView(this@LiveTvActivity)
+                val focused = position == list.selectedItemPosition || position == selectedIndex
+                val favorite = try { UserLibraryStore.isFavorite(this@LiveTvActivity, config, c.toLibraryItem()) } catch (_: Exception) { false }
+                val item = LinearLayout(this@LiveTvActivity).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL; setPadding(10, 8, 10, 8); minimumHeight = dp(if (compact) 72 else if (wide) 92 else 84); background = channelCardBackground(position == selectedIndex, focused); isFocusable = true; isFocusableInTouchMode = true; contentDescription = c.name.ifBlank { "Channel ${position + 1}" } }
+                val title = TextView(this@LiveTvActivity).apply { text = "${position + 1}. ${if (favorite) "★ " else ""}${c.name.ifBlank { "Channel ${position + 1}" }}"; textSize = if (isPortrait()) 14f else 15f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD; maxLines = 2 }
+                val meta = TextView(this@LiveTvActivity).apply { text = if (c.epgId.isNullOrBlank()) "● LIVE" else "● LIVE  •  EPG"; textSize = 10f; setTextColor(if (focused) Color.WHITE else muted) }
+                item.addView(title); item.addView(meta)
+                item.setOnFocusChangeListener { v, hasFocus -> v.background = channelCardBackground(position == selectedIndex, hasFocus); if (hasFocus) { selectedIndex = position; showEpg(c) } }
+                item.setOnClickListener { selectedIndex = position; handleChannelClick(c) }
+                return item
+            }
+        }
+        if (channels.isNotEmpty()) { list.setSelection(selectedIndex); list.post { list.invalidateViews() } }
+    }
     private fun handleChannelClick(channel: IptvChannel) { if (fullscreenLaunchInProgress) return; if (previewChannelId == channel.id) playFullscreen(channel) else preview(channel) }
     private fun preview(channel: IptvChannel) { val url = channel.streamUrl.trim(); if (url.isBlank()) { status.text = "${channel.name} has no stream URL"; return }; previewChannelId = channel.id; previewCategoryId = channel.categoryId; if (!favoritesMode) selectedCategory = channel.categoryId; getSharedPreferences("alfie_tv", Context.MODE_PRIVATE).edit().putString("last_channel_${config.serverUrl}_${config.username}", channel.id).putString("last_category_${config.serverUrl}_${config.username}", channel.categoryId ?: "").apply(); rebuildCategories(); if (previewPlayer == null) previewPlayer = AlfiePlayer(this).also { it.attach(previewView) }; previewPlayer?.play(url, channel.name, channelNumber = (displayedChannels.indexOfFirst { it.id == channel.id } + 1).coerceAtLeast(1).toString()); epgTitle.text = "PREVIEW  •  ${channel.name}"; status.text = "${channel.name}  •  Preview playing  •  OK again = fullscreen"; showEpg(channel); list.post { list.invalidateViews(); focusSelectedChannel() } }
     private fun playFullscreen(channel: IptvChannel) { if (fullscreenLaunchInProgress) return; val url = channel.streamUrl.trim(); if (url.isBlank()) return; fullscreenLaunchInProgress = true; awaitingFullscreenReturn = true; previewChannelId = channel.id; previewCategoryId = channel.categoryId; if (!favoritesMode) selectedCategory = channel.categoryId; val channels = displayedChannels; val index = channels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0); val intent = android.content.Intent(this, VideoPlayerActivity::class.java).apply { putExtra("url", url); putExtra("stream_url", url); putExtra("title", channel.name); putExtra("content_id", channel.id); putExtra("content_type", "LIVE"); putExtra("channel_id", channel.id); putExtra("channel_number", (index + 1).toString()); putExtra("preview_category_id", channel.categoryId); putExtra("channel_urls", ArrayList(channels.map { it.streamUrl })); putExtra("channel_titles", ArrayList(channels.map { it.name })); putExtra("channel_ids", ArrayList(channels.map { it.id })); putExtra("channel_numbers", ArrayList(channels.indices.map { (it + 1).toString() })); putExtra("channel_index", index); putExtra("server", config.serverUrl); putExtra("username", config.username); putExtra("password", config.password) }; previewPlayer?.release(); previewPlayer = null; previewView.player = null; try { startActivity(intent) } catch (e: Exception) { fullscreenLaunchInProgress = false; awaitingFullscreenReturn = false; preview(channel); status.text = "Unable to open fullscreen player: ${e.message ?: "unknown error"}" } }
-    override fun onResume() { super.onResume(); if (!awaitingFullscreenReturn) return; awaitingFullscreenReturn = false; fullscreenLaunchInProgress = false; val prefs = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE); val persistedId = prefs.getString("last_channel_${config.serverUrl}_${config.username}", null); val persistedCategory = prefs.getString("last_category_${config.serverUrl}_${config.username}", null); val returnId = persistedId ?: previewChannelId; val returnChannel = allChannels.firstOrNull { it.id == returnId }; if (returnChannel != null) { favoritesMode = false; selectedCategory = returnChannel.categoryId ?: persistedCategory ?: previewCategoryId ?: selectedCategory; previewCategoryId = returnChannel.categoryId ?: persistedCategory ?: previewCategoryId; previewChannelId = returnChannel.id; rebuildCategories(); selectedIndex = filteredChannels().indexOfFirst { it.id == returnChannel.id }.coerceAtLeast(0); list.post { list.setSelection(selectedIndex); preview(returnChannel); list.invalidateViews(); focusSelectedChannel(); highlightSelectedCategory() } } else { favoritesMode = false; selectedCategory = persistedCategory ?: previewCategoryId ?: selectedCategory; rebuildCategories(); focusSelectedChannel(); highlightSelectedCategory() } }
+    override fun onResume() {
+        super.onResume()
+        if (!awaitingFullscreenReturn) return
+        awaitingFullscreenReturn = false
+        fullscreenLaunchInProgress = false
+
+        val prefs = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
+        val persistedId = prefs.getString("last_channel_${config.serverUrl}_${config.username}", null)
+        val persistedCategory = prefs.getString("last_category_${config.serverUrl}_${config.username}", null)
+        val returnId = persistedId ?: previewChannelId
+        val returnChannel = allChannels.firstOrNull { it.id == returnId }
+
+        if (returnChannel != null) {
+            favoritesMode = false
+            selectedCategory = returnChannel.categoryId ?: persistedCategory ?: previewCategoryId ?: selectedCategory
+            previewCategoryId = returnChannel.categoryId ?: persistedCategory ?: previewCategoryId
+            previewChannelId = returnChannel.id
+            rebuildCategories()
+            selectedIndex = filteredChannels().indexOfFirst { it.id == returnChannel.id }.coerceAtLeast(0)
+            list.post {
+                list.setSelection(selectedIndex)
+                preview(returnChannel)
+                list.invalidateViews()
+                focusSelectedChannel()
+                highlightSelectedCategory()
+            }
+        } else {
+            favoritesMode = false
+            selectedCategory = persistedCategory ?: previewCategoryId ?: selectedCategory
+            rebuildCategories()
+            focusSelectedChannel()
+            highlightSelectedCategory()
+        }
+    }
     private fun focusSelectedChannel() { val channels = displayedChannels; if (channels.isEmpty()) return; selectedIndex = selectedIndex.coerceIn(0, channels.lastIndex); list.post { list.setSelection(selectedIndex); list.requestFocus(); list.invalidateViews() } }
     private fun highlightSelectedCategory() { val index = categories.indexOfFirst { it.id == selectedCategory }; val childIndex = if (index >= 0) index + 1 else 0; categoryRow.getChildAt(childIndex)?.let { view -> view.background = roundedBackground(accent, 12f) } }
     private fun showEpg(channel: IptvChannel) { epgTitle.text = if (previewChannelId == channel.id) "PREVIEW  •  ${channel.name}" else "LIVE PREVIEW  •  ${channel.name}"; epgNow.text = "NOW  Loading…"; epgNext.text = "NEXT  Loading…"; epgMeta.text = "EPG: ${channel.epgId ?: "not mapped"}"; epgProgress.progress = 0; executor.execute { try { val programs = XtreamClient().loadEpg(config, channel); runOnUiThread { if (previewChannelId == channel.id || selectedChannel()?.id == channel.id) renderEpg(channel, programs) } } catch (_: Exception) { runOnUiThread { if (selectedChannel()?.id == channel.id) { epgNow.text = "NOW  No programme data"; epgNext.text = "NEXT  Press OK to preview live" } } } } }
@@ -165,7 +248,11 @@ class LiveTvActivity : ComponentActivity() {
     private fun selectFavorites() { favoritesMode = true; selectedCategory = null; val favorites = allChannels.filter { try { UserLibraryStore.isFavorite(this, config, it.toLibraryItem()) } catch (_: Exception) { false } }; displayedChannels = favorites; rebuildCategories(); selectedIndex = if (favorites.isNotEmpty()) 0 else -1; render(); status.text = "★ Favorites  •  ${favorites.size} channels"; if (favorites.isNotEmpty()) { list.setSelection(0); list.requestFocus() } }
     private fun moveChannel(delta: Int) { val channels = displayedChannels; if (channels.isEmpty()) return; val current = list.selectedItemPosition.takeIf { it >= 0 } ?: selectedIndex; selectedIndex = (current + delta).coerceIn(0, channels.lastIndex); list.setSelection(selectedIndex); showEpg(channels[selectedIndex]) }
     private fun roundedBackground(color: Int, radiusDp: Float) = GradientDrawable().apply { setColor(color); cornerRadius = radiusDp * resources.displayMetrics.density }
-    private fun channelCardBackground(selected: Boolean, focused: Boolean) = GradientDrawable().apply { setColor(if (selected) Color.rgb(0, 85, 160) else row); cornerRadius = 12f * resources.displayMetrics.density; if (focused) setStroke(dp(if (compact) 2 else 3), Color.WHITE) }
+    private fun channelCardBackground(selected: Boolean, focused: Boolean) = GradientDrawable().apply {
+        setColor(if (selected) Color.rgb(0, 85, 160) else row)
+        cornerRadius = 12f * resources.displayMetrics.density
+        if (focused) setStroke(dp(if (compact) 2 else 3), Color.WHITE)
+    }
     private fun animateFocus(view: View, focused: Boolean) { ObjectAnimator.ofFloat(view, "scaleX", if (focused) 1.03f else 1f).setDuration(120).start(); ObjectAnimator.ofFloat(view, "scaleY", if (focused) 1.03f else 1f).setDuration(120).start() }
     override fun onBackPressed() { if (search.hasFocus() && search.text.isNotEmpty()) { search.text.clear(); list.requestFocus(); return }; super.onBackPressed() }
     override fun onDestroy() { mainHandler.removeCallbacks(ticker); previewPlayer?.release(); previewPlayer = null; executor.shutdownNow(); super.onDestroy() }
