@@ -21,7 +21,7 @@ fun IptvChannel.toLibraryItem(): UserLibraryStore.Item =
 /** Compatibility handoff that keeps LiveTvActivity directly underneath the fullscreen player. */
 class VideoPlayerActivity : ComponentActivity() {
     private var handoffStarted = false
-    private var returningFromMain = false
+    private var bridgeStopped = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,11 +48,9 @@ class VideoPlayerActivity : ComponentActivity() {
             }
 
             runCatching {
-                returningFromMain = true
                 startActivity(target)
                 overridePendingTransition(0, 0)
             }.onFailure { error ->
-                returningFromMain = false
                 handoffStarted = false
                 Toast.makeText(this, "Unable to open fullscreen player: ${error.message ?: "unknown error"}", Toast.LENGTH_LONG).show()
                 finish()
@@ -69,13 +67,18 @@ class VideoPlayerActivity : ComponentActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        // MainActivity is stacked above this compatibility activity. Once it
-        // finishes, immediately remove the bridge so LiveTvActivity is restored
-        // as the direct previous screen.
-        if (returningFromMain && handoffStarted) {
-            returningFromMain = false
+    override fun onStop() {
+        super.onStop()
+        if (handoffStarted && !isChangingConfigurations) bridgeStopped = true
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // MainActivity is above this bridge. When it finishes, this activity
+        // starts again; remove the bridge immediately so LiveTvActivity becomes
+        // the direct previous screen.
+        if (handoffStarted && bridgeStopped && !isChangingConfigurations) {
+            bridgeStopped = false
             finish()
             overridePendingTransition(0, 0)
         }
