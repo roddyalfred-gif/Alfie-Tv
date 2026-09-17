@@ -46,6 +46,7 @@ class LiveTvActivity : ComponentActivity() {
     private lateinit var epgMeta: TextView
     private var previewPlayer: AlfiePlayer? = null
     private var previewChannelId: String? = null
+    private var previewCategoryId: String? = null
     private var selectedCategory: String? = null
     private var allChannels = emptyList<IptvChannel>()
     private var selectedIndex = -1
@@ -182,10 +183,14 @@ class LiveTvActivity : ComponentActivity() {
     private fun applyChannels(newCategories: List<IptvCategory>, channels: List<IptvChannel>) {
         categories = newCategories; allChannels = channels; rebuildCategories(); render()
         val pendingId = intent.getStringExtra("preview_channel_id")
-        if (!pendingId.isNullOrBlank()) channels.firstOrNull { it.id == pendingId }?.let { intent.removeExtra("preview_channel_id"); selectedIndex = filteredChannels().indexOfFirst { c -> c.id == it.id }.coerceAtLeast(0); list.post { list.setSelection(selectedIndex); preview(it) } }
+        if (!pendingId.isNullOrBlank()) channels.firstOrNull { it.id == pendingId }?.let { intent.removeExtra("preview_channel_id"); selectedCategory = it.categoryId; previewCategoryId = it.categoryId; rebuildCategories(); selectedIndex = filteredChannels().indexOfFirst { c -> c.id == it.id }.coerceAtLeast(0); list.post { list.setSelection(selectedIndex); preview(it); highlightSelectedCategory() } }
         if (!restoredLastChannel) {
             restoredLastChannel = true
-            getSharedPreferences("alfie_tv", Context.MODE_PRIVATE).getString("last_channel_${config.serverUrl}_${config.username}", null)?.let { id -> channels.firstOrNull { it.id == id }?.let { selectedIndex = filteredChannels().indexOfFirst { c -> c.id == it.id }.coerceAtLeast(0); list.post { list.setSelection(selectedIndex); showEpg(it) } } }
+            val prefs = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
+            val lastId = prefs.getString("last_channel_${config.serverUrl}_${config.username}", null)
+            val lastCategory = prefs.getString("last_category_${config.serverUrl}_${config.username}", null)
+            if (!lastCategory.isNullOrBlank()) selectedCategory = lastCategory
+            lastId?.let { id -> channels.firstOrNull { it.id == id }?.let { selectedCategory = it.categoryId ?: selectedCategory; previewCategoryId = it.categoryId; selectedIndex = filteredChannels().indexOfFirst { c -> c.id == it.id }.coerceAtLeast(0); rebuildCategories(); list.post { list.setSelection(selectedIndex); showEpg(it); highlightSelectedCategory() } } }
         }
         status.text = "${channels.size} channels  •  ${categories.size} categories  •  OK = preview  •  OK again = fullscreen"
     }
@@ -213,18 +218,28 @@ class LiveTvActivity : ComponentActivity() {
     private fun preview(channel: IptvChannel) {
         val url = channel.streamUrl.trim(); if (url.isBlank()) { status.text = "${channel.name} has no stream URL"; return }
         previewChannelId = channel.id
-        getSharedPreferences("alfie_tv", Context.MODE_PRIVATE).edit().putString("last_channel_${config.serverUrl}_${config.username}", channel.id).apply()
+        previewCategoryId = channel.categoryId
+        selectedCategory = channel.categoryId
+        getSharedPreferences("alfie_tv", Context.MODE_PRIVATE).edit()
+            .putString("last_channel_${config.serverUrl}_${config.username}", channel.id)
+            .putString("last_category_${config.serverUrl}_${config.username}", channel.categoryId ?: "")
+            .apply()
+        rebuildCategories()
         if (previewPlayer == null) previewPlayer = AlfiePlayer(this).also { it.attach(previewView) }
         previewPlayer?.play(url, channel.name, channelNumber = (filteredChannels().indexOfFirst { it.id == channel.id } + 1).coerceAtLeast(1).toString())
         epgTitle.text = "PREVIEW  •  ${channel.name}"; status.text = "${channel.name}  •  Preview playing  •  OK again = fullscreen"; showEpg(channel)
+        list.post { list.invalidateViews(); highlightSelectedCategory() }
     }
     private fun playFullscreen(channel: IptvChannel) {
         if (fullscreenLaunchInProgress) return
         val url = channel.streamUrl.trim(); if (url.isBlank()) return
         fullscreenLaunchInProgress = true; awaitingFullscreenReturn = true
+        previewChannelId = channel.id
+        previewCategoryId = channel.categoryId
+        selectedCategory = channel.categoryId
         val channels = filteredChannels(); val index = channels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
         val intent = android.content.Intent(this, VideoPlayerActivity::class.java).apply {
-            putExtra("url", url); putExtra("stream_url", url); putExtra("title", channel.name); putExtra("content_id", channel.id); putExtra("content_type", "LIVE"); putExtra("channel_id", channel.id); putExtra("channel_number", (index + 1).toString())
+            putExtra("url", url); putExtra("stream_url", url); putExtra("title", channel.name); putExtra("content_id", channel.id); putExtra("content_type", "LIVE"); putExtra("channel_id", channel.id); putExtra("channel_number", (index + 1).toString()); putExtra("preview_category_id", channel.categoryId)
             putExtra("channel_urls", ArrayList(channels.map { it.streamUrl })); putExtra("channel_titles", ArrayList(channels.map { it.name })); putExtra("channel_ids", ArrayList(channels.map { it.id })); putExtra("channel_numbers", ArrayList(channels.indices.map { (it + 1).toString() })); putExtra("channel_index", index); putExtra("server", config.serverUrl); putExtra("username", config.username); putExtra("password", config.password)
         }
         previewPlayer?.release(); previewPlayer = null; previewView.player = null
@@ -232,7 +247,22 @@ class LiveTvActivity : ComponentActivity() {
     }
     override fun onResume() {
         super.onResume()
-        if (awaitingFullscreenReturn) { awaitingFullscreenReturn = false; fullscreenLaunchInProgress = false; previewChannelId?.let { id -> allChannels.firstOrNull { it.id == id }?.let { c -> list.post { selectedIndex = filteredChannels().indexOfFirst { it.id == c.id }.coerceAtLeast(0); list.setSelection(selectedIndex); preview(c); list.invalidateViews() } } } }
+        if (awaitingFullscreenReturn) {
+            awaitingFullscreenReturn = false; fullscreenLaunchInProgress = false
+            selectedCategory = previewCategoryId ?: selectedCategory
+            rebuildCategories()
+            previewChannelId?.let { id -> allChannels.firstOrNull { it.id == id }?.let { c ->
+                selectedCategory = c.categoryId ?: previewCategoryId ?: selectedCategory
+                previewCategoryId = c.categoryId
+                selectedIndex = filteredChannels().indexOfFirst { it.id == c.id }.coerceAtLeast(0)
+                list.post { list.setSelection(selectedIndex); preview(c); list.invalidateViews(); highlightSelectedCategory() }
+            } }
+        }
+    }
+    private fun highlightSelectedCategory() {
+        val index = categories.indexOfFirst { it.id == selectedCategory }
+        val childIndex = if (index >= 0) index + 1 else 0
+        categoryRow.getChildAt(childIndex)?.let { view -> view.background = roundedBackground(accent, 12f); view.requestFocus() }
     }
 
     private fun showEpg(channel: IptvChannel) {
