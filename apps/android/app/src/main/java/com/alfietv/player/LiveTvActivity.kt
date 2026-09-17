@@ -124,7 +124,7 @@ class LiveTvActivity : ComponentActivity() {
             }
             setOnFocusChangeListener { _, focused -> if (focused) selectedChannel()?.let(::showEpg) }
         }
-        details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(if (compact) 8 else 12), dp(if (compact) 8 else 12), dp(if (compact) 8 else 12), dp(if (compact) 8 else 12)); setBackgroundColor(panel); isFocusable = true; isFocusableInTouchMode = true }
+        details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(if (compact) 8 else 12), dp(if (compact) 8 else 12), dp(if (compact) 8 else 12), dp(if (compact) 8 else 12)); setBackgroundColor(panel); isFocusable = true; isFocusableInTouchMode = true; setOnKeyListener { _, keyCode, event -> if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 && keyCode == KeyEvent.KEYCODE_DPAD_LEFT) { focusSelectedChannel(); true } else false } }
         previewView = PlayerView(this).apply { useController = false; controllerAutoShow = false; setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS); resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT; setBackgroundColor(Color.BLACK) }
         details.addView(previewView, LinearLayout.LayoutParams(-1, previewHeight).apply { bottomMargin = dp(8) })
         epgTitle = label("LIVE PREVIEW", 20f, Color.WHITE, true)
