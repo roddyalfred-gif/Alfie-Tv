@@ -2,8 +2,8 @@ package com.alfietv.player
 
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.DecoderCounters
 import androidx.media3.exoplayer.analytics.AnalyticsListener
-import androidx.media3.decoder.DecoderCounters
 
 /** Runtime metrics used to diagnose long-running live TV and VOD playback. */
 data class PlaybackDiagnostics(
