@@ -123,7 +123,7 @@ class LiveTvActivity : ComponentActivity() {
         status = label("Loading channels…", 12f, muted, false); status.setPadding(4, 5, 4, 0); root.addView(status, LinearLayout.LayoutParams(-1, 28)); setContentView(root)
         search.addTextChangedListener(object : TextWatcher { override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit; override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { render() }; override fun afterTextChanged(s: Editable?) = Unit })
         list.setOnItemClickListener { _, _, position, _ -> filteredChannels().getOrNull(position)?.let { selectedIndex = position; handleChannelClick(it) } }
-        list.setOnItemSelectedListener(object : AdapterView.OnItemSelectedListener { override fun onNothingSelected(parent: AdapterView<*>?) = Unit; override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { selectedIndex = position; filteredChannels().getOrNull(position)?.let(::showEpg); list.post { list.invalidateViews() } })
+        list.setOnItemSelectedListener(object : AdapterView.OnItemSelectedListener { override fun onNothingSelected(parent: AdapterView<*>?) = Unit; override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { selectedIndex = position; filteredChannels().getOrNull(position)?.let(::showEpg); list.post { list.invalidateViews() } } })
         setColumns(if (isPortrait()) 2 else 3)
     }
     private fun isPortrait() = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
