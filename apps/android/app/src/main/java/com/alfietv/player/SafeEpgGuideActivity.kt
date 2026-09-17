@@ -19,6 +19,7 @@ import androidx.activity.ComponentActivity
 import java.text.DateFormat
 import java.util.Date
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 /** Crash-safe provider-driven TV Guide with an adaptive time-aligned schedule grid. */
 class SafeEpgGuideActivity : ComponentActivity() {
@@ -28,11 +29,12 @@ class SafeEpgGuideActivity : ComponentActivity() {
     private lateinit var config: XtreamConfig
     private lateinit var timeHeader: LinearLayout
     private lateinit var timeHeaderScroll: HorizontalScrollView
-    private val executor = Executors.newFixedThreadPool(4)
+    private val executor = Executors.newFixedThreadPool(2)
+    private val epgExecutor = Executors.newFixedThreadPool(4)
     private val epgByChannel = mutableMapOf<String, List<EpgProgram>>()
     private var channels: List<IptvChannel> = emptyList()
     private var selectedChannelId: String? = null
-    private var epgCompleted = 0
+    private val epgCompleted = AtomicInteger(0)
     private var epgTotal = 0
     private var guideScrollX = 0
     private var syncingGuideScroll = false
@@ -129,36 +131,48 @@ class SafeEpgGuideActivity : ComponentActivity() {
                         .getOrNull()
                         ?.let { snapshot -> synchronized(epgByChannel) { epgByChannel[channel.id] = snapshot.programs } }
                 }
+                epgCompleted.set(0)
                 epgTotal = channels.size
                 runOnUiThread {
                     status.text = "${channels.size} channels • Loading provider EPG…"
                     adapter.notifyDataSetChanged()
                 }
 
+                if (channels.isEmpty()) {
+                    runOnUiThread {
+                        status.text = "No channels available from provider"
+                        adapter.notifyDataSetChanged()
+                    }
+                    return@execute
+                }
+
                 channels.forEach { channel ->
-                    try {
-                        val programs = XtreamClient().loadEpg(config, channel)
-                        if (programs.isNotEmpty()) {
-                            synchronized(epgByChannel) { epgByChannel[channel.id] = programs }
-                            runCatching { EpgCache.write(this, config, channel, programs) }
-                        }
-                    } catch (_: Exception) {
-                        // One bad channel must never close the Guide.
-                    } finally {
-                        epgCompleted++
-                        if (epgCompleted % 10 == 0 || epgCompleted == epgTotal) {
-                            val completed = epgCompleted
-                            runOnUiThread {
-                                status.text = "${channels.size} channels • EPG $completed/$epgTotal"
-                                adapter.notifyDataSetChanged()
+                    epgExecutor.execute {
+                        try {
+                            val programs = XtreamClient().loadEpg(config, channel)
+                            if (programs.isNotEmpty()) {
+                                synchronized(epgByChannel) { epgByChannel[channel.id] = programs }
+                                runCatching { EpgCache.write(this, config, channel, programs) }
+                            }
+                        } catch (_: Exception) {
+                            // One bad channel must never close the Guide.
+                        } finally {
+                            val completed = epgCompleted.incrementAndGet()
+                            if (completed % 10 == 0 || completed == epgTotal) {
+                                runOnUiThread {
+                                    status.text = "${channels.size} channels • EPG $completed/$epgTotal"
+                                    adapter.notifyDataSetChanged()
+                                }
+                            }
+                            if (completed == epgTotal) {
+                                val count = synchronized(epgByChannel) { epgByChannel.size }
+                                runOnUiThread {
+                                    status.text = "${channels.size} channels • ${count} with EPG • Guide ready"
+                                    adapter.notifyDataSetChanged()
+                                }
                             }
                         }
                     }
-                }
-                runOnUiThread {
-                    val count = synchronized(epgByChannel) { epgByChannel.size }
-                    status.text = "${channels.size} channels • ${count} with EPG • Guide ready"
-                    adapter.notifyDataSetChanged()
                 }
             } catch (error: Exception) {
                 val cached = runCatching { LiveTvCache.read(this, config) }.getOrNull()
@@ -368,6 +382,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
 
     override fun onDestroy() {
         executor.shutdownNow()
+        epgExecutor.shutdownNow()
         super.onDestroy()
     }
 }
