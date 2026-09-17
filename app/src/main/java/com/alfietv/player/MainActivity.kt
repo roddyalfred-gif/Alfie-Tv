@@ -73,6 +73,22 @@ class MainActivity : ComponentActivity() {
         root.postDelayed(refreshRunnable, 1000L)
     }
 
+    private fun isCompactPlayer(): Boolean {
+        val widthDp = resources.configuration.screenWidthDp
+        val heightDp = resources.configuration.screenHeightDp
+        return widthDp < 600 || (widthDp < 720 && heightDp < 520)
+    }
+
+    private fun overlaySidePadding(): Int {
+        val widthDp = resources.configuration.screenWidthDp
+        return when {
+            widthDp < 360 -> 10
+            widthDp < 600 -> 16
+            widthDp < 900 -> 24
+            else -> 32
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -83,7 +99,7 @@ class MainActivity : ComponentActivity() {
         channelIndex = intent.getIntExtra("channel_index", 0).coerceIn(0, (channelUrls.size - 1).coerceAtLeast(0))
         setupLibraryProgress()
         root = FrameLayout(this)
-        val compactPlayer = resources.configuration.screenWidthDp < 600
+        val compactPlayer = isCompactPlayer()
         playerView = PlayerView(this).apply {
             useController = SettingsStore.playerControls(this@MainActivity)
             controllerAutoShow = false
@@ -176,8 +192,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun buildOverlay() {
-        val compactPlayer = resources.configuration.screenWidthDp < 600
-        val horizontalPadding = if (compactPlayer) 16 else 28
+        val compactPlayer = isCompactPlayer()
+        val horizontalPadding = overlaySidePadding()
         val topPadding = if (compactPlayer) 12 else 20
         topOverlay = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -312,16 +328,23 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun addTrackButton(label: String, action: () -> Unit) {
-        val compactPlayer = resources.configuration.screenWidthDp < 600
+        val compactPlayer = isCompactPlayer()
+        val widthDp = resources.configuration.screenWidthDp
+        val buttonWidth = when {
+            widthDp < 360 -> 104
+            compactPlayer -> 120
+            widthDp < 900 -> 128
+            else -> 136
+        }
         val button = Button(this).apply {
             text = label
             isFocusable = true
             isFocusableInTouchMode = true
             minHeight = if (compactPlayer) 48 else 52
-            minWidth = if (compactPlayer) 112 else 128
+            minWidth = buttonWidth
             setOnClickListener { action() }
         }
-        trackPanel.addView(button, LinearLayout.LayoutParams(if (compactPlayer) 120 else 136, FrameLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(4, 0, 4, 0) })
+        trackPanel.addView(button, LinearLayout.LayoutParams(buttonWidth, FrameLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(4, 0, 4, 0) })
     }
 
     private fun seekBy(deltaMs: Long) {
@@ -345,9 +368,6 @@ class MainActivity : ComponentActivity() {
             playerView.requestFocus()
             return true
         }
-        // Fullscreen Live TV should return to the Live TV preview on the first Back.
-        // The compatibility activity has already returned control to LiveTvActivity;
-        // finishing MainActivity here avoids consuming Back to merely hide controls.
         if (intent.getStringExtra("content_type") == UserLibraryStore.Type.LIVE.name || channelUrls.isNotEmpty()) {
             finish()
             return true
