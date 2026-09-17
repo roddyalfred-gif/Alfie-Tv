@@ -1,5 +1,6 @@
 package com.alfietv.player
 
+import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
@@ -285,10 +286,13 @@ class EpgGuideActivity : ComponentActivity() {
                 background = rounded(if (current) Color.rgb(0, 85, 160) else row, 12f)
                 isFocusable = true
                 isFocusableInTouchMode = true
+                contentDescription = if (current) "${program.title}, now playing" else "${program.title}, upcoming programme"
                 setOnFocusChangeListener { view, focused ->
                     view.background = rounded(if (focused || current) accent else row, 12f)
                 }
-                setOnClickListener { channel?.let(::playChannel) }
+                setOnClickListener {
+                    if (current) channel?.let(::playChannel) else showFutureProgramme(program, channel)
+                }
                 setOnKeyListener { _, keyCode, event ->
                     if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
                         channelList.requestFocus()
@@ -329,6 +333,20 @@ class EpgGuideActivity : ComponentActivity() {
         schedule.post { schedule.getChildAt(1)?.requestFocus() }
     }
 
+    private fun showFutureProgramme(program: EpgProgram, channel: IptvChannel?) {
+        val start = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(program.startUtcMs))
+        val end = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(program.endUtcMs))
+        AlertDialog.Builder(this)
+            .setTitle(program.title)
+            .setMessage("${channel?.name ?: "Channel"}\n$start – $end\n\nThis programme has not started yet. You can set a reminder or dismiss this notice.")
+            .setNegativeButton("Dismiss", null)
+            .setPositiveButton("Remind me") { _, _ ->
+                getPreferences(MODE_PRIVATE).edit().putLong("reminder_${channel?.id}_${program.startUtcMs}", program.startUtcMs).apply()
+                status.text = "Reminder set for ${program.title}"
+            }
+            .show()
+    }
+
     /** Return to the actual Live TV screen while keeping this Guide in the task back stack. */
     private fun playChannel(channel: IptvChannel) {
         val url = channel.streamUrl.trim()
@@ -353,8 +371,6 @@ class EpgGuideActivity : ComponentActivity() {
                 putExtra("channel_ids", channelIds)
                 putExtra("channel_numbers", channelNumbers)
             })
-            // Keep the Guide alive underneath Live TV. If a playback activity fails,
-            // the user returns to the Guide instead of being dropped to the provider login.
         } catch (e: Exception) {
             status.text = "Unable to open Live TV: ${e.message ?: "unknown error"}"
         }
