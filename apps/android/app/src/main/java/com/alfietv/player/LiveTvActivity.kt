@@ -14,6 +14,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
@@ -88,17 +89,14 @@ class LiveTvActivity : ComponentActivity() {
         header.addView(TextView(this).apply { text = "Live TV"; textSize = 28f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD }, LinearLayout.LayoutParams(0, -2, 1f))
         search = EditText(this).apply { hint = "Search channels..."; setSingleLine(true); textSize = 16f; setTextColor(Color.WHITE); setHintTextColor(muted); isFocusable = true; isFocusableInTouchMode = true; background = roundedBackground(panel, 12f); setPadding(18, 0, 18, 0) }
         header.addView(search, LinearLayout.LayoutParams(0, 52, 1.7f)); root.addView(header, LinearLayout.LayoutParams(-1, 56))
-
         val categoryScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; isFocusable = false }
         categoryRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         categoryScroll.addView(categoryRow); addCategoryButton("All", null)
         root.addView(categoryScroll, LinearLayout.LayoutParams(-1, 52).apply { bottomMargin = 2 })
-
         val layoutRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         layoutRow.addView(TextView(this).apply { text = "View"; textSize = 13f; setTextColor(muted) }, LinearLayout.LayoutParams(-2, 44))
         layoutRow.addView(LayoutModeControls.create(this, "live", LayoutMode.LIST) { selected -> currentLayoutMode = selected; applyLayoutMode(); render(); setBaseStatus("${filteredChannels().size} channels • ${layoutModeLabel()} view"); list.requestFocus() }, LinearLayout.LayoutParams(0, 44, 1f))
         root.addView(layoutRow, LinearLayout.LayoutParams(-1, 46).apply { bottomMargin = 6 })
-
         val content = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         list = GridView(this).apply {
             isFocusable = true; isFocusableInTouchMode = true; clipToPadding = false; verticalSpacing = 8; horizontalSpacing = 8; stretchMode = GridView.STRETCH_COLUMN_WIDTH
@@ -109,7 +107,8 @@ class LiveTvActivity : ComponentActivity() {
                     KeyEvent.KEYCODE_CHANNEL_UP -> { moveChannel(-1); true }
                     KeyEvent.KEYCODE_CHANNEL_DOWN -> { moveChannel(1); true }
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                        filteredChannels().getOrNull(selectedIndex.coerceAtLeast(0))?.let { channel -> showEpg(channel); handleChannelClick(channel) }; true
+                        val position = list.selectedItemPosition.takeIf { it >= 0 } ?: selectedIndex
+                        filteredChannels().getOrNull(position.coerceAtLeast(0))?.let { channel -> selectedIndex = position; showEpg(channel); handleChannelClick(channel) }; true
                     }
                     KeyEvent.KEYCODE_DPAD_RIGHT -> { epgContainer.requestFocus(); true }
                     KeyEvent.KEYCODE_DPAD_UP -> { val columns = maxOf(1, numColumns); if (selectedIndex in 0 until columns) { categoryRow.getChildAt(0)?.requestFocus(); true } else false }
@@ -119,7 +118,6 @@ class LiveTvActivity : ComponentActivity() {
             setOnFocusChangeListener { _, focused -> if (focused && selectedIndex >= 0) filteredChannels().getOrNull(selectedIndex)?.let(::showEpg) }
         }
         content.addView(list, LinearLayout.LayoutParams(0, -1, 1.62f))
-
         val epgScroll = ScrollView(this).apply { isFillViewport = true; isFocusable = false }
         epgContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(18, 18, 18, 18); setBackgroundColor(panel); isFocusable = true; isFocusableInTouchMode = true
@@ -134,21 +132,25 @@ class LiveTvActivity : ComponentActivity() {
         epgMeta = TextView(this).apply { textSize = 13f; setTextColor(muted); setPadding(0, 10, 0, 0) }
         epgContainer.addView(epgTitle); epgContainer.addView(epgNow); epgContainer.addView(epgProgress, LinearLayout.LayoutParams(-1, 8)); epgContainer.addView(epgNext); epgContainer.addView(epgMeta)
         epgScroll.addView(epgContainer); content.addView(epgScroll, LinearLayout.LayoutParams(0, -1, 0.92f).apply { leftMargin = 8 }); root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
-
         status = TextView(this).apply { text = baseStatus; textSize = 13f; setTextColor(muted); setPadding(4, 7, 4, 2) }
         root.addView(status, LinearLayout.LayoutParams(-1, 28)); setContentView(root)
         search.addTextChangedListener(object : TextWatcher { override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit; override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { render() }; override fun afterTextChanged(s: Editable?) = Unit })
         search.setOnEditorActionListener { _, _, _ -> list.requestFocus(); true }
-
-        // GridView handles activation. Child views deliberately have no click listener so one remote OK/touch event cannot fire twice.
         list.setOnItemClickListener { _, _, position, _ -> filteredChannels().getOrNull(position)?.let { channel -> selectedIndex = position; list.setSelection(position); showEpg(channel); list.invalidateViews(); handleChannelClick(channel) } }
+        list.setOnItemSelectedListener(object : AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                selectedIndex = position
+                filteredChannels().getOrNull(position)?.let(::showEpg)
+                list.post { list.invalidateViews() }
+            }
+        })
         list.setOnItemLongClickListener { _, _, position, _ -> filteredChannels().getOrNull(position)?.let { channel -> val added = UserLibraryStore.toggleFavorite(this, config, channel.toLibraryItem()); setBaseStatus(if (added) "★ Added to favorites: ${channel.name}" else "Removed from favorites: ${channel.name}"); render() }; true }
         applyLayoutMode()
     }
 
     private fun layoutModeLabel() = when (currentLayoutMode) { LayoutMode.GRID -> "Grid"; LayoutMode.LIST -> "List"; LayoutMode.TILE -> "Tile" }
     private fun applyLayoutMode() { when (currentLayoutMode) { LayoutMode.LIST -> { list.numColumns = 1; list.horizontalSpacing = 0; list.verticalSpacing = 8 }; LayoutMode.GRID -> { list.numColumns = 2; list.horizontalSpacing = 8; list.verticalSpacing = 10 }; LayoutMode.TILE -> { list.numColumns = 4; list.horizontalSpacing = 8; list.verticalSpacing = 10 } } }
-
     private fun addCategoryButton(name: String, id: String?) {
         val button = Button(this).apply {
             text = name; isAllCaps = false; textSize = 14f; setTextColor(Color.WHITE); background = roundedBackground(row, 12f); isFocusable = true; isFocusableInTouchMode = true; stateListAnimator = null
@@ -158,7 +160,6 @@ class LiveTvActivity : ComponentActivity() {
         }
         categoryRow.addView(button, LinearLayout.LayoutParams(-2, 46).apply { marginEnd = 8 })
     }
-
     private fun load() {
         val cached = LiveTvCache.read(this, config)
         if (cached != null) { applyChannels(cached.categories, cached.channels); setBaseStatus("${cached.channels.size} channels • Cached ${LiveTvCache.ageText(cached)} • Refreshing...") }
@@ -167,7 +168,6 @@ class LiveTvActivity : ComponentActivity() {
             catch (e: Exception) { runOnUiThread { setBaseStatus(if (allChannels.isNotEmpty()) "${allChannels.size} channels • Offline cache • Refresh failed" else "Unable to load channels: ${e.message ?: "unknown error"}") } }
         }
     }
-
     private fun applyChannels(categories: List<IptvCategory>, channels: List<IptvChannel>) {
         allChannels = channels; migrateLegacyFavorites(channels)
         while (categoryRow.childCount > 1) categoryRow.removeViewAt(1)
@@ -181,14 +181,12 @@ class LiveTvActivity : ComponentActivity() {
             prefs.getString(lastChannelKey(), null)?.let { id -> channels.firstOrNull { it.id == id } }?.let { last -> selectedIndex = filteredChannels().indexOfFirst { it.id == last.id }.coerceAtLeast(0); list.post { list.setSelection(selectedIndex); showEpg(last) } }
         }
     }
-
     private val prefs get() = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
     private fun lastChannelKey() = "last_channel_${providerKey()}"
     private fun providerKey() = sha256(config.serverUrl.trimEnd('/') + "\n" + config.username)
     private fun sha256(value: String) = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
     private fun migrateLegacyFavorites(channels: List<IptvChannel>) { if (prefs.getBoolean("favorites_migrated_v2", false)) return; prefs.getStringSet("favorites", emptySet()).orEmpty().forEach { id -> channels.firstOrNull { it.id == id }?.let { UserLibraryStore.toggleFavorite(this, config, it.toLibraryItem()) } }; prefs.edit().putBoolean("favorites_migrated_v2", true).apply() }
     private fun filteredChannels(): List<IptvChannel> { val query = search.text.toString().trim().lowercase(); return allChannels.filter { (selectedCategory == null || it.categoryId == selectedCategory) && (query.isBlank() || it.name.lowercase().contains(query)) } }
-
     private fun render() {
         val channels = filteredChannels()
         list.adapter = object : ArrayAdapter<IptvChannel>(this, android.R.layout.simple_list_item_1, channels) {
@@ -196,21 +194,18 @@ class LiveTvActivity : ComponentActivity() {
                 val channel = getItem(position) ?: return TextView(this@LiveTvActivity)
                 val focused = position == selectedIndex
                 val favorite = UserLibraryStore.isFavorite(this@LiveTvActivity, config, channel.toLibraryItem())
-                val item = LinearLayout(this@LiveTvActivity).apply { orientation = if (currentLayoutMode == LayoutMode.LIST) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL; setPadding(12, 8, 12, 8); minimumHeight = when (currentLayoutMode) { LayoutMode.LIST -> 70; LayoutMode.GRID -> 118; LayoutMode.TILE -> 92 }; background = roundedBackground(if (focused) Color.rgb(0, 85, 160) else row, 12f); isFocusable = true }
-                val name = TextView(this@LiveTvActivity).apply { text = "${position + 1}. ${if (favorite) "★ " else ""}${channel.name}"; textSize = if (currentLayoutMode == LayoutMode.LIST) 17f else 14f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD; maxLines = 3 }
-                val sub = TextView(this@LiveTvActivity).apply { text = if (channel.epgId != null) "EPG available" else "Live"; textSize = 11f; setTextColor(if (focused) Color.WHITE else muted) }
-                val box = LinearLayout(this@LiveTvActivity).apply { orientation = LinearLayout.VERTICAL; gravity = if (currentLayoutMode == LayoutMode.LIST) Gravity.CENTER_VERTICAL else Gravity.CENTER }
+                val item = LinearLayout(this@LiveTvActivity).apply { orientation = if (currentLayoutMode == LayoutMode.LIST) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL; setPadding(12, 8, 12, 8); minimumHeight = when (currentLayoutMode) { LayoutMode.LIST -> 70; LayoutMode.GRID -> 118; LayoutMode.TILE -> 92 }; background = roundedBackground(if (focused) Color.rgb(0, 85, 160) else row, 12f); isFocusable = false; isClickable = false }
+                val name = TextView(this@LiveTvActivity).apply { text = "${position + 1}. ${if (favorite) "★ " else ""}${channel.name}"; textSize = if (currentLayoutMode == LayoutMode.LIST) 17f else 14f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD; maxLines = 3; isFocusable = false }
+                val sub = TextView(this@LiveTvActivity).apply { text = if (channel.epgId != null) "EPG available" else "Live"; textSize = 11f; setTextColor(if (focused) Color.WHITE else muted); isFocusable = false }
+                val box = LinearLayout(this@LiveTvActivity).apply { orientation = LinearLayout.VERTICAL; gravity = if (currentLayoutMode == LayoutMode.LIST) Gravity.CENTER_VERTICAL else Gravity.CENTER; isFocusable = false }
                 box.addView(name); box.addView(sub); item.addView(box, LinearLayout.LayoutParams(-1, -2, 1f))
-                item.setOnFocusChangeListener { view, hasFocus -> if (hasFocus) { selectedIndex = position; showEpg(channel) }; view.background = roundedBackground(if (hasFocus) Color.rgb(0, 85, 160) else row, 12f); animateFocus(view, hasFocus) }
                 return item
             }
         }
-        if (channels.isNotEmpty()) list.setSelection(selectedIndex.coerceIn(0, channels.lastIndex))
+        if (channels.isNotEmpty()) { val safeIndex = selectedIndex.coerceIn(0, channels.lastIndex); selectedIndex = safeIndex; list.setSelection(safeIndex) }
     }
-
-    private fun moveChannel(delta: Int) { val channels = filteredChannels(); if (channels.isEmpty()) return; val next = (selectedIndex.coerceAtLeast(0) + delta).coerceIn(0, channels.lastIndex); selectedIndex = next; list.setSelection(next); channels[next].let(::showEpg); list.invalidateViews() }
+    private fun moveChannel(delta: Int) { val channels = filteredChannels(); if (channels.isEmpty()) return; val current = list.selectedItemPosition.takeIf { it >= 0 } ?: selectedIndex; val next = (current.coerceAtLeast(0) + delta).coerceIn(0, channels.lastIndex); selectedIndex = next; list.setSelection(next); channels[next].let(::showEpg); list.invalidateViews() }
     private fun handleChannelClick(channel: IptvChannel) { if (fullscreenLaunchInProgress) return; if (previewChannelId == channel.id) playFullscreen(channel) else preview(channel) }
-
     private fun preview(channel: IptvChannel) {
         val streamUrl = channel.streamUrl.trim()
         if (streamUrl.isBlank()) { setBaseStatus("${channel.name} has no stream URL • Provider refresh required"); return }
@@ -219,7 +214,6 @@ class LiveTvActivity : ComponentActivity() {
         previewPlayer?.play(streamUrl, channel.name, channelNumber = (filteredChannels().indexOfFirst { it.id == channel.id } + 1).coerceAtLeast(1).toString())
         previewView.post { previewView.requestLayout() }
     }
-
     private fun playFullscreen(channel: IptvChannel) {
         if (fullscreenLaunchInProgress) return
         val streamUrl = channel.streamUrl.trim()
@@ -233,17 +227,13 @@ class LiveTvActivity : ComponentActivity() {
         previewPlayer?.release(); previewPlayer = null; previewView.player = null
         try { startActivity(launchIntent) } catch (e: Exception) { fullscreenLaunchInProgress = false; awaitingFullscreenReturn = false; setBaseStatus("Unable to open fullscreen player: ${e.message ?: "unknown error"}"); preview(channel) }
     }
-
     override fun onResume() {
         super.onResume()
         if (awaitingFullscreenReturn) {
             awaitingFullscreenReturn = false; fullscreenLaunchInProgress = false
-            previewChannelId?.let { id -> allChannels.firstOrNull { it.id == id } }?.let { channel ->
-                list.post { selectedIndex = filteredChannels().indexOfFirst { it.id == channel.id }.coerceAtLeast(0); list.setSelection(selectedIndex); showEpg(channel); preview(channel); list.invalidateViews() }
-            }
+            previewChannelId?.let { id -> allChannels.firstOrNull { it.id == id } }?.let { channel -> list.post { selectedIndex = filteredChannels().indexOfFirst { it.id == channel.id }.coerceAtLeast(0); list.setSelection(selectedIndex); showEpg(channel); preview(channel); list.invalidateViews() } }
         }
     }
-
     private fun showEpg(channel: IptvChannel) {
         selectedEpgChannel = channel
         if (previewChannelId != channel.id) epgTitle.text = "LIVE PREVIEW"
@@ -252,7 +242,6 @@ class LiveTvActivity : ComponentActivity() {
         if (cached != null) { renderEpg(channel, cached.programs); if (EpgCache.isFresh(cached)) return }
         executor.execute { try { val programs = XtreamClient().loadEpg(config, channel); EpgCache.write(this, config, channel, programs); runOnUiThread { if (selectedEpgChannel?.id == channel.id) renderEpg(channel, programs) } } catch (_: Exception) { runOnUiThread { if (selectedEpgChannel?.id == channel.id && cached == null) { epgNow.text = "No programme data available"; epgNext.text = "Press OK to preview live. Press OK again for full screen." } } } }
     }
-
     private fun refreshSelectedEpgDisplay() { selectedEpgChannel?.let { channel -> EpgCache.read(this, config, channel)?.let { renderEpg(channel, it.programs) } } }
     private fun renderEpg(channel: IptvChannel, programs: List<EpgProgram>) {
         val now = System.currentTimeMillis(); val sorted = programs.sortedBy { it.startUtcMs }; val current = sorted.firstOrNull { now in it.startUtcMs until it.endUtcMs }; val next = sorted.firstOrNull { it.startUtcMs > now }
@@ -262,7 +251,6 @@ class LiveTvActivity : ComponentActivity() {
         epgProgress.progress = if (current != null) { val duration = (current.endUtcMs - current.startUtcMs).coerceAtLeast(1L); (((now - current.startUtcMs).toDouble() / duration) * 100.0).toInt().coerceIn(0, 100) } else 0
         epgMeta.text = buildString { append(channel.name); append(" • "); append(DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(now))); current?.let { append(" • "); append(DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it.startUtcMs))); append("–"); append(DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it.endUtcMs))) } }
     }
-
     private fun setBaseStatus(text: String) { baseStatus = text; status.text = text }
     private fun roundedBackground(color: Int, radiusDp: Float): GradientDrawable = GradientDrawable().apply { setColor(color); cornerRadius = radiusDp * resources.displayMetrics.density }
     private fun animateFocus(view: View, focused: Boolean) { ObjectAnimator.ofFloat(view, "scaleX", if (focused) 1.03f else 1f).setDuration(120).start(); ObjectAnimator.ofFloat(view, "scaleY", if (focused) 1.03f else 1f).setDuration(120).start() }
