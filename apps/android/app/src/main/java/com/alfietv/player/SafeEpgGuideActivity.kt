@@ -34,6 +34,8 @@ class SafeEpgGuideActivity : ComponentActivity() {
     private var selectedChannelId: String? = null
     private var epgCompleted = 0
     private var epgTotal = 0
+    private var guideScrollX = 0
+    private var syncingGuideScroll = false
 
     private val bg = Color.rgb(9, 15, 25)
     private val panel = Color.rgb(20, 27, 38)
@@ -88,6 +90,12 @@ class SafeEpgGuideActivity : ComponentActivity() {
         timeHeaderScroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             isFillViewport = false
+            setOnScrollChangeListener { _, scrollX, _, _, _ ->
+                if (!syncingGuideScroll) {
+                    guideScrollX = scrollX
+                    syncVisibleScheduleRows(scrollX)
+                }
+            }
         }
         timeHeader = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         timeHeaderScroll.addView(timeHeader)
@@ -206,6 +214,12 @@ class SafeEpgGuideActivity : ComponentActivity() {
             val scroll = HorizontalScrollView(this@SafeEpgGuideActivity).apply {
                 isHorizontalScrollBarEnabled = false
                 isFillViewport = false
+                setOnScrollChangeListener { _, scrollX, _, _, _ ->
+                    if (!syncingGuideScroll) {
+                        guideScrollX = scrollX
+                        syncGuideScroll(scrollX, this)
+                    }
+                }
             }
             val schedule = LinearLayout(this@SafeEpgGuideActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -252,7 +266,40 @@ class SafeEpgGuideActivity : ComponentActivity() {
             }, LinearLayout.LayoutParams(timeWidth(end - cursor).coerceAtLeast(dp(260)), -1))
             scroll.addView(schedule, ViewGroup.LayoutParams(-2, -1))
             root.addView(scroll, LinearLayout.LayoutParams(0, -1, 1f))
+            scroll.post { scroll.scrollTo(guideScrollX, 0) }
             return root
+        }
+    }
+
+    private fun syncGuideScroll(scrollX: Int, source: HorizontalScrollView) {
+        syncingGuideScroll = true
+        try {
+            if (::timeHeaderScroll.isInitialized && timeHeaderScroll !== source) {
+                timeHeaderScroll.scrollTo(scrollX, 0)
+            }
+            syncVisibleScheduleRows(scrollX, source)
+        } finally {
+            syncingGuideScroll = false
+        }
+    }
+
+    private fun syncVisibleScheduleRows(scrollX: Int, source: HorizontalScrollView? = null) {
+        if (!::list.isInitialized) return
+        syncingGuideScroll = true
+        try {
+            val first = list.firstVisiblePosition
+            val last = list.lastVisiblePosition
+            for (position in first..last) {
+                val child = list.getChildAt(position - first) as? ViewGroup ?: continue
+                for (index in 0 until child.childCount) {
+                    val candidate = child.getChildAt(index)
+                    if (candidate is HorizontalScrollView && candidate !== source) {
+                        candidate.scrollTo(scrollX, 0)
+                    }
+                }
+            }
+        } finally {
+            syncingGuideScroll = false
         }
     }
 
