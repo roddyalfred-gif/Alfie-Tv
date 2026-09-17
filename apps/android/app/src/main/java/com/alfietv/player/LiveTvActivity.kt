@@ -164,7 +164,16 @@ class LiveTvActivity : ComponentActivity() {
         }
         status.text = "${channels.size} channels  •  ${categories.size} categories  •  OK = preview  •  OK again = fullscreen"
     }
-    private fun filteredChannels(): List<IptvChannel> { val q = search.text.toString().trim().lowercase(); if (favoritesMode) return displayedChannels.filter { q.isBlank() || it.name.lowercase().contains(q) }; return allChannels.filter { (selectedCategory == null || it.categoryId == selectedCategory) && (q.isBlank() || it.name.lowercase().contains(q)) } }
+    private fun filteredChannels(): List<IptvChannel> {
+        val q = search.text.toString().trim().lowercase()
+        val source = if (favoritesMode) allChannels.filter {
+            try { UserLibraryStore.isFavorite(this, config, it.toLibraryItem()) } catch (_: Exception) { false }
+        } else allChannels
+        return source.filter {
+            (favoritesMode || selectedCategory == null || it.categoryId == selectedCategory) &&
+                (q.isBlank() || it.name.lowercase().contains(q))
+        }
+    }
     private fun selectedChannel() = displayedChannels.getOrNull(list.selectedItemPosition.takeIf { it >= 0 } ?: selectedIndex)
     private fun render() { if (!::list.isInitialized) return; displayedChannels = if (favoritesMode) displayedChannels.filter { favorite -> try { UserLibraryStore.isFavorite(this, config, favorite.toLibraryItem()) } catch (_: Exception) { false } } else { val q = search.text.toString().trim().lowercase(); allChannels.filter { (selectedCategory == null || it.categoryId == selectedCategory) && (q.isBlank() || it.name.lowercase().contains(q)) } }; val channels = displayedChannels; list.adapter = object : ArrayAdapter<IptvChannel>(this, android.R.layout.simple_list_item_1, channels) { override fun getView(position: Int, convertView: View?, parent: ViewGroup): View { val c = getItem(position) ?: return TextView(this@LiveTvActivity); val focused = position == list.selectedItemPosition || position == selectedIndex; val favorite = try { UserLibraryStore.isFavorite(this@LiveTvActivity, config, c.toLibraryItem()) } catch (_: Exception) { false }; val item = LinearLayout(this@LiveTvActivity).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL; setPadding(10, 8, 10, 8); minimumHeight = dp(if (compact) 72 else if (wide) 92 else 84); background = channelCardBackground(focused, false) }; val title = TextView(this@LiveTvActivity).apply { text = "${position + 1}. ${if (favorite) "★ " else ""}${c.name.ifBlank { "Channel ${position + 1}" }}"; textSize = if (isPortrait()) 14f else 15f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD; maxLines = 2 }; val meta = TextView(this@LiveTvActivity).apply { text = if (c.epgId.isNullOrBlank()) "● LIVE" else "● LIVE  •  EPG"; textSize = 10f; setTextColor(if (focused) Color.WHITE else muted) }; item.addView(title); item.addView(meta); item.isFocusable = true; item.isFocusableInTouchMode = true; item.contentDescription = "${c.name.ifBlank { "Channel ${position + 1}" }}"; item.setOnFocusChangeListener { v, hasFocus -> v.background = channelCardBackground(position == selectedIndex, hasFocus) }; return item } }; if (channels.isNotEmpty()) { selectedIndex = selectedIndex.coerceIn(0, channels.lastIndex); list.setSelection(selectedIndex) } else selectedIndex = -1 }
     private fun handleChannelClick(channel: IptvChannel) { if (fullscreenLaunchInProgress) return; if (previewChannelId == channel.id) playFullscreen(channel) else preview(channel) }
