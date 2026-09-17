@@ -183,14 +183,14 @@ class LiveTvActivity : ComponentActivity() {
     private fun applyChannels(newCategories: List<IptvCategory>, channels: List<IptvChannel>) {
         categories = newCategories; allChannels = channels; rebuildCategories(); render()
         val pendingId = intent.getStringExtra("preview_channel_id")
-        if (!pendingId.isNullOrBlank()) channels.firstOrNull { it.id == pendingId }?.let { intent.removeExtra("preview_channel_id"); selectedCategory = it.categoryId; previewCategoryId = it.categoryId; rebuildCategories(); selectedIndex = filteredChannels().indexOfFirst { c -> c.id == it.id }.coerceAtLeast(0); list.post { list.setSelection(selectedIndex); preview(it); highlightSelectedCategory() } }
+        if (!pendingId.isNullOrBlank()) channels.firstOrNull { it.id == pendingId }?.let { intent.removeExtra("preview_channel_id"); selectedCategory = it.categoryId; previewCategoryId = it.categoryId; rebuildCategories(); selectedIndex = filteredChannels().indexOfFirst { c -> c.id == it.id }.coerceAtLeast(0); list.post { list.setSelection(selectedIndex); preview(it); focusSelectedChannel() } }
         if (!restoredLastChannel) {
             restoredLastChannel = true
             val prefs = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
             val lastId = prefs.getString("last_channel_${config.serverUrl}_${config.username}", null)
             val lastCategory = prefs.getString("last_category_${config.serverUrl}_${config.username}", null)
             if (!lastCategory.isNullOrBlank()) selectedCategory = lastCategory
-            lastId?.let { id -> channels.firstOrNull { it.id == id }?.let { selectedCategory = it.categoryId ?: selectedCategory; previewCategoryId = it.categoryId; selectedIndex = filteredChannels().indexOfFirst { c -> c.id == it.id }.coerceAtLeast(0); rebuildCategories(); list.post { list.setSelection(selectedIndex); showEpg(it); highlightSelectedCategory() } } }
+            lastId?.let { id -> channels.firstOrNull { it.id == id }?.let { selectedCategory = it.categoryId ?: selectedCategory; previewCategoryId = it.categoryId; selectedIndex = filteredChannels().indexOfFirst { c -> c.id == it.id }.coerceAtLeast(0); rebuildCategories(); list.post { list.setSelection(selectedIndex); showEpg(it); focusSelectedChannel() } }
         }
         status.text = "${channels.size} channels  •  ${categories.size} categories  •  OK = preview  •  OK again = fullscreen"
     }
@@ -228,7 +228,7 @@ class LiveTvActivity : ComponentActivity() {
         if (previewPlayer == null) previewPlayer = AlfiePlayer(this).also { it.attach(previewView) }
         previewPlayer?.play(url, channel.name, channelNumber = (filteredChannels().indexOfFirst { it.id == channel.id } + 1).coerceAtLeast(1).toString())
         epgTitle.text = "PREVIEW  •  ${channel.name}"; status.text = "${channel.name}  •  Preview playing  •  OK again = fullscreen"; showEpg(channel)
-        list.post { list.invalidateViews(); highlightSelectedCategory() }
+        list.post { list.invalidateViews(); focusSelectedChannel() }
     }
     private fun playFullscreen(channel: IptvChannel) {
         if (fullscreenLaunchInProgress) return
@@ -255,14 +255,24 @@ class LiveTvActivity : ComponentActivity() {
                 selectedCategory = c.categoryId ?: previewCategoryId ?: selectedCategory
                 previewCategoryId = c.categoryId
                 selectedIndex = filteredChannels().indexOfFirst { it.id == c.id }.coerceAtLeast(0)
-                list.post { list.setSelection(selectedIndex); preview(c); list.invalidateViews(); highlightSelectedCategory() }
+                list.post { list.setSelection(selectedIndex); preview(c); list.invalidateViews(); focusSelectedChannel() }
             } }
+        }
+    }
+    private fun focusSelectedChannel() {
+        val channels = filteredChannels()
+        if (channels.isEmpty()) return
+        selectedIndex = selectedIndex.coerceIn(0, channels.lastIndex)
+        list.post {
+            list.setSelection(selectedIndex)
+            list.requestFocus()
+            list.invalidateViews()
         }
     }
     private fun highlightSelectedCategory() {
         val index = categories.indexOfFirst { it.id == selectedCategory }
         val childIndex = if (index >= 0) index + 1 else 0
-        categoryRow.getChildAt(childIndex)?.let { view -> view.background = roundedBackground(accent, 12f); view.requestFocus() }
+        categoryRow.getChildAt(childIndex)?.let { view -> view.background = roundedBackground(accent, 12f) }
     }
 
     private fun showEpg(channel: IptvChannel) {
