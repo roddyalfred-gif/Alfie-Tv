@@ -15,7 +15,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import java.util.concurrent.Executors
 
-/** Tivi-inspired TV-first dashboard: persistent navigation, content-first home and remote-friendly focus. */
+/** Tivi-inspired TV-first dashboard with adaptive navigation for phone, tablet and TV. */
 class HomeActivity : androidx.activity.ComponentActivity() {
     private lateinit var config: XtreamConfig
     private val executor = Executors.newSingleThreadExecutor()
@@ -49,15 +49,16 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     }
 
     private fun buildHome() {
+        val compact = resources.configuration.screenWidthDp < 600
         val root = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+            orientation = if (compact) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
             setBackgroundColor(bg)
         }
 
         val navigation = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.TOP
-            setPadding(14, 18, 14, 16)
+            orientation = if (compact) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+            gravity = if (compact) Gravity.CENTER else Gravity.TOP
+            setPadding(if (compact) 6 else 14, if (compact) 6 else 18, if (compact) 6 else 14, if (compact) 6 else 16)
             setBackgroundColor(rail)
         }
         navigation.addView(TextView(this).apply {
@@ -68,7 +69,8 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             gravity = Gravity.CENTER
             letterSpacing = 0.08f
             setPadding(0, 0, 0, 24)
-        }, LinearLayout.LayoutParams(94, 0, 0.22f))
+            visibility = if (compact) View.GONE else View.VISIBLE
+        }, LinearLayout.LayoutParams(if (compact) 0 else 94, if (compact) 0 else 0, if (compact) 0f else 0.22f))
 
         val navHome = navButton(navigation, "⌂", "HOME", true) { buildHome() }
         navButton(navigation, "▣", "LIVE TV") { open(LiveTvActivity::class.java) }
@@ -77,15 +79,17 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         navButton(navigation, "▶", "SERIES") { open(ContentActivity::class.java, "series") }
         navButton(navigation, "★", "FAVORITES") { open(FavoritesActivity::class.java) }
         navButton(navigation, "⚙", "SETTINGS") { open(SettingsActivity::class.java) }
-        navigation.addView(View(this), LinearLayout.LayoutParams(1, 0, 1f))
-        status = TextView(this).apply {
-            text = "● ONLINE"
-            textSize = 9f
-            gravity = Gravity.CENTER
-            setTextColor(Color.rgb(120, 235, 175))
+        if (!compact) {
+            navigation.addView(View(this), LinearLayout.LayoutParams(1, 0, 1f))
+            status = TextView(this).apply {
+                text = "● ONLINE"
+                textSize = 9f
+                gravity = Gravity.CENTER
+                setTextColor(Color.rgb(120, 235, 175))
+            }
+            navigation.addView(status, LinearLayout.LayoutParams(-1, 36))
         }
-        navigation.addView(status, LinearLayout.LayoutParams(-1, 36))
-        root.addView(navigation, LinearLayout.LayoutParams(122, -1))
+        root.addView(navigation, if (compact) LinearLayout.LayoutParams(-1, 72) else LinearLayout.LayoutParams(122, -1))
 
         val scroll = ScrollView(this).apply {
             isFillViewport = true
@@ -93,10 +97,10 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(28, 20, 28, 24)
+            setPadding(if (compact) 16 else 28, 20, if (compact) 16 else 28, 24)
         }
         scroll.addView(content)
-        root.addView(scroll, LinearLayout.LayoutParams(0, -1, 1f))
+        root.addView(scroll, if (compact) LinearLayout.LayoutParams(-1, 0, 1f) else LinearLayout.LayoutParams(0, -1, 1f))
 
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -105,7 +109,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         }
         top.addView(TextView(this).apply {
             text = "HOME"
-            textSize = 24f
+            textSize = if (compact) 21f else 24f
             setTextColor(white)
             typeface = Typeface.DEFAULT_BOLD
         }, LinearLayout.LayoutParams(0, -2, 1f))
@@ -145,18 +149,18 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 18 })
 
         section(content, "LIVE TV", "Jump into your channels")
-        val liveRow = row(content, 112)
+        val liveRow = row(content, if (compact) 104 else 112)
         val live = card(liveRow, "LIVE TV", "Channels and categories", accent) { open(LiveTvActivity::class.java) }
         card(liveRow, "TV GUIDE", "Now • Next • Full schedule", purple) { open(EpgGuideActivity::class.java) }
         live.requestFocus()
 
         section(content, "CONTINUE WATCHING", "Pick up where you left off")
-        val recent = row(content, 92)
+        val recent = row(content, if (compact) 92 else 92)
         card(recent, "RECENTLY WATCHED", "Continue your latest channels", Color.rgb(74, 129, 255)) { open(FavoritesActivity::class.java) }
         card(recent, "FAVORITES", "Your saved channels and content", Color.rgb(244, 174, 65)) { open(FavoritesActivity::class.java) }
 
         section(content, "ON DEMAND", "Browse your provider catalog")
-        val vod = row(content, 92)
+        val vod = row(content, if (compact) 92 else 92)
         card(vod, "MOVIES", "Cinema • New releases", Color.rgb(226, 89, 137)) { open(ContentActivity::class.java, "vod") }
         card(vod, "SERIES", "Shows • Seasons • Episodes", Color.rgb(45, 190, 151)) { open(ContentActivity::class.java, "series") }
 
@@ -203,10 +207,11 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     }
 
     private fun navButton(root: LinearLayout, icon: String, title: String, selected: Boolean = false, action: () -> Unit): Button {
+        val compact = resources.configuration.screenWidthDp < 600
         val b = Button(this).apply {
-            text = "$icon\n$title"
+            text = if (compact) "$icon\n$title" else "$icon\n$title"
             isAllCaps = false
-            textSize = 9f
+            textSize = if (compact) 8f else 9f
             gravity = Gravity.CENTER
             setTextColor(if (selected) white else muted)
             background = if (selected) selectedNav(accent) else rounded(rail)
@@ -219,7 +224,11 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             }
             setOnClickListener { action() }
         }
-        root.addView(b, LinearLayout.LayoutParams(-1, 64).apply { bottomMargin = 4 })
+        if (compact) {
+            root.addView(b, LinearLayout.LayoutParams(0, -1, 1f).apply { leftMargin = 2; rightMargin = 2 })
+        } else {
+            root.addView(b, LinearLayout.LayoutParams(-1, 64).apply { bottomMargin = 4 })
+        }
         return b
     }
 
