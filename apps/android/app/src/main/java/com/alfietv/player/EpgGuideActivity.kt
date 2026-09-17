@@ -47,7 +47,6 @@ class EpgGuideActivity : ComponentActivity() {
     }
 
     private fun buildUi() {
-        val density = resources.displayMetrics.density
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.rgb(9, 15, 25))
@@ -59,7 +58,6 @@ class EpgGuideActivity : ComponentActivity() {
             setPadding(dp(if (compact) 12 else 14), dp(if (compact) 8 else 10), dp(if (compact) 12 else 14), dp(if (compact) 8 else 10))
         }
         root.addView(status, LinearLayout.LayoutParams(-1, -2))
-
         grid = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.rgb(9, 15, 25))
@@ -147,15 +145,13 @@ class EpgGuideActivity : ComponentActivity() {
         val pxPerMinute = 2.2f * resources.displayMetrics.density
         val channelWidth = dp(132)
         grid.removeAllViews()
-
         grid.addView(TextView(this).apply {
-            text = "CHANNELS • tap a channel to view its schedule"
+            text = "CHANNELS • tap a channel to preview live"
             textSize = 11f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(muted)
             setPadding(dp(12), dp(8), dp(12), dp(5))
         }, LinearLayout.LayoutParams(-1, -2))
-
         val channelStrip = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             isFillViewport = false
@@ -174,9 +170,12 @@ class EpgGuideActivity : ComponentActivity() {
                 background = rounded(if (selected) accent else row, 8f)
                 isFocusable = true
                 isClickable = true
-                contentDescription = "${channel.name}, channel"
+                contentDescription = "${channel.name}, live channel preview"
                 setOnFocusChangeListener { view, focused -> if (channel.id == selectedChannelId || focused) view.background = rounded(accent, 8f) else view.background = rounded(row, 8f) }
-                setOnClickListener { selectedChannelId = channel.id; renderGrid() }
+                setOnClickListener {
+                    selectedChannelId = channel.id
+                    playChannel(channel)
+                }
             }, LinearLayout.LayoutParams(dp(150), dp(58)).apply { marginEnd = dp(6) })
         }
         channelStrip.addView(channelRow, ViewGroup.LayoutParams(-2, -2))
@@ -201,7 +200,6 @@ class EpgGuideActivity : ComponentActivity() {
         horizontal.addView(schedule, ViewGroup.LayoutParams(-2, -2))
         horizontal.nextFocusUpId = android.R.id.content
         grid.addView(horizontal, LinearLayout.LayoutParams(-1, dp(120)))
-
         grid.addView(TextView(this).apply {
             text = "NOW • select the programme currently playing to open Live TV preview"
             textSize = 11f
@@ -270,7 +268,6 @@ class EpgGuideActivity : ComponentActivity() {
             channelCell.addView(TextView(this).apply { text = channel.categoryId ?: "Live TV"; textSize = 10f; setTextColor(muted); maxLines = 1 })
             rowView.addView(channelCell, FrameLayout.LayoutParams(channelWidth, -1))
         }
-
         val programmeArea = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(Color.rgb(9, 15, 25)) }
         val visible = programs.sortedBy { it.startUtcMs }.filter { it.endUtcMs > start && it.startUtcMs < end }
         var cursor = start
