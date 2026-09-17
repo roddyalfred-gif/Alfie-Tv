@@ -25,11 +25,8 @@ class VideoPlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Let the original TV remote OK event finish before changing Activities.
-        // Starting MainActivity synchronously from the GridView click can allow
-        // the same remote event to be observed during the handoff on some TV OSes.
-        Handler(Looper.getMainLooper()).postDelayed({
-            if (isFinishing || handoffStarted) return@postDelayed
+        val handoff = Runnable {
+            if (isFinishing || handoffStarted) return@Runnable
             handoffStarted = true
 
             val target = Intent(this, MainActivity::class.java).apply {
@@ -59,6 +56,15 @@ class VideoPlayerActivity : ComponentActivity() {
                 Toast.makeText(this, "Unable to open fullscreen player: ${error.message ?: "unknown error"}", Toast.LENGTH_LONG).show()
                 finish()
             }
-        }, 120L)
+        }
+
+        // TV remotes can deliver the same OK event during an Activity handoff,
+        // so retain the short delay on Leanback devices. Phones/tablets use the
+        // immediate path to avoid the extra delay and touch/focus race.
+        if (packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)) {
+            Handler(Looper.getMainLooper()).postDelayed(handoff, 120L)
+        } else {
+            handoff.run()
+        }
     }
 }
