@@ -22,6 +22,8 @@ data class PlaybackDiagnostics(
     var videoTrackAvailable: Boolean = false,
     var firstFrameRendered: Boolean = false,
     var audioSessionId: Int? = null,
+    var audioOutputActive: Boolean = false,
+    var audioOutputEverActive: Boolean = false,
     var lastAudioTrackChangeAt: Long? = null,
     var lastVideoTrackChangeAt: Long? = null
 )
@@ -42,6 +44,9 @@ class DiagnosticsListener(private val diagnostics: PlaybackDiagnostics) : Player
 
     override fun onAudioSessionIdChanged(audioSessionId: Int) {
         diagnostics.audioSessionId = audioSessionId
+        val active = audioSessionId != androidx.media3.common.C.AUDIO_SESSION_ID_UNSET
+        diagnostics.audioOutputActive = active
+        if (active) diagnostics.audioOutputEverActive = true
     }
 
     override fun onPlayerError(error: PlaybackException) {
