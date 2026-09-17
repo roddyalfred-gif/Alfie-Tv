@@ -16,60 +16,53 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
-import android.widget.Button
 import android.widget.EditText
 import android.widget.GridView
 import android.widget.HorizontalScrollView
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.media3.ui.PlayerView
-import java.security.MessageDigest
 import java.text.DateFormat
 import java.util.Date
 import java.util.concurrent.Executors
 
-/** TV-first Live TV screen with inline preview, EPG and two-press fullscreen playback. */
+/** Responsive Live TV screen: visible category names, complete controls, preview and two-press fullscreen. */
 class LiveTvActivity : ComponentActivity() {
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private lateinit var list: GridView
     private lateinit var status: TextView
-    private lateinit var epgContainer: LinearLayout
+    private lateinit var details: LinearLayout
+    private lateinit var previewView: PlayerView
+    private lateinit var search: EditText
+    private lateinit var categoryRow: LinearLayout
     private lateinit var epgTitle: TextView
     private lateinit var epgNow: TextView
     private lateinit var epgNext: TextView
     private lateinit var epgProgress: ProgressBar
     private lateinit var epgMeta: TextView
-    private lateinit var search: EditText
-    private lateinit var categoryRow: LinearLayout
-    private lateinit var previewView: PlayerView
     private var previewPlayer: AlfiePlayer? = null
     private var previewChannelId: String? = null
-    private var currentLayoutMode = LayoutMode.LIST
-    private var allChannels = emptyList<IptvChannel>()
     private var selectedCategory: String? = null
-    private lateinit var config: XtreamConfig
-    private var restoredLastChannel = false
-    private var baseStatus = "Loading channels..."
-    private var selectedEpgChannel: IptvChannel? = null
+    private var allChannels = emptyList<IptvChannel>()
     private var selectedIndex = -1
+    private var restoredLastChannel = false
     private var fullscreenLaunchInProgress = false
     private var awaitingFullscreenReturn = false
-
+    private var categories = emptyList<IptvCategory>()
+    private lateinit var config: XtreamConfig
     private val bg = Color.rgb(5, 9, 18)
     private val panel = Color.rgb(13, 21, 35)
     private val row = Color.rgb(15, 24, 40)
     private val accent = Color.rgb(0, 168, 255)
     private val muted = Color.rgb(170, 181, 200)
 
-    private val epgTicker = object : Runnable {
-        override fun run() {
-            refreshSelectedEpgDisplay()
-            mainHandler.postDelayed(this, 30_000L)
-        }
+    private val ticker = object : Runnable {
+        override fun run() { selectedChannel()?.let { refreshEpg(it) }; mainHandler.postDelayed(this, 30_000L) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -77,182 +70,190 @@ class LiveTvActivity : ComponentActivity() {
         window.statusBarColor = bg
         window.navigationBarColor = bg
         config = XtreamConfig(intent.getStringExtra("server") ?: "", intent.getStringExtra("username") ?: "", intent.getStringExtra("password") ?: "")
-        currentLayoutMode = LayoutModeStore.get(this, "live", LayoutMode.LIST)
         buildUi()
         load()
-        mainHandler.post(epgTicker)
+        mainHandler.post(ticker)
     }
 
     private fun buildUi() {
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(18, 14, 18, 10); setBackgroundColor(bg) }
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(12, 10, 12, 8); setBackgroundColor(bg) }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        header.addView(TextView(this).apply { text = "Live TV"; textSize = 28f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD }, LinearLayout.LayoutParams(0, -2, 1f))
-        search = EditText(this).apply { hint = "Search channels..."; setSingleLine(true); textSize = 16f; setTextColor(Color.WHITE); setHintTextColor(muted); isFocusable = true; isFocusableInTouchMode = true; background = roundedBackground(panel, 12f); setPadding(18, 0, 18, 0) }
-        header.addView(search, LinearLayout.LayoutParams(0, 52, 1.7f)); root.addView(header, LinearLayout.LayoutParams(-1, 56))
-        val categoryScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; isFocusable = false }
+        header.addView(TextView(this).apply { text = "LIVE TV"; textSize = 25f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD }, LinearLayout.LayoutParams(0, 52, 1f))
+        search = EditText(this).apply { hint = "⌕  Search channels"; setSingleLine(true); textSize = 15f; setTextColor(Color.WHITE); setHintTextColor(muted); background = roundedBackground(panel, 12f); setPadding(14, 0, 14, 0); isFocusable = true; isFocusableInTouchMode = true }
+        header.addView(search, LinearLayout.LayoutParams(0, 50, 1.35f))
+        root.addView(header)
+
+        val categoryScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; clipToPadding = false; setPadding(0, 2, 0, 2) }
         categoryRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        categoryScroll.addView(categoryRow); addCategoryButton("All", null)
-        root.addView(categoryScroll, LinearLayout.LayoutParams(-1, 52).apply { bottomMargin = 2 })
-        val layoutRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        layoutRow.addView(TextView(this).apply { text = "View"; textSize = 13f; setTextColor(muted) }, LinearLayout.LayoutParams(-2, 44))
-        layoutRow.addView(LayoutModeControls.create(this, "live", LayoutMode.LIST) { selected -> currentLayoutMode = selected; applyLayoutMode(); render(); setBaseStatus("${filteredChannels().size} channels • ${layoutModeLabel()} view"); list.requestFocus() }, LinearLayout.LayoutParams(0, 44, 1f))
-        root.addView(layoutRow, LinearLayout.LayoutParams(-1, 46).apply { bottomMargin = 6 })
-        val content = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        categoryScroll.addView(categoryRow)
+        root.addView(categoryScroll, LinearLayout.LayoutParams(-1, 56))
+
+        val tools = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        tools.addView(TextView(this).apply { text = "CATEGORIES"; textSize = 12f; setTextColor(muted); typeface = Typeface.DEFAULT_BOLD }, LinearLayout.LayoutParams(0, 42, 1f))
+        tools.addView(iconButton("⌕", "Search") { search.requestFocus() })
+        tools.addView(iconButton("★", "Favorites") { selectFavorites() })
+        tools.addView(iconButton("▦", "Grid") { setColumns(3) })
+        tools.addView(iconButton("☰", "List") { setColumns(1) })
+        root.addView(tools, LinearLayout.LayoutParams(-1, 44))
+
+        val content = LinearLayout(this).apply { orientation = if (isPortrait()) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL }
         list = GridView(this).apply {
-            isFocusable = true; isFocusableInTouchMode = true; clipToPadding = false; verticalSpacing = 8; horizontalSpacing = 8; stretchMode = GridView.STRETCH_COLUMN_WIDTH
-            setPadding(0, 2, 8, 2)
+            isFocusable = true; isFocusableInTouchMode = true; clipToPadding = false; verticalSpacing = 7; horizontalSpacing = 7; stretchMode = GridView.STRETCH_COLUMN_WIDTH; setPadding(0, 4, 6, 2)
             setOnKeyListener { _, keyCode, event ->
                 if (event.action != KeyEvent.ACTION_DOWN || event.repeatCount > 0) return@setOnKeyListener false
                 when (keyCode) {
                     KeyEvent.KEYCODE_CHANNEL_UP -> { moveChannel(-1); true }
                     KeyEvent.KEYCODE_CHANNEL_DOWN -> { moveChannel(1); true }
-                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                        val position = list.selectedItemPosition.takeIf { it >= 0 } ?: selectedIndex
-                        filteredChannels().getOrNull(position.coerceAtLeast(0))?.let { channel -> selectedIndex = position; showEpg(channel); handleChannelClick(channel) }; true
-                    }
-                    KeyEvent.KEYCODE_DPAD_RIGHT -> { epgContainer.requestFocus(); true }
-                    KeyEvent.KEYCODE_DPAD_UP -> { val columns = maxOf(1, numColumns); if (selectedIndex in 0 until columns) { categoryRow.getChildAt(0)?.requestFocus(); true } else false }
+                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { selectedChannel()?.let(::handleChannelClick); true }
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> { details.requestFocus(); true }
                     else -> false
                 }
             }
-            setOnFocusChangeListener { _, focused -> if (focused && selectedIndex >= 0) filteredChannels().getOrNull(selectedIndex)?.let(::showEpg) }
+            setOnFocusChangeListener { _, focused -> if (focused) selectedChannel()?.let(::showEpg) }
         }
-        content.addView(list, LinearLayout.LayoutParams(0, -1, 1.62f))
-        val epgScroll = ScrollView(this).apply { isFillViewport = true; isFocusable = false }
-        epgContainer = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(18, 18, 18, 18); setBackgroundColor(panel); isFocusable = true; isFocusableInTouchMode = true
-            setOnKeyListener { _, keyCode, event -> if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_LEFT) { list.requestFocus(); true } else false }
+        details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(12, 12, 12, 12); setBackgroundColor(panel); isFocusable = true; isFocusableInTouchMode = true }
+        previewView = PlayerView(this).apply { useController = false; controllerAutoShow = false; setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS); resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT; setBackgroundColor(Color.BLACK) }
+        details.addView(previewView, LinearLayout.LayoutParams(-1, if (isPortrait()) 205 else 190).apply { bottomMargin = 8 })
+        epgTitle = label("LIVE PREVIEW", 20f, Color.WHITE, true)
+        epgNow = label("NOW  —", 16f, accent, true)
+        epgProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100 }
+        epgNext = label("NEXT  —", 15f, Color.WHITE, false)
+        epgMeta = label("Select a channel to preview", 12f, muted, false)
+        details.addView(epgTitle); details.addView(epgNow); details.addView(epgProgress, LinearLayout.LayoutParams(-1, 8)); details.addView(epgNext); details.addView(epgMeta)
+
+        if (isPortrait()) {
+            content.addView(details, LinearLayout.LayoutParams(-1, 300))
+            content.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
+        } else {
+            content.addView(list, LinearLayout.LayoutParams(0, -1, 1.6f))
+            content.addView(details, LinearLayout.LayoutParams(0, -1, 1f).apply { leftMargin = 8 })
         }
-        previewView = PlayerView(this).apply { useController = false; controllerAutoShow = false; setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS); resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT; isFocusable = false; setBackgroundColor(Color.BLACK) }
-        epgContainer.addView(previewView, LinearLayout.LayoutParams(-1, 190).apply { bottomMargin = 10 })
-        epgTitle = TextView(this).apply { text = "LIVE PREVIEW"; textSize = 21f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD }
-        epgNow = TextView(this).apply { textSize = 17f; setTextColor(accent); setPadding(0, 18, 0, 8) }
-        epgProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; progress = 0 }
-        epgNext = TextView(this).apply { textSize = 15f; setTextColor(Color.WHITE); setPadding(0, 14, 0, 8) }
-        epgMeta = TextView(this).apply { textSize = 13f; setTextColor(muted); setPadding(0, 10, 0, 0) }
-        epgContainer.addView(epgTitle); epgContainer.addView(epgNow); epgContainer.addView(epgProgress, LinearLayout.LayoutParams(-1, 8)); epgContainer.addView(epgNext); epgContainer.addView(epgMeta)
-        epgScroll.addView(epgContainer); content.addView(epgScroll, LinearLayout.LayoutParams(0, -1, 0.92f).apply { leftMargin = 8 }); root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
-        status = TextView(this).apply { text = baseStatus; textSize = 13f; setTextColor(muted); setPadding(4, 7, 4, 2) }
-        root.addView(status, LinearLayout.LayoutParams(-1, 28)); setContentView(root)
-        search.addTextChangedListener(object : TextWatcher { override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit; override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { render() }; override fun afterTextChanged(s: Editable?) = Unit })
-        search.setOnEditorActionListener { _, _, _ -> list.requestFocus(); true }
-        list.setOnItemClickListener { _, _, position, _ -> filteredChannels().getOrNull(position)?.let { channel -> selectedIndex = position; list.setSelection(position); showEpg(channel); list.invalidateViews(); handleChannelClick(channel) } }
+        root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
+        status = label("Loading channels…", 12f, muted, false)
+        status.setPadding(4, 5, 4, 0)
+        root.addView(status, LinearLayout.LayoutParams(-1, 28))
+        setContentView(root)
+
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { render() }
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
+        list.setOnItemClickListener { _, _, position, _ -> filteredChannels().getOrNull(position)?.let { selectedIndex = position; handleChannelClick(it) } }
         list.setOnItemSelectedListener(object : AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                selectedIndex = position
-                filteredChannels().getOrNull(position)?.let(::showEpg)
-                list.post { list.invalidateViews() }
-            }
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { selectedIndex = position; filteredChannels().getOrNull(position)?.let(::showEpg); list.post { list.invalidateViews() } }
         })
-        list.setOnItemLongClickListener { _, _, position, _ -> filteredChannels().getOrNull(position)?.let { channel -> val added = UserLibraryStore.toggleFavorite(this, config, channel.toLibraryItem()); setBaseStatus(if (added) "★ Added to favorites: ${channel.name}" else "Removed from favorites: ${channel.name}"); render() }; true }
-        applyLayoutMode()
+        setColumns(if (isPortrait()) 2 else 3)
     }
 
-    private fun layoutModeLabel() = when (currentLayoutMode) { LayoutMode.GRID -> "Grid"; LayoutMode.LIST -> "List"; LayoutMode.TILE -> "Tile" }
-    private fun applyLayoutMode() { when (currentLayoutMode) { LayoutMode.LIST -> { list.numColumns = 1; list.horizontalSpacing = 0; list.verticalSpacing = 8 }; LayoutMode.GRID -> { list.numColumns = 2; list.horizontalSpacing = 8; list.verticalSpacing = 10 }; LayoutMode.TILE -> { list.numColumns = 4; list.horizontalSpacing = 8; list.verticalSpacing = 10 } } }
-    private fun addCategoryButton(name: String, id: String?) {
-        val button = Button(this).apply {
-            text = name; isAllCaps = false; textSize = 14f; setTextColor(Color.WHITE); background = roundedBackground(row, 12f); isFocusable = true; isFocusableInTouchMode = true; stateListAnimator = null
-            setOnFocusChangeListener { view, focused -> view.background = roundedBackground(if (focused) accent else row, 12f); animateFocus(view, focused) }
-            setOnClickListener { selectedCategory = id; selectedIndex = -1; render(); setBaseStatus("${filteredChannels().size} channels • OK to preview • OK again for full screen"); list.requestFocus() }
+    private fun isPortrait() = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+    private fun setColumns(columns: Int) { if (::list.isInitialized) { list.numColumns = columns; list.horizontalSpacing = 7; list.verticalSpacing = 8; render() } }
+    private fun iconButton(icon: String, description: String, action: () -> Unit): ImageButton = ImageButton(this).apply { contentDescription = description; setImageDrawable(textIcon(icon)); background = roundedBackground(row, 10f); setColorFilter(Color.WHITE); setOnClickListener { action() }; setPadding(10, 10, 10, 10); layoutParams = LinearLayout.LayoutParams(44, 42).apply { marginStart = 6 } }
+    private fun textIcon(value: String): android.graphics.drawable.Drawable = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT).also { }
+    private fun label(text: String, size: Float, color: Int, bold: Boolean) = TextView(this).apply { this.text = text; textSize = size; setTextColor(color); typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT; setPadding(0, 8, 0, 6); maxLines = 3 }
+
+    private fun addCategory(name: String, id: String?, selected: Boolean = false) {
+        val chip = TextView(this).apply {
+            text = "  ${if (selected) "✓ " else ""}$name  "; textSize = 14f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; isFocusable = true; isFocusableInTouchMode = true; background = roundedBackground(if (selected) accent else row, 12f); setPadding(8, 0, 8, 0)
+            setOnFocusChangeListener { v, focused -> if (focused) v.background = roundedBackground(accent, 12f) else v.background = roundedBackground(if (this.text.toString().contains("✓")) accent else row, 12f); animateFocus(v, focused) }
+            setOnClickListener { selectedCategory = id; selectedIndex = -1; rebuildCategories(); render(); status.text = "${filteredChannels().size} channels  •  ${name.trim()}  •  OK = preview  •  OK again = fullscreen"; list.requestFocus() }
             setOnKeyListener { _, keyCode, event -> if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_DOWN) { list.requestFocus(); true } else false }
         }
-        categoryRow.addView(button, LinearLayout.LayoutParams(-2, 46).apply { marginEnd = 8 })
+        categoryRow.addView(chip, LinearLayout.LayoutParams(-2, 44).apply { marginEnd = 7 })
     }
+    private fun rebuildCategories() { categoryRow.removeAllViews(); addCategory("All", null, selectedCategory == null); categories.forEach { addCategory(it.name.ifBlank { "Category" }, it.id, it.id == selectedCategory) } }
+
     private fun load() {
         val cached = LiveTvCache.read(this, config)
-        if (cached != null) { applyChannels(cached.categories, cached.channels); setBaseStatus("${cached.channels.size} channels • Cached ${LiveTvCache.ageText(cached)} • Refreshing...") }
+        if (cached != null) applyChannels(cached.categories, cached.channels)
         executor.execute {
-            try { val (categories, channels) = XtreamClient().load(config); LiveTvCache.write(this, config, categories, channels); runOnUiThread { applyChannels(categories, channels); setBaseStatus("${channels.size} channels • Updated just now • OK to preview • OK again for full screen") } }
-            catch (e: Exception) { runOnUiThread { setBaseStatus(if (allChannels.isNotEmpty()) "${allChannels.size} channels • Offline cache • Refresh failed" else "Unable to load channels: ${e.message ?: "unknown error"}") } }
+            try { val result = XtreamClient().load(config); LiveTvCache.write(this, config, result.first, result.second); runOnUiThread { applyChannels(result.first, result.second); status.text = "${result.second.size} channels  •  Updated just now  •  Categories visible above" } }
+            catch (e: Exception) { runOnUiThread { status.text = if (allChannels.isNotEmpty()) "${allChannels.size} channels  •  Offline cache  •  Refresh failed" else "Unable to load channels: ${e.message ?: "unknown error"}" } }
         }
     }
-    private fun applyChannels(categories: List<IptvCategory>, channels: List<IptvChannel>) {
-        allChannels = channels; migrateLegacyFavorites(channels)
-        while (categoryRow.childCount > 1) categoryRow.removeViewAt(1)
-        categories.forEach { addCategoryButton(it.name, it.id) }
-        if (selectedCategory != null && categories.none { it.id == selectedCategory }) selectedCategory = null
+    private fun applyChannels(newCategories: List<IptvCategory>, channels: List<IptvChannel>) {
+        categories = newCategories
+        allChannels = channels
+        rebuildCategories()
         render()
         val pendingId = intent.getStringExtra("preview_channel_id")
-        if (!pendingId.isNullOrBlank()) { val pending = channels.firstOrNull { it.id == pendingId }; if (pending != null) { intent.removeExtra("preview_channel_id"); selectedIndex = filteredChannels().indexOfFirst { it.id == pending.id }.coerceAtLeast(0); list.post { list.setSelection(selectedIndex); showEpg(pending); preview(pending) }; return } }
+        if (!pendingId.isNullOrBlank()) channels.firstOrNull { it.id == pendingId }?.let { intent.removeExtra("preview_channel_id"); selectedIndex = filteredChannels().indexOfFirst { c -> c.id == it.id }.coerceAtLeast(0); list.post { list.setSelection(selectedIndex); preview(it) } }
         if (!restoredLastChannel) {
             restoredLastChannel = true
-            prefs.getString(lastChannelKey(), null)?.let { id -> channels.firstOrNull { it.id == id } }?.let { last -> selectedIndex = filteredChannels().indexOfFirst { it.id == last.id }.coerceAtLeast(0); list.post { list.setSelection(selectedIndex); showEpg(last) } }
+            getSharedPreferences("alfie_tv", Context.MODE_PRIVATE).getString("last_channel_${config.serverUrl}_${config.username}", null)?.let { id -> channels.firstOrNull { it.id == id }?.let { selectedIndex = filteredChannels().indexOfFirst { c -> c.id == it.id }.coerceAtLeast(0); list.post { list.setSelection(selectedIndex); showEpg(it) } } }
         }
+        status.text = "${channels.size} channels  •  ${categories.size} categories  •  OK = preview  •  OK again = fullscreen"
     }
-    private val prefs get() = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
-    private fun lastChannelKey() = "last_channel_${providerKey()}"
-    private fun providerKey() = sha256(config.serverUrl.trimEnd('/') + "\n" + config.username)
-    private fun sha256(value: String) = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
-    private fun migrateLegacyFavorites(channels: List<IptvChannel>) { if (prefs.getBoolean("favorites_migrated_v2", false)) return; prefs.getStringSet("favorites", emptySet()).orEmpty().forEach { id -> channels.firstOrNull { it.id == id }?.let { UserLibraryStore.toggleFavorite(this, config, it.toLibraryItem()) } }; prefs.edit().putBoolean("favorites_migrated_v2", true).apply() }
-    private fun filteredChannels(): List<IptvChannel> { val query = search.text.toString().trim().lowercase(); return allChannels.filter { (selectedCategory == null || it.categoryId == selectedCategory) && (query.isBlank() || it.name.lowercase().contains(query)) } }
+    private fun filteredChannels(): List<IptvChannel> { val q = search.text.toString().trim().lowercase(); return allChannels.filter { (selectedCategory == null || it.categoryId == selectedCategory) && (q.isBlank() || it.name.lowercase().contains(q)) } }
+    private fun selectedChannel() = filteredChannels().getOrNull(list.selectedItemPosition.takeIf { it >= 0 } ?: selectedIndex)
+
     private fun render() {
+        if (!::list.isInitialized) return
         val channels = filteredChannels()
         list.adapter = object : ArrayAdapter<IptvChannel>(this, android.R.layout.simple_list_item_1, channels) {
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-                val channel = getItem(position) ?: return TextView(this@LiveTvActivity)
+                val c = getItem(position) ?: return TextView(this@LiveTvActivity)
                 val focused = position == selectedIndex
-                val favorite = UserLibraryStore.isFavorite(this@LiveTvActivity, config, channel.toLibraryItem())
-                val item = LinearLayout(this@LiveTvActivity).apply { orientation = if (currentLayoutMode == LayoutMode.LIST) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL; setPadding(12, 8, 12, 8); minimumHeight = when (currentLayoutMode) { LayoutMode.LIST -> 70; LayoutMode.GRID -> 118; LayoutMode.TILE -> 92 }; background = roundedBackground(if (focused) Color.rgb(0, 85, 160) else row, 12f); isFocusable = false; isClickable = false }
-                val name = TextView(this@LiveTvActivity).apply { text = "${position + 1}. ${if (favorite) "★ " else ""}${channel.name}"; textSize = if (currentLayoutMode == LayoutMode.LIST) 17f else 14f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD; maxLines = 3; isFocusable = false }
-                val sub = TextView(this@LiveTvActivity).apply { text = if (channel.epgId != null) "EPG available" else "Live"; textSize = 11f; setTextColor(if (focused) Color.WHITE else muted); isFocusable = false }
-                val box = LinearLayout(this@LiveTvActivity).apply { orientation = LinearLayout.VERTICAL; gravity = if (currentLayoutMode == LayoutMode.LIST) Gravity.CENTER_VERTICAL else Gravity.CENTER; isFocusable = false }
-                box.addView(name); box.addView(sub); item.addView(box, LinearLayout.LayoutParams(-1, -2, 1f))
+                val favorite = try { UserLibraryStore.isFavorite(this@LiveTvActivity, config, c.toLibraryItem()) } catch (_: Exception) { false }
+                val item = LinearLayout(this@LiveTvActivity).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL; setPadding(10, 8, 10, 8); minimumHeight = if (isPortrait()) 82 else 88; background = roundedBackground(if (focused) Color.rgb(0, 85, 160) else row, 12f) }
+                val title = TextView(this@LiveTvActivity).apply { text = "${position + 1}. ${if (favorite) "★ " else ""}${c.name.ifBlank { "Channel ${position + 1}" }}"; textSize = if (isPortrait()) 14f else 15f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD; maxLines = 2 }
+                val meta = TextView(this@LiveTvActivity).apply { text = if (c.epgId.isNullOrBlank()) "● LIVE" else "● LIVE  •  EPG"; textSize = 10f; setTextColor(if (focused) Color.WHITE else muted) }
+                item.addView(title); item.addView(meta)
                 return item
             }
         }
-        if (channels.isNotEmpty()) { val safeIndex = selectedIndex.coerceIn(0, channels.lastIndex); selectedIndex = safeIndex; list.setSelection(safeIndex) }
+        if (channels.isNotEmpty()) { selectedIndex = selectedIndex.coerceIn(0, channels.lastIndex); list.setSelection(selectedIndex) }
     }
-    private fun moveChannel(delta: Int) { val channels = filteredChannels(); if (channels.isEmpty()) return; val current = list.selectedItemPosition.takeIf { it >= 0 } ?: selectedIndex; val next = (current.coerceAtLeast(0) + delta).coerceIn(0, channels.lastIndex); selectedIndex = next; list.setSelection(next); channels[next].let(::showEpg); list.invalidateViews() }
+
     private fun handleChannelClick(channel: IptvChannel) { if (fullscreenLaunchInProgress) return; if (previewChannelId == channel.id) playFullscreen(channel) else preview(channel) }
     private fun preview(channel: IptvChannel) {
-        val streamUrl = channel.streamUrl.trim()
-        if (streamUrl.isBlank()) { setBaseStatus("${channel.name} has no stream URL • Provider refresh required"); return }
-        prefs.edit().putString(lastChannelKey(), channel.id).apply(); previewChannelId = channel.id; epgTitle.text = "PREVIEW  •  ${channel.name}"; setBaseStatus("${channel.name} • Preview playing • Press OK again for full screen")
+        val url = channel.streamUrl.trim()
+        if (url.isBlank()) { status.text = "${channel.name} has no stream URL"; return }
+        previewChannelId = channel.id
+        getSharedPreferences("alfie_tv", Context.MODE_PRIVATE).edit().putString("last_channel_${config.serverUrl}_${config.username}", channel.id).apply()
         if (previewPlayer == null) previewPlayer = AlfiePlayer(this).also { it.attach(previewView) }
-        previewPlayer?.play(streamUrl, channel.name, channelNumber = (filteredChannels().indexOfFirst { it.id == channel.id } + 1).coerceAtLeast(1).toString())
-        previewView.post { previewView.requestLayout() }
+        previewPlayer?.play(url, channel.name, channelNumber = (filteredChannels().indexOfFirst { it.id == channel.id } + 1).coerceAtLeast(1).toString())
+        epgTitle.text = "PREVIEW  •  ${channel.name}"
+        status.text = "${channel.name}  •  Preview playing  •  OK again = fullscreen"
+        showEpg(channel)
     }
     private fun playFullscreen(channel: IptvChannel) {
         if (fullscreenLaunchInProgress) return
-        val streamUrl = channel.streamUrl.trim()
-        if (streamUrl.isBlank()) { setBaseStatus("${channel.name} has no stream URL • Provider refresh required"); return }
+        val url = channel.streamUrl.trim(); if (url.isBlank()) return
         fullscreenLaunchInProgress = true; awaitingFullscreenReturn = true
-        val channels = filteredChannels(); val channelIndex = channels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
-        val launchIntent = android.content.Intent(this, VideoPlayerActivity::class.java).apply {
-            putExtra("url", streamUrl); putExtra("stream_url", streamUrl); putExtra("title", channel.name); putExtra("content_id", channel.id); putExtra("content_type", "LIVE"); putExtra("channel_id", channel.id); putExtra("channel_number", (channelIndex + 1).toString())
-            putExtra("channel_urls", ArrayList(channels.map { it.streamUrl })); putExtra("channel_titles", ArrayList(channels.map { it.name })); putExtra("channel_ids", ArrayList(channels.map { it.id })); putExtra("channel_numbers", ArrayList(channels.indices.map { (it + 1).toString() })); putExtra("channel_index", channelIndex); putExtra("server", config.serverUrl); putExtra("username", config.username); putExtra("password", config.password)
+        val channels = filteredChannels(); val index = channels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
+        val intent = android.content.Intent(this, VideoPlayerActivity::class.java).apply {
+            putExtra("url", url); putExtra("stream_url", url); putExtra("title", channel.name); putExtra("content_id", channel.id); putExtra("content_type", "LIVE"); putExtra("channel_id", channel.id); putExtra("channel_number", (index + 1).toString())
+            putExtra("channel_urls", ArrayList(channels.map { it.streamUrl })); putExtra("channel_titles", ArrayList(channels.map { it.name })); putExtra("channel_ids", ArrayList(channels.map { it.id })); putExtra("channel_numbers", ArrayList(channels.indices.map { (it + 1).toString() })); putExtra("channel_index", index); putExtra("server", config.serverUrl); putExtra("username", config.username); putExtra("password", config.password)
         }
         previewPlayer?.release(); previewPlayer = null; previewView.player = null
-        try { startActivity(launchIntent) } catch (e: Exception) { fullscreenLaunchInProgress = false; awaitingFullscreenReturn = false; setBaseStatus("Unable to open fullscreen player: ${e.message ?: "unknown error"}"); preview(channel) }
+        try { startActivity(intent) } catch (e: Exception) { fullscreenLaunchInProgress = false; awaitingFullscreenReturn = false; preview(channel); status.text = "Unable to open fullscreen player: ${e.message ?: "unknown error"}" }
     }
     override fun onResume() {
         super.onResume()
-        if (awaitingFullscreenReturn) {
-            awaitingFullscreenReturn = false; fullscreenLaunchInProgress = false
-            previewChannelId?.let { id -> allChannels.firstOrNull { it.id == id } }?.let { channel -> list.post { selectedIndex = filteredChannels().indexOfFirst { it.id == channel.id }.coerceAtLeast(0); list.setSelection(selectedIndex); showEpg(channel); preview(channel); list.invalidateViews() } }
-        }
+        if (awaitingFullscreenReturn) { awaitingFullscreenReturn = false; fullscreenLaunchInProgress = false; previewChannelId?.let { id -> allChannels.firstOrNull { it.id == id }?.let { c -> list.post { selectedIndex = filteredChannels().indexOfFirst { it.id == c.id }.coerceAtLeast(0); list.setSelection(selectedIndex); preview(c); list.invalidateViews() } } } }
     }
+
     private fun showEpg(channel: IptvChannel) {
-        selectedEpgChannel = channel
-        if (previewChannelId != channel.id) epgTitle.text = "LIVE PREVIEW"
-        epgNow.text = "Loading NOW / NEXT…"; epgNext.text = ""; epgMeta.text = "EPG channel: ${channel.epgId ?: "not mapped"}"; epgProgress.progress = 0
-        val cached = EpgCache.read(this, config, channel)
-        if (cached != null) { renderEpg(channel, cached.programs); if (EpgCache.isFresh(cached)) return }
-        executor.execute { try { val programs = XtreamClient().loadEpg(config, channel); EpgCache.write(this, config, channel, programs); runOnUiThread { if (selectedEpgChannel?.id == channel.id) renderEpg(channel, programs) } } catch (_: Exception) { runOnUiThread { if (selectedEpgChannel?.id == channel.id && cached == null) { epgNow.text = "No programme data available"; epgNext.text = "Press OK to preview live. Press OK again for full screen." } } } }
+        epgTitle.text = if (previewChannelId == channel.id) "PREVIEW  •  ${channel.name}" else "LIVE PREVIEW  •  ${channel.name}"
+        epgNow.text = "NOW  Loading…"; epgNext.text = "NEXT  Loading…"; epgMeta.text = "EPG: ${channel.epgId ?: "not mapped"}"; epgProgress.progress = 0
+        executor.execute { try { val programs = XtreamClient().loadEpg(config, channel); runOnUiThread { if (previewChannelId == channel.id || selectedChannel()?.id == channel.id) renderEpg(channel, programs) } } catch (_: Exception) { runOnUiThread { if (selectedChannel()?.id == channel.id) { epgNow.text = "NOW  No programme data"; epgNext.text = "NEXT  Press OK to preview live" } } } }
     }
-    private fun refreshSelectedEpgDisplay() { selectedEpgChannel?.let { channel -> EpgCache.read(this, config, channel)?.let { renderEpg(channel, it.programs) } } }
+    private fun refreshEpg(channel: IptvChannel) { if (!isFinishing) showEpg(channel) }
     private fun renderEpg(channel: IptvChannel, programs: List<EpgProgram>) {
         val now = System.currentTimeMillis(); val sorted = programs.sortedBy { it.startUtcMs }; val current = sorted.firstOrNull { now in it.startUtcMs until it.endUtcMs }; val next = sorted.firstOrNull { it.startUtcMs > now }
-        if (previewChannelId == channel.id) epgTitle.text = "PREVIEW  •  ${channel.name}"
-        epgNow.text = if (current != null) "NOW  ${current.title}" else "NOW  No current programme"
-        epgNext.text = if (next != null) "NEXT  ${next.title}" else "NEXT  No upcoming programme"
-        epgProgress.progress = if (current != null) { val duration = (current.endUtcMs - current.startUtcMs).coerceAtLeast(1L); (((now - current.startUtcMs).toDouble() / duration) * 100.0).toInt().coerceIn(0, 100) } else 0
-        epgMeta.text = buildString { append(channel.name); append(" • "); append(DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(now))); current?.let { append(" • "); append(DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it.startUtcMs))); append("–"); append(DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it.endUtcMs))) } }
+        epgNow.text = "NOW  ${current?.title ?: "No current programme"}"; epgNext.text = "NEXT  ${next?.title ?: "No upcoming programme"}"
+        epgProgress.progress = current?.let { (((now - it.startUtcMs).toDouble() / (it.endUtcMs - it.startUtcMs).coerceAtLeast(1L)) * 100).toInt().coerceIn(0, 100) } ?: 0
+        epgMeta.text = "${channel.name}  •  ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(now))}"
     }
-    private fun setBaseStatus(text: String) { baseStatus = text; status.text = text }
-    private fun roundedBackground(color: Int, radiusDp: Float): GradientDrawable = GradientDrawable().apply { setColor(color); cornerRadius = radiusDp * resources.displayMetrics.density }
+    private fun selectFavorites() {
+        val favorites = allChannels.filter { try { UserLibraryStore.isFavorite(this, config, it.toLibraryItem()) } catch (_: Exception) { false } }
+        selectedCategory = "__favorites__"; list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, favorites); status.text = "★ Favorites  •  ${favorites.size} channels"; if (favorites.isNotEmpty()) { selectedIndex = 0; list.setSelection(0) }
+    }
+    private fun moveChannel(delta: Int) { val channels = filteredChannels(); if (channels.isEmpty()) return; val current = list.selectedItemPosition.takeIf { it >= 0 } ?: selectedIndex; selectedIndex = (current + delta).coerceIn(0, channels.lastIndex); list.setSelection(selectedIndex); showEpg(channels[selectedIndex]) }
+    private fun roundedBackground(color: Int, radiusDp: Float) = GradientDrawable().apply { setColor(color); cornerRadius = radiusDp * resources.displayMetrics.density }
     private fun animateFocus(view: View, focused: Boolean) { ObjectAnimator.ofFloat(view, "scaleX", if (focused) 1.03f else 1f).setDuration(120).start(); ObjectAnimator.ofFloat(view, "scaleY", if (focused) 1.03f else 1f).setDuration(120).start() }
-    override fun onDestroy() { mainHandler.removeCallbacks(epgTicker); previewPlayer?.release(); previewPlayer = null; executor.shutdownNow(); super.onDestroy() }
+    override fun onBackPressed() { if (search.hasFocus() && search.text.isNotEmpty()) { search.text.clear(); list.requestFocus(); return }; super.onBackPressed() }
+    override fun onDestroy() { mainHandler.removeCallbacks(ticker); previewPlayer?.release(); previewPlayer = null; executor.shutdownNow(); super.onDestroy() }
 }
