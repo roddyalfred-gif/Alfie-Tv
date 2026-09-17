@@ -18,9 +18,10 @@ fun IptvChannel.toLibraryItem(): UserLibraryStore.Item =
         posterUrl = logoUrl
     )
 
-/** Live TV target that starts an isolated MainActivity playback session. */
+/** Compatibility handoff that keeps LiveTvActivity directly underneath the fullscreen player. */
 class VideoPlayerActivity : ComponentActivity() {
     private var handoffStarted = false
+    private var returningFromMain = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,11 +48,11 @@ class VideoPlayerActivity : ComponentActivity() {
             }
 
             runCatching {
+                returningFromMain = true
                 startActivity(target)
                 overridePendingTransition(0, 0)
-                finish()
-                overridePendingTransition(0, 0)
             }.onFailure { error ->
+                returningFromMain = false
                 handoffStarted = false
                 Toast.makeText(this, "Unable to open fullscreen player: ${error.message ?: "unknown error"}", Toast.LENGTH_LONG).show()
                 finish()
@@ -65,6 +66,18 @@ class VideoPlayerActivity : ComponentActivity() {
             Handler(Looper.getMainLooper()).postDelayed(handoff, 120L)
         } else {
             handoff.run()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // MainActivity is stacked above this compatibility activity. Once it
+        // finishes, immediately remove the bridge so LiveTvActivity is restored
+        // as the direct previous screen.
+        if (returningFromMain && handoffStarted) {
+            returningFromMain = false
+            finish()
+            overridePendingTransition(0, 0)
         }
     }
 }
