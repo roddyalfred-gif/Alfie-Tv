@@ -18,6 +18,7 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -93,6 +94,9 @@ class MainActivity : ComponentActivity() {
         root.addView(playerView, FrameLayout.LayoutParams(-1, -1))
         buildOverlay()
         setContentView(root)
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() { handleBackNavigation() }
+        })
         alfiePlayer = AlfiePlayer(this)
         alfiePlayer.attach(playerView)
         alfiePlayer.player.addListener(object : Player.Listener {
