@@ -123,7 +123,6 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 val (categories, loadedChannels) = XtreamClient().load(config)
                 channels = loadedChannels.distinctBy { it.id }
                 selectedChannelId = intent.getStringExtra("preview_channel_id")?.takeIf { id -> channels.any { it.id == id } }
-                    ?: channels.firstOrNull()?.id
                 LiveTvCache.write(this, config, categories, channels)
 
                 channels.forEach { channel ->
@@ -217,11 +216,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 isFocusable = true
                 isClickable = true
                 contentDescription = "${channel.name}, live channel preview"
-                setOnClickListener {
-                    selectedChannelId = channel.id
-                    adapter.notifyDataSetChanged()
-                    playChannel(channel)
-                }
+                setOnClickListener { activateChannel(channel) }
             }
             root.addView(channelCell, LinearLayout.LayoutParams(labelWidth, dp(if (compact) 68 else 74)).apply { marginEnd = dp(3) })
 
@@ -263,26 +258,39 @@ class SafeEpgGuideActivity : ComponentActivity() {
                     isFocusable = true
                     isClickable = true
                     contentDescription = "${program.title}, ${if (currentProgram) "now playing" else "upcoming programme"}"
-                    setOnClickListener { if (currentProgram || program.startUtcMs <= now) playChannel(channel) else showFuture(program, channel) }
+                    setOnClickListener {
+                        if (program.startUtcMs <= now) activateChannel(channel) else showFuture(program, channel)
+                    }
                 }
                 schedule.addView(card, LinearLayout.LayoutParams(timeWidth(to - from), -1).apply { marginEnd = dp(2) })
                 cursor = maxOf(cursor, to)
             }
             if (cursor < end) schedule.addView(TextView(this@SafeEpgGuideActivity).apply {
-                text = "No programme data • OK to preview live"
+                text = "No programme data • OK to select live"
                 textSize = 11f
                 setTextColor(muted)
                 gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(10), 0, dp(10), 0)
                 isFocusable = true
                 isClickable = true
-                setOnClickListener { playChannel(channel) }
+                setOnClickListener { activateChannel(channel) }
             }, LinearLayout.LayoutParams(timeWidth(end - cursor).coerceAtLeast(dp(260)), -1))
             scroll.addView(schedule, ViewGroup.LayoutParams(-2, -1))
             root.addView(scroll, LinearLayout.LayoutParams(0, -1, 1f))
             scroll.post { scroll.scrollTo(guideScrollX, 0) }
             return root
         }
+    }
+
+    /** First activation selects a channel; activating the same channel again opens fullscreen Live TV. */
+    private fun activateChannel(channel: IptvChannel) {
+        if (selectedChannelId == channel.id) {
+            playChannel(channel)
+            return
+        }
+        selectedChannelId = channel.id
+        status.text = "${channel.name} selected • press again to open fullscreen"
+        adapter.notifyDataSetChanged()
     }
 
     private fun syncGuideScroll(scrollX: Int, source: HorizontalScrollView) {
