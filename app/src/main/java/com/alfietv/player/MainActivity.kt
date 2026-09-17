@@ -241,6 +241,7 @@ class MainActivity : ComponentActivity() {
         trackPanel.removeAllViews()
         addTrackButton("AUDIO") { showAudioOptions(alfiePlayer.audioTracks()) }
         addTrackButton("SUBTITLES") { showSubtitleOptions(alfiePlayer.subtitleTracks()) }
+        addTrackButton("AUTO") { setAutoResizeMode() }
         addTrackButton("FIT") { setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
         addTrackButton("FILL") { setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL) }
         addTrackButton("ZOOM") { setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM) }
@@ -250,6 +251,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showPlaybackRetry() { showingPlaybackRetry = true; showTrackPanel() }
+
+    private fun setAutoResizeMode() {
+        playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        SettingsStore.setAspectRatio(this, "auto")
+        trackPanel.visibility = View.GONE
+        playerView.requestFocus()
+    }
 
     private fun setResizeMode(mode: Int) {
         playerView.resizeMode = mode
