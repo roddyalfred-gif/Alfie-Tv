@@ -137,6 +137,10 @@ class LiveTvActivity : ComponentActivity() {
         else { content.addView(list, LinearLayout.LayoutParams(0, -1, 1.6f)); content.addView(details, LinearLayout.LayoutParams(0, -1, 1f).apply { leftMargin = dp(if (wide) 12 else 8) }) }
         root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
         status = label("Loading channels…", if (compact) 11f else 12f, muted, false); status.setPadding(dp(4), dp(5), dp(4), 0); root.addView(status, LinearLayout.LayoutParams(-1, 28)); setContentView(root)
+        if (intent.getBooleanExtra("focus_search", false)) {
+            search.requestFocus()
+            search.post { search.setSelection(search.text.length) }
+        }
         search.addTextChangedListener(object : TextWatcher { override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit; override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { render() }; override fun afterTextChanged(s: Editable?) = Unit })
         list.setOnItemClickListener { _, _, position, _ -> displayedChannels.getOrNull(position)?.let { selectedIndex = position; handleChannelClick(it) } }
         list.setOnItemSelectedListener(object : AdapterView.OnItemSelectedListener { override fun onNothingSelected(parent: AdapterView<*>?) = Unit; override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { selectedIndex = position; displayedChannels.getOrNull(position)?.let(::showEpg); list.post { list.invalidateViews() } } })
