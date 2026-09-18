@@ -140,7 +140,9 @@ class LiveTvActivity : ComponentActivity() {
         search.addTextChangedListener(object : TextWatcher { override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit; override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { render() }; override fun afterTextChanged(s: Editable?) = Unit })
         list.setOnItemClickListener { _, _, position, _ -> displayedChannels.getOrNull(position)?.let { selectedIndex = position; handleChannelClick(it) } }
         list.setOnItemSelectedListener(object : AdapterView.OnItemSelectedListener { override fun onNothingSelected(parent: AdapterView<*>?) = Unit; override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { selectedIndex = position; displayedChannels.getOrNull(position)?.let(::showEpg); list.post { list.invalidateViews() } } })
-        setColumns(adaptiveColumns())
+        val prefs = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
+        val savedColumns = prefs.getInt("live_tv_columns_${config.serverUrl}_${config.username}", 0)
+        setColumns(if (savedColumns > 0) savedColumns else adaptiveColumns())
     }
     private fun isPortrait() = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
     private fun adaptiveColumns(): Int = when {
@@ -150,7 +152,18 @@ class LiveTvActivity : ComponentActivity() {
         widthDp < 1200 -> 4
         else -> 5
     }
-    private fun setColumns(columns: Int) { if (::list.isInitialized) { list.numColumns = columns; list.horizontalSpacing = 7; list.verticalSpacing = 8; render() } }
+    private fun setColumns(columns: Int) {
+        if (!::list.isInitialized) return
+        val safeColumns = columns.coerceIn(1, adaptiveColumns())
+        list.numColumns = safeColumns
+        list.horizontalSpacing = 7
+        list.verticalSpacing = 8
+        getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
+            .edit()
+            .putInt("live_tv_columns_${config.serverUrl}_${config.username}", safeColumns)
+            .apply()
+        render()
+    }
     private fun iconButton(kind: String, description: String, action: () -> Unit): ImageButton = ImageButton(this).apply { contentDescription = description; val icon = when (kind) { "search" -> android.R.drawable.ic_menu_search; "favorite" -> android.R.drawable.btn_star_big_on; "grid" -> android.R.drawable.ic_menu_gallery; else -> android.R.drawable.ic_menu_sort_by_size }; setImageResource(icon); background = roundedBackground(row, 10f); setColorFilter(Color.WHITE); setOnClickListener { action() }; setPadding(9, 9, 9, 9); layoutParams = LinearLayout.LayoutParams(44, 42).apply { marginStart = 6 } }
     private fun label(text: String, size: Float, color: Int, bold: Boolean) = TextView(this).apply { this.text = text; textSize = size; setTextColor(color); typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT; setPadding(0, 8, 0, 6); maxLines = 3 }
     private fun addCategory(name: String, id: String?, selected: Boolean = false) { val chip = TextView(this).apply { text = "  ${if (selected) "✓ " else ""}$name  "; textSize = 14f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; isFocusable = true; isFocusableInTouchMode = true; background = roundedBackground(if (selected) accent else row, 12f); setPadding(8, 0, 8, 0); setOnFocusChangeListener { v, focused -> if (focused) v.background = roundedBackground(accent, 12f) else v.background = roundedBackground(if (selectedCategory == id) accent else row, 12f); animateFocus(v, focused) }; setOnClickListener { favoritesMode = false; selectedCategory = id; selectedIndex = -1; rebuildCategories(); render(); status.text = "${filteredChannels().size} channels  •  ${name.trim()}  •  OK = preview  •  OK again = fullscreen"; list.requestFocus() }; setOnKeyListener { _, keyCode, event -> if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_DPAD_DOWN) { list.requestFocus(); true } else false } }; categoryRow.addView(chip, LinearLayout.LayoutParams(-2, 44).apply { marginEnd = 7 }) }
