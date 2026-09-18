@@ -236,7 +236,8 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             setOnClickListener { action() }
         }
         if (compact) {
-            root.addView(b, LinearLayout.LayoutParams(0, -1, 1f).apply { leftMargin = 2; rightMargin = 2 })
+            val navWidth = (86 * resources.displayMetrics.density).toInt()
+            root.addView(b, LinearLayout.LayoutParams(navWidth, -1).apply { leftMargin = 2; rightMargin = 2 })
         } else {
             root.addView(b, LinearLayout.LayoutParams(-1, 64).apply { bottomMargin = 4 })
         }
