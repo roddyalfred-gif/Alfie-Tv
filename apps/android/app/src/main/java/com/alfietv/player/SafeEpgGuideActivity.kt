@@ -124,7 +124,11 @@ class SafeEpgGuideActivity : ComponentActivity() {
             try {
                 val (categories, loadedChannels) = XtreamClient().load(config)
                 channels = loadedChannels.distinctBy { it.id }
-                selectedChannelId = intent.getStringExtra("preview_channel_id")?.takeIf { id -> channels.any { it.id == id } }
+                val requestedChannelId = intent.getStringExtra("preview_channel_id")
+                val persistedChannelId = getSharedPreferences("alfie_tv", MODE_PRIVATE)
+                    .getString("last_channel_${config.serverUrl}_${config.username}", null)
+                selectedChannelId = (requestedChannelId ?: persistedChannelId)
+                    ?.takeIf { id -> channels.any { it.id == id } }
                 LiveTvCache.write(this, config, categories, channels)
 
                 channels.forEach { channel ->
