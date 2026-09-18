@@ -274,6 +274,17 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             setOnFocusChangeListener { v, focused ->
                 v.background = if (focused) focusedCard(color) else rounded(panel)
                 animateFocus(v, focused)
+                if (focused) {
+                    var parent = v.parent
+                    while (parent != null && parent !is HorizontalScrollView) {
+                        parent = parent.parent
+                    }
+                    if (parent is HorizontalScrollView) {
+                        val scroll = parent
+                        val target = (v.left - (scroll.width - v.width) / 2).coerceAtLeast(0)
+                        scroll.smoothScrollTo(target, 0)
+                    }
+                }
             }
             setOnClickListener { action() }
         }
