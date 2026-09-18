@@ -142,7 +142,14 @@ class LiveTvActivity : ComponentActivity() {
         list.setOnItemSelectedListener(object : AdapterView.OnItemSelectedListener { override fun onNothingSelected(parent: AdapterView<*>?) = Unit; override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { selectedIndex = position; displayedChannels.getOrNull(position)?.let(::showEpg); list.post { list.invalidateViews() } } })
         setColumns(adaptiveColumns())
     }
-    private fun isPortrait() = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT\n    private fun adaptiveColumns(): Int = when {\n        widthDp < 360 -> 1\n        widthDp < 600 -> 2\n        widthDp < 900 -> 3\n        widthDp < 1200 -> 4\n        else -> 5\n    }
+    private fun isPortrait() = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+    private fun adaptiveColumns(): Int = when {
+        widthDp < 360 -> 1
+        widthDp < 600 -> 2
+        widthDp < 900 -> 3
+        widthDp < 1200 -> 4
+        else -> 5
+    }
     private fun setColumns(columns: Int) { if (::list.isInitialized) { list.numColumns = columns; list.horizontalSpacing = 7; list.verticalSpacing = 8; render() } }
     private fun iconButton(kind: String, description: String, action: () -> Unit): ImageButton = ImageButton(this).apply { contentDescription = description; val icon = when (kind) { "search" -> android.R.drawable.ic_menu_search; "favorite" -> android.R.drawable.btn_star_big_on; "grid" -> android.R.drawable.ic_menu_gallery; else -> android.R.drawable.ic_menu_sort_by_size }; setImageResource(icon); background = roundedBackground(row, 10f); setColorFilter(Color.WHITE); setOnClickListener { action() }; setPadding(9, 9, 9, 9); layoutParams = LinearLayout.LayoutParams(44, 42).apply { marginStart = 6 } }
     private fun label(text: String, size: Float, color: Int, bold: Boolean) = TextView(this).apply { this.text = text; textSize = size; setTextColor(color); typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT; setPadding(0, 8, 0, 6); maxLines = 3 }
