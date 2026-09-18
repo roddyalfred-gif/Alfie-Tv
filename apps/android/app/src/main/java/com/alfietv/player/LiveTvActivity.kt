@@ -106,7 +106,7 @@ class LiveTvActivity : ComponentActivity() {
         tools.addView(TextView(this).apply { text = "CATEGORIES"; textSize = 12f; setTextColor(muted); typeface = Typeface.DEFAULT_BOLD }, LinearLayout.LayoutParams(0, 42, 1f))
         tools.addView(iconButton("search", "Search") { search.requestFocus() })
         tools.addView(iconButton("favorite", "Favorites") { selectFavorites() })
-        tools.addView(iconButton("grid", "Grid") { setColumns(3) })
+        tools.addView(iconButton("grid", "Grid") { setColumns(adaptiveColumns()) })
         tools.addView(iconButton("list", "List") { setColumns(1) })
         root.addView(tools, LinearLayout.LayoutParams(-1, dp(if (compact) 46 else 50)))
         val content = LinearLayout(this).apply { orientation = if (isPortrait()) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL }
@@ -140,9 +140,16 @@ class LiveTvActivity : ComponentActivity() {
         search.addTextChangedListener(object : TextWatcher { override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit; override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { render() }; override fun afterTextChanged(s: Editable?) = Unit })
         list.setOnItemClickListener { _, _, position, _ -> displayedChannels.getOrNull(position)?.let { selectedIndex = position; handleChannelClick(it) } }
         list.setOnItemSelectedListener(object : AdapterView.OnItemSelectedListener { override fun onNothingSelected(parent: AdapterView<*>?) = Unit; override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { selectedIndex = position; displayedChannels.getOrNull(position)?.let(::showEpg); list.post { list.invalidateViews() } } })
-        setColumns(if (isPortrait()) 2 else 3)
+        setColumns(adaptiveColumns())
     }
     private fun isPortrait() = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+    private fun adaptiveColumns(): Int = when {
+        widthDp < 360 -> 1
+        widthDp < 600 -> 2
+        widthDp < 900 -> 3
+        widthDp < 1200 -> 4
+        else -> 5
+    }
     private fun setColumns(columns: Int) { if (::list.isInitialized) { list.numColumns = columns; list.horizontalSpacing = 7; list.verticalSpacing = 8; render() } }
     private fun iconButton(kind: String, description: String, action: () -> Unit): ImageButton = ImageButton(this).apply { contentDescription = description; val icon = when (kind) { "search" -> android.R.drawable.ic_menu_search; "favorite" -> android.R.drawable.btn_star_big_on; "grid" -> android.R.drawable.ic_menu_gallery; else -> android.R.drawable.ic_menu_sort_by_size }; setImageResource(icon); background = roundedBackground(row, 10f); setColorFilter(Color.WHITE); setOnClickListener { action() }; setPadding(9, 9, 9, 9); layoutParams = LinearLayout.LayoutParams(44, 42).apply { marginStart = 6 } }
     private fun label(text: String, size: Float, color: Int, bold: Boolean) = TextView(this).apply { this.text = text; textSize = size; setTextColor(color); typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT; setPadding(0, 8, 0, 6); maxLines = 3 }
