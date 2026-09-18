@@ -268,6 +268,12 @@ class SafeEpgGuideActivity : ComponentActivity() {
                     contentDescription = "${program.title}, ${if (currentProgram) "now playing" else "upcoming programme"}"
                     setOnFocusChangeListener { view, hasFocus ->
                         view.background = guideCellBackground(if (currentProgram) current else row, hasFocus)
+                        if (hasFocus) {
+                            (view.parent?.parent as? HorizontalScrollView)?.let { guideScroll ->
+                                val target = (view.left - (guideScroll.width - view.width) / 2).coerceAtLeast(0)
+                                guideScroll.smoothScrollTo(target, 0)
+                            }
+                        }
                     }
                     setOnClickListener {
                         if (program.startUtcMs <= now) activateChannel(channel) else showFuture(program, channel)
