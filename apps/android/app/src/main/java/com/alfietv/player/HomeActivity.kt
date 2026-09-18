@@ -124,13 +124,30 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             setTextColor(white)
             typeface = Typeface.DEFAULT_BOLD
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        top.addView(TextView(this).apply {
+        top.addView(Button(this).apply {
             text = "⌕  Search"
-            textSize = 12f
-            setTextColor(muted)
+            textSize = if (compact) 11f else 12f
+            isAllCaps = false
+            setTextColor(white)
             background = rounded(panel)
-            setPadding(18, 11, 18, 11)
-        })
+            isFocusable = true
+            isFocusableInTouchMode = true
+            stateListAnimator = null
+            setPadding(18, 0, 18, 0)
+            contentDescription = "Search channels"
+            setOnFocusChangeListener { v, focused ->
+                v.background = if (focused) focusedCard(accent) else rounded(panel)
+                animateFocus(v, focused)
+            }
+            setOnClickListener {
+                startActivity(Intent(this@HomeActivity, LiveTvActivity::class.java).apply {
+                    putExtra("server", config.serverUrl)
+                    putExtra("username", config.username)
+                    putExtra("password", config.password)
+                    putExtra("focus_search", true)
+                })
+            }
+        }, LinearLayout.LayoutParams(-2, if (compact) 48 else 50))
         content.addView(top)
 
         val hero = LinearLayout(this).apply {
