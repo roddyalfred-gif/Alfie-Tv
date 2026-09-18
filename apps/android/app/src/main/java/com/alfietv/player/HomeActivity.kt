@@ -89,7 +89,17 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             }
             navigation.addView(status, LinearLayout.LayoutParams(-1, 36))
         }
-        root.addView(navigation, if (compact) LinearLayout.LayoutParams(-1, 72) else LinearLayout.LayoutParams(122, -1))
+        if (compact) {
+            val navScroll = HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled = false
+                overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+                setPadding(4, 0, 4, 0)
+                addView(navigation, LinearLayout.LayoutParams(-2, 72))
+            }
+            root.addView(navScroll, LinearLayout.LayoutParams(-1, 72))
+        } else {
+            root.addView(navigation, LinearLayout.LayoutParams(122, -1))
+        }
 
         val scroll = ScrollView(this).apply {
             isFillViewport = true
