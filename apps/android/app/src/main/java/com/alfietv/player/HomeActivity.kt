@@ -212,8 +212,23 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     }
 
     private fun row(root: LinearLayout, height: Int): LinearLayout {
-        val r = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        root.addView(r, LinearLayout.LayoutParams(-1, height).apply { bottomMargin = 4 })
+        val compact = resources.configuration.screenWidthDp < 600
+        val r = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        if (compact) {
+            val scroll = HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled = false
+                overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+                clipToPadding = false
+                setPadding(2, 0, 2, 0)
+                addView(r, LinearLayout.LayoutParams(-2, height))
+            }
+            root.addView(scroll, LinearLayout.LayoutParams(-1, height).apply { bottomMargin = 6 })
+        } else {
+            root.addView(r, LinearLayout.LayoutParams(-1, height).apply { bottomMargin = 6 })
+        }
         return r
     }
 
@@ -262,7 +277,18 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             }
             setOnClickListener { action() }
         }
-        root.addView(b, LinearLayout.LayoutParams(0, -1, 1f).apply { leftMargin = 4; rightMargin = 4 })
+        val compact = resources.configuration.screenWidthDp < 600
+        if (compact) {
+            val widthDp = if (resources.configuration.screenWidthDp < 360) 230 else 260
+            root.addView(
+                b,
+                LinearLayout.LayoutParams(
+                    (widthDp * resources.displayMetrics.density).toInt(), -1
+                ).apply { leftMargin = 4; rightMargin = 4 }
+            )
+        } else {
+            root.addView(b, LinearLayout.LayoutParams(0, -1, 1f).apply { leftMargin = 4; rightMargin = 4 })
+        }
         return b
     }
 
