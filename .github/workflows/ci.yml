@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -109,10 +110,8 @@ jobs:
           path: apps/android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
-  # Run release validation on both main pushes and upgrade PRs so release-only
-  # compilation/signing problems cannot hide behind a green debug build.
   android-release-build:
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: play-store
     defaults:
@@ -120,7 +119,6 @@ jobs:
         working-directory: apps/android
     steps:
       - uses: actions/checkout@v5
-
       - name: Validate stable release signing
         env:
           RELEASE_KEYSTORE_B64: ${{ secrets.ALFIE_RELEASE_KEYSTORE_B64 }}
@@ -133,7 +131,6 @@ jobs:
           test -n "$RELEASE_STORE_PASSWORD" || { echo "Missing ALFIE_RELEASE_STORE_PASSWORD"; exit 1; }
           test -n "$RELEASE_KEY_ALIAS" || { echo "Missing ALFIE_RELEASE_KEY_ALIAS"; exit 1; }
           test -n "$RELEASE_KEY_PASSWORD" || { echo "Missing ALFIE_RELEASE_KEY_PASSWORD"; exit 1; }
-
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
@@ -143,7 +140,6 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: '8.13'
-
       - name: Restore stable release keystore
         env:
           RELEASE_KEYSTORE_B64: ${{ secrets.ALFIE_RELEASE_KEYSTORE_B64 }}
@@ -151,20 +147,14 @@ jobs:
           set -euo pipefail
           printf '%s' "$RELEASE_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/alfie-upload.jks"
           test -s "$RUNNER_TEMP/alfie-upload.jks"
-
       - name: Validate release keystore integrity
         env:
           ALFIE_RELEASE_STORE_PASSWORD: ${{ secrets.ALFIE_RELEASE_STORE_PASSWORD }}
           ALFIE_RELEASE_KEY_ALIAS: ${{ secrets.ALFIE_RELEASE_KEY_ALIAS }}
         run: |
           set -euo pipefail
-          keytool -list \
-            -keystore "$RUNNER_TEMP/alfie-upload.jks" \
-            -storepass "$ALFIE_RELEASE_STORE_PASSWORD" \
-            -alias "$ALFIE_RELEASE_KEY_ALIAS" \
-            >/dev/null
+          keytool -list -keystore "$RUNNER_TEMP/alfie-upload.jks" -storepass "$ALFIE_RELEASE_STORE_PASSWORD" -alias "$ALFIE_RELEASE_KEY_ALIAS" >/dev/null
           echo "Release keystore and configured alias are valid."
-
       - name: Build signed release APK
         env:
           ALFIE_RELEASE_STORE_FILE: ${{ runner.temp }}/alfie-upload.jks
@@ -172,7 +162,6 @@ jobs:
           ALFIE_RELEASE_KEY_ALIAS: ${{ secrets.ALFIE_RELEASE_KEY_ALIAS }}
           ALFIE_RELEASE_KEY_PASSWORD: ${{ secrets.ALFIE_RELEASE_KEY_PASSWORD }}
         run: gradle assembleRelease --stacktrace
-
       - name: Verify release APK signature
         run: |
           set -euo pipefail
@@ -181,14 +170,12 @@ jobs:
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
           test -x "$APKSIGNER" || { echo "Android SDK apksigner not found"; exit 1; }
           "$APKSIGNER" verify --verbose "$APK"
-
       - name: Upload stable release APK
         uses: actions/upload-artifact@v6
         with:
           name: alfie-tv-release-apk
           path: apps/android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
-
       - name: Build signed release AAB
         env:
           ALFIE_RELEASE_STORE_FILE: ${{ runner.temp }}/alfie-upload.jks
@@ -196,14 +183,12 @@ jobs:
           ALFIE_RELEASE_KEY_ALIAS: ${{ secrets.ALFIE_RELEASE_KEY_ALIAS }}
           ALFIE_RELEASE_KEY_PASSWORD: ${{ secrets.ALFIE_RELEASE_KEY_PASSWORD }}
         run: gradle bundleRelease --stacktrace
-
       - name: Upload stable release AAB
         uses: actions/upload-artifact@v6
         with:
           name: alfie-tv-release-aab
           path: apps/android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
-
       - name: Remove temporary signing material
         if: always()
         run: rm -f "$RUNNER_TEMP/alfie-upload.jks"
