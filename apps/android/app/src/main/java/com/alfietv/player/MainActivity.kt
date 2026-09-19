@@ -56,6 +56,19 @@ class MainActivity : ComponentActivity() {
         }
     }
     private val preferences by lazy { getSharedPreferences("alfie_tv", MODE_PRIVATE) }
+    private fun persistLiveChannelState(index: Int = channelIndex) {
+        val channelId = channelIds.getOrNull(index) ?: intent.getStringExtra("channel_id")
+        if (channelId.isNullOrBlank()) return
+        val server = intent.getStringExtra("server")?.trim().orEmpty()
+        val username = intent.getStringExtra("username")?.trim().orEmpty()
+        val categoryId = intent.getStringExtra("preview_category_id")
+        val editor = preferences.edit().putString("last_channel_id", channelId)
+        if (server.isNotBlank() && username.isNotBlank()) {
+            editor.putString("last_channel_${server}_${username}", channelId)
+            if (!categoryId.isNullOrBlank()) editor.putString("last_category_${server}_${username}", categoryId)
+        }
+        editor.apply()
+    }
 
     private val refreshRunnable = object : Runnable {
         override fun run() {
@@ -78,6 +91,7 @@ class MainActivity : ComponentActivity() {
         channelIds = intent.getStringArrayListExtra("channel_ids") ?: emptyList()
         channelNumbers = intent.getStringArrayListExtra("channel_numbers") ?: emptyList()
         channelIndex = intent.getIntExtra("channel_index", 0).coerceIn(0, (channelUrls.size - 1).coerceAtLeast(0))
+        persistLiveChannelState()
         setupLibraryProgress()
         root = FrameLayout(this)
         playerView = PlayerView(this).apply {
@@ -205,7 +219,7 @@ class MainActivity : ComponentActivity() {
         channelIndex = next; showingPlaybackRetry = false; trackPanel.visibility = View.GONE
         playerView.hideController(); topOverlay.visibility = View.VISIBLE
         alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle(), currentChannelNumber())
-        channelIds.getOrNull(channelIndex)?.let { preferences.edit().putString("last_channel_id", it).apply() }
+        persistLiveChannelState()
         showZapOverlay(); refreshOverlay()
     }
 
@@ -215,7 +229,7 @@ class MainActivity : ComponentActivity() {
         channelIndex = index; showingPlaybackRetry = false; trackPanel.visibility = View.GONE
         playerView.hideController(); topOverlay.visibility = View.VISIBLE
         alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle(), currentChannelNumber())
-        channelIds.getOrNull(channelIndex)?.let { preferences.edit().putString("last_channel_id", it).apply() }
+        persistLiveChannelState()
         showZapOverlay(); refreshOverlay()
     }
 
