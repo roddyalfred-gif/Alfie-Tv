@@ -50,7 +50,22 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     }
 
     private fun buildHome() {
-        val compact = resources.configuration.screenWidthDp < 600
+        val widthDp = resources.configuration.screenWidthDp
+        val heightDp = resources.configuration.screenHeightDp
+        val compact = widthDp < 600
+        val tablet = widthDp in 600..899
+        val wide = widthDp >= 900
+        val contentHorizontalPadding = when {
+            widthDp < 360 -> 10
+            compact -> 16
+            tablet -> 24
+            else -> 32
+        }
+        val contentTopPadding = when {
+            heightDp < 480 -> 12
+            compact -> 20
+            else -> 24
+        }
         val root = LinearLayout(this).apply {
             orientation = if (compact) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
             setBackgroundColor(bg)
@@ -99,7 +114,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             }
             root.addView(navScroll, LinearLayout.LayoutParams(-1, 72))
         } else {
-            root.addView(navigation, LinearLayout.LayoutParams(122, -1))
+            root.addView(navigation, LinearLayout.LayoutParams(if (tablet) 132 else if (wide) 144 else 122, -1))
         }
 
         val scroll = ScrollView(this).apply {
@@ -108,7 +123,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(if (compact) 16 else 28, 20, if (compact) 16 else 28, 24)
+            setPadding(contentHorizontalPadding, contentTopPadding, contentHorizontalPadding, if (compact) 24 else 28)
         }
         scroll.addView(content)
         root.addView(scroll, if (compact) LinearLayout.LayoutParams(-1, 0, 1f) else LinearLayout.LayoutParams(0, -1, 1f))
@@ -120,7 +135,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         }
         top.addView(TextView(this).apply {
             text = "HOME"
-            textSize = if (compact) 21f else 24f
+            textSize = when { widthDp < 360 -> 19f; compact -> 21f; tablet -> 23f; else -> 25f }
             setTextColor(white)
             typeface = Typeface.DEFAULT_BOLD
         }, LinearLayout.LayoutParams(0, -2, 1f))
@@ -177,7 +192,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 18 })
 
         section(content, "LIVE TV", "Jump into your channels")
-        val liveRow = row(content, if (compact) 104 else 112)
+        val liveRow = row(content, when { widthDp < 360 -> 96; compact -> 104; tablet -> 112; else -> 124 })
         val live = card(liveRow, "LIVE TV", "Channels and categories", accent) { open(LiveTvActivity::class.java) }
         card(liveRow, "TV GUIDE", "Now • Next • Full schedule", purple) { open(SafeEpgGuideActivity::class.java) }
         navHome.setOnKeyListener { _, keyCode, event ->
@@ -197,12 +212,12 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         live.requestFocus()
 
         section(content, "CONTINUE WATCHING", "Pick up where you left off")
-        val recent = row(content, if (compact) 92 else 92)
+        val recent = row(content, if (compact) 92 else if (tablet) 100 else 108)
         card(recent, "RECENTLY WATCHED", "Continue your latest channels", Color.rgb(74, 129, 255)) { open(FavoritesActivity::class.java) }
         card(recent, "FAVORITES", "Your saved channels and content", Color.rgb(244, 174, 65)) { open(FavoritesActivity::class.java) }
 
         section(content, "ON DEMAND", "Browse your provider catalog")
-        val vod = row(content, if (compact) 92 else 92)
+        val vod = row(content, if (compact) 92 else if (tablet) 100 else 108)
         card(vod, "MOVIES", "Cinema • New releases", Color.rgb(226, 89, 137)) { open(ContentActivity::class.java, "vod") }
         card(vod, "SERIES", "Shows • Seasons • Episodes", Color.rgb(45, 190, 151)) { open(ContentActivity::class.java, "series") }
 
