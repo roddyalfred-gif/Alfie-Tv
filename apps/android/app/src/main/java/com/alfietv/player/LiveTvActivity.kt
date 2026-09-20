@@ -282,7 +282,7 @@ class LiveTvActivity : ComponentActivity() {
     private fun moveChannel(delta: Int) { val channels = displayedChannels; if (channels.isEmpty()) return; val current = list.selectedItemPosition.takeIf { it >= 0 } ?: selectedIndex; selectedIndex = (current + delta).coerceIn(0, channels.lastIndex); list.setSelection(selectedIndex); showEpg(channels[selectedIndex]) }
     private fun roundedBackground(color: Int, radiusDp: Float) = GradientDrawable().apply { setColor(color); cornerRadius = radiusDp * resources.displayMetrics.density }
     private fun channelCardBackground(selected: Boolean, focused: Boolean) = GradientDrawable().apply {
-        setColor(if (selected) Color.rgb(0, 85, 160) else row)
+        setColor(if (selected) accent else row)
         cornerRadius = 12f * resources.displayMetrics.density
         if (focused) setStroke(dp(if (compact) 2 else 3), Color.WHITE)
     }
