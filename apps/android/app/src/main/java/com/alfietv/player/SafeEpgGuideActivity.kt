@@ -6,6 +6,8 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -38,6 +40,19 @@ class SafeEpgGuideActivity : ComponentActivity() {
     private var epgTotal = 0
     private var guideScrollX = 0
     private var syncingGuideScroll = false
+    private val guideClockHandler = Handler(Looper.getMainLooper())
+    private val guideClockTicker = object : Runnable {
+        override fun run() {
+            if (isFinishing || isDestroyed) return
+            val preservedScroll = guideScrollX
+            renderTimeHeader()
+            adapter.notifyDataSetChanged()
+            guideScrollX = preservedScroll
+            timeHeaderScroll.post { timeHeaderScroll.scrollTo(preservedScroll, 0) }
+            syncVisibleScheduleRows(preservedScroll)
+            guideClockHandler.postDelayed(this, 30_000L)
+        }
+    }
 
     private val skin get() = SkinStore.current(this)
     private val bg get() = skin.background
@@ -61,6 +76,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
         )
         buildUi()
         loadGuide()
+        guideClockHandler.postDelayed(guideClockTicker, 30_000L)
     }
 
     private fun buildUi() {
@@ -486,6 +502,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        guideClockHandler.removeCallbacks(guideClockTicker)
         executor.shutdownNow()
         epgExecutor.shutdownNow()
         super.onDestroy()
