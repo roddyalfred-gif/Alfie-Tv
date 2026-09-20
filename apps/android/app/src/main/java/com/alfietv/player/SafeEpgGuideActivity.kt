@@ -268,8 +268,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 val to = minOf(end, program.endUtcMs)
                 if (from > cursor) schedule.addView(View(this@SafeEpgGuideActivity), LinearLayout.LayoutParams(timeWidth(from - cursor), -1))
                 val card = TextView(this@SafeEpgGuideActivity).apply {
-                    val now = System.currentTimeMillis()
-                    val currentProgram = now in program.startUtcMs until program.endUtcMs
+                    val currentProgram = System.currentTimeMillis() in program.startUtcMs until program.endUtcMs
                     val startLabel = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(program.startUtcMs))
                     val endLabel = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(program.endUtcMs))
                     val description = program.description?.trim().orEmpty()
@@ -303,7 +302,8 @@ class SafeEpgGuideActivity : ComponentActivity() {
                         }
                     }
                     setOnClickListener {
-                        if (now in program.startUtcMs until program.endUtcMs) playChannel(channel) else if (program.startUtcMs <= now) activateChannel(channel) else showFuture(program, channel)
+                        val nowAtClick = System.currentTimeMillis()
+                        if (nowAtClick in program.startUtcMs until program.endUtcMs) playChannel(channel) else if (program.startUtcMs <= nowAtClick) activateChannel(channel) else showFuture(program, channel)
                     }
                     setOnKeyListener { _, keyCode, event ->
                         if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
@@ -399,7 +399,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
         if (!::timeHeader.isInitialized) return
         timeHeader.removeAllViews()
         val start = guideStart()
-        repeat(13) { index ->
+        repeat(12) { index ->
             val time = start + index * 30L * 60L * 1000L
             timeHeader.addView(TextView(this).apply {
                 text = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(time))
