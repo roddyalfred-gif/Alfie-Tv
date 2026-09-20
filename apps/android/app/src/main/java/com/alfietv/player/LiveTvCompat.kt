@@ -43,6 +43,7 @@ class VideoPlayerActivity : ComponentActivity() {
                 putExtra("channel_urls", intent.getStringArrayListExtra("channel_urls"))
                 putExtra("channel_titles", intent.getStringArrayListExtra("channel_titles"))
                 putExtra("channel_ids", intent.getStringArrayListExtra("channel_ids"))
+                putExtra("channel_fallback_urls", intent.getStringArrayListExtra("channel_fallback_urls"))
                 putExtra("channel_numbers", intent.getStringArrayListExtra("channel_numbers"))
                 putExtra("channel_index", intent.getIntExtra("channel_index", 0))
             }
