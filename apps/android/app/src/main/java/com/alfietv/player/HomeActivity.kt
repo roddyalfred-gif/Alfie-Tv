@@ -210,8 +210,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         navHome.setOnKeyListener { _, keyCode, event ->
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
                 (keyCode == KeyEvent.KEYCODE_DPAD_DOWN || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT)) {
-                live.requestFocus()
-                true
+                        true
             } else false
         }
         live.setOnKeyListener { _, keyCode, event ->
@@ -250,7 +249,8 @@ class HomeActivity : androidx.activity.ComponentActivity() {
 
         setContentView(root)
         SkinStore.animate(hero, skin)
-        root.post { navHome.requestFocus() }
+        // Keep the TV-first landing focus on Live TV after the hierarchy is attached.
+        root.post { live.requestFocus() }
     }
 
     private fun section(root: LinearLayout, title: String, subtitle: String) {
