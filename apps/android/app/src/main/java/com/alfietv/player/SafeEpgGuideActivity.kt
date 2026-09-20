@@ -280,7 +280,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                     isClickable = true
                     contentDescription = "${program.title}, ${if (currentProgram) "now playing" else "upcoming programme"}"
                     setOnFocusChangeListener { view, hasFocus ->
-                        view.background = guideCellBackground(if (currentProgram) current else row, hasFocus)
+                        view.background = guideCellBackground(if (currentProgram) currentAccent else row, hasFocus)
                         if (hasFocus) {
                             (view.parent?.parent as? HorizontalScrollView)?.let { guideScroll ->
                                 val target = (view.left - (guideScroll.width - view.width) / 2).coerceAtLeast(0)
