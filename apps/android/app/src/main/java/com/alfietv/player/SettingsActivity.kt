@@ -116,7 +116,7 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
         }
         setContentView(scroll)
         SkinStore.animate(content, skin)
-        content.post { if (content.childCount > 2) content.getChildAt(2).requestFocus() }
+        content.post { content.getChildAt(3)?.requestFocus() }
     }
 
     private fun addHeader(root: LinearLayout, title: String) {
@@ -127,7 +127,7 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(16, 8, 16, 8); background = rounded(surface)
             isFocusable = true; isFocusableInTouchMode = true
-            setOnFocusChangeListener { v, focused -> v.background = rounded(if (focused) accent else surface) }
+            setOnFocusChangeListener { v, focused -> v.background = if (focused) focusedRow() else rounded(surface) }
         }
         val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; isFocusable = false }
         labels.addView(TextView(this).apply { text = title; textSize = 16f; setTextColor(primaryText) })
@@ -185,6 +185,12 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
     }
 
     private fun rounded(color: Int) = GradientDrawable().apply { setColor(color); cornerRadius = 14f * resources.displayMetrics.density }
+
+    private fun focusedRow() = GradientDrawable().apply {
+        setColor(surface)
+        setStroke((2f * resources.displayMetrics.density).toInt(), accent)
+        cornerRadius = 14f * resources.displayMetrics.density
+    }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) { finish(); return true }
