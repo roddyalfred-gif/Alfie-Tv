@@ -65,6 +65,7 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
             addView(content, ViewGroup.LayoutParams(-1, -2))
         }
         setContentView(scroll)
+        SkinStore.animate(content, skin)
         content.post { if (content.childCount > 2) content.getChildAt(2).requestFocus() }
     }
 
