@@ -206,6 +206,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         section(content, "LIVE TV", "Jump into your channels")
         val liveRow = row(content, when { widthDp < 360 -> 96; compact -> 104; tablet -> 112; else -> 124 })
         val live = card(liveRow, "LIVE TV", "Channels and categories", accent) { open(LiveTvActivity::class.java) }
+        homeLiveCard = live
         card(liveRow, "TV GUIDE", "Now • Next • Full schedule", purple) { open(SafeEpgGuideActivity::class.java) }
         navHome.setOnKeyListener { _, keyCode, event ->
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
@@ -415,6 +416,12 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_MENU) { clearProviderCache(); SessionStore.clear(this); goToLogin(); return true }
         return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Restore the primary TV landing focus after returning from Live TV, Guide, or fullscreen.
+        homeLiveCard?.post { if (!isFinishing) homeLiveCard?.requestFocus() }
     }
 
     override fun onDestroy() { executor.shutdownNow(); super.onDestroy() }
