@@ -305,6 +305,13 @@ class SafeEpgGuideActivity : ComponentActivity() {
                     setOnClickListener {
                         if (now in program.startUtcMs until program.endUtcMs) playChannel(channel) else if (program.startUtcMs <= now) activateChannel(channel) else showFuture(program, channel)
                     }
+                    setOnKeyListener { _, keyCode, event ->
+                        if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
+                            (keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER || keyCode == android.view.KeyEvent.KEYCODE_ENTER)) {
+                            performClick()
+                            true
+                        } else false
+                    }
                 }
                 schedule.addView(card, LinearLayout.LayoutParams(timeWidth(to - from), -1).apply { marginEnd = dp(2) })
                 cursor = maxOf(cursor, to)
