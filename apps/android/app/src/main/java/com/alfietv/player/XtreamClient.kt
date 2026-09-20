@@ -29,7 +29,8 @@ class XtreamClient {
                 streamUrl = streamUrl,
                 categoryId = normalizeId(o.optString("category_id")),
                 logoUrl = o.optString("stream_icon").trim().ifBlank { null },
-                epgId = o.optString("epg_channel_id").trim().ifBlank { null }
+                epgId = o.optString("epg_channel_id").trim().ifBlank { null },
+                fallbackStreamUrl = fallback
             )
         }
         return categories to channels
