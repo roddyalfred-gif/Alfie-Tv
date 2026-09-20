@@ -57,11 +57,12 @@ class LiveTvActivity : ComponentActivity() {
     private var awaitingFullscreenReturn = false
     private var categories = emptyList<IptvCategory>()
     private lateinit var config: XtreamConfig
-    private val bg = Color.rgb(5, 9, 18)
-    private val panel = Color.rgb(13, 21, 35)
-    private val row = Color.rgb(15, 24, 40)
-    private val accent = Color.rgb(0, 168, 255)
-    private val muted = Color.rgb(170, 181, 200)
+    private val skin get() = SkinStore.current(this)
+    private val bg get() = skin.background
+    private val panel get() = skin.surface
+    private val row get() = skin.surface2
+    private val accent get() = skin.accent
+    private val muted = Color.rgb(185, 195, 210)
 
     private val widthDp: Int get() = resources.configuration.screenWidthDp
     private val heightDp: Int get() = resources.configuration.screenHeightDp
@@ -137,6 +138,7 @@ class LiveTvActivity : ComponentActivity() {
         else { content.addView(list, LinearLayout.LayoutParams(0, -1, 1.6f)); content.addView(details, LinearLayout.LayoutParams(0, -1, 1f).apply { leftMargin = dp(if (wide) 12 else 8) }) }
         root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
         status = label("Loading channels…", if (compact) 11f else 12f, muted, false); status.setPadding(dp(4), dp(5), dp(4), 0); root.addView(status, LinearLayout.LayoutParams(-1, 28)); setContentView(root)
+        SkinStore.animate(root, skin)
         if (intent.getBooleanExtra("focus_search", false)) {
             search.requestFocus()
             search.post { search.setSelection(search.text.length) }
