@@ -1,6 +1,7 @@
 package com.alfietv.player
 
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
