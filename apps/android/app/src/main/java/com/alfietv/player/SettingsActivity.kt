@@ -184,7 +184,13 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
         Thread { runCatching { val (categories, channels) = XtreamClient().load(config); LiveTvCache.write(this, config, categories, channels) } }.start()
     }
 
-    private fun rounded(color: Int) = GradientDrawable().apply { setColor(color); cornerRadius = 14f * resources.displayMetrics.density }\n\n    private fun focusedRow() = GradientDrawable().apply {\n        setColor(surface)\n        setStroke((2f * resources.displayMetrics.density).toInt(), accent)\n        cornerRadius = 14f * resources.displayMetrics.density\n    }
+    private fun rounded(color: Int) = GradientDrawable().apply { setColor(color); cornerRadius = 14f * resources.displayMetrics.density }
+
+    private fun focusedRow() = GradientDrawable().apply {
+        setColor(surface)
+        setStroke((2f * resources.displayMetrics.density).toInt(), accent)
+        cornerRadius = 14f * resources.displayMetrics.density
+    }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) { finish(); return true }
