@@ -88,6 +88,14 @@ class LiveTvActivity : ComponentActivity() {
         window.navigationBarColor = bg
         SkinStore.applyWindow(this)
         config = XtreamConfig(intent.getStringExtra("server") ?: "", intent.getStringExtra("username") ?: "", intent.getStringExtra("password") ?: "")
+        savedInstanceState?.let { state ->
+            previewChannelId = state.getString("live_preview_channel_id")
+            previewCategoryId = state.getString("live_preview_category_id")
+            selectedCategory = state.getString("live_selected_category")
+            selectedIndex = state.getInt("live_selected_index", -1)
+            favoritesMode = state.getBoolean("live_favorites_mode", false)
+            restoredLastChannel = state.getBoolean("live_restored_last_channel", false)
+        }
         buildUi()
         load()
         mainHandler.post(ticker)
@@ -287,6 +295,16 @@ class LiveTvActivity : ComponentActivity() {
         if (focused) setStroke(dp(if (compact) 2 else 3), Color.WHITE)
     }
     private fun animateFocus(view: View, focused: Boolean) { ObjectAnimator.ofFloat(view, "scaleX", if (focused) 1.03f else 1f).setDuration(120).start(); ObjectAnimator.ofFloat(view, "scaleY", if (focused) 1.03f else 1f).setDuration(120).start() }
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("live_preview_channel_id", previewChannelId)
+        outState.putString("live_preview_category_id", previewCategoryId)
+        outState.putString("live_selected_category", selectedCategory)
+        outState.putInt("live_selected_index", selectedIndex)
+        outState.putBoolean("live_favorites_mode", favoritesMode)
+        outState.putBoolean("live_restored_last_channel", restoredLastChannel)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onResume() {
         super.onResume()
         if (awaitingFullscreenReturn && !isFinishing) {
