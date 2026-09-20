@@ -180,12 +180,12 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         val hero = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(28, 24, 28, 24)
-            background = gradient(Color.rgb(39, 37, 105), Color.rgb(10, 77, 103))
+            background = gradient(skin.secondary, skin.current)
         }
         hero.addView(TextView(this).apply {
             text = "WELCOME BACK"
             textSize = 10f
-            setTextColor(Color.rgb(214, 224, 255))
+            setTextColor(Color.WHITE)
             typeface = Typeface.DEFAULT_BOLD
             letterSpacing = 0.16f
         })
@@ -199,7 +199,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         hero.addView(TextView(this).apply {
             text = "Live TV • Guide • Movies • Series"
             textSize = 12f
-            setTextColor(Color.rgb(226, 233, 248))
+            setTextColor(Color.WHITE)
         })
         content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 18 })
 
@@ -225,18 +225,18 @@ class HomeActivity : androidx.activity.ComponentActivity() {
 
         section(content, "CONTINUE WATCHING", "Pick up where you left off")
         val recent = row(content, if (compact) 92 else if (tablet) 100 else 108)
-        card(recent, "RECENTLY WATCHED", "Continue your latest channels", Color.rgb(74, 129, 255)) { open(FavoritesActivity::class.java) }
-        card(recent, "FAVORITES", "Your saved channels and content", Color.rgb(244, 174, 65)) { open(FavoritesActivity::class.java) }
+        card(recent, "RECENTLY WATCHED", "Continue your latest channels", accent) { open(FavoritesActivity::class.java) }
+        card(recent, "FAVORITES", "Your saved channels and content", purple) { open(FavoritesActivity::class.java) }
 
         section(content, "ON DEMAND", "Browse your provider catalog")
         val vod = row(content, if (compact) 92 else if (tablet) 100 else 108)
-        card(vod, "MOVIES", "Cinema • New releases", Color.rgb(226, 89, 137)) { open(ContentActivity::class.java, "vod") }
-        card(vod, "SERIES", "Shows • Seasons • Episodes", Color.rgb(45, 190, 151)) { open(ContentActivity::class.java, "series") }
+        card(vod, "MOVIES", "Cinema • New releases", skin.secondary) { open(ContentActivity::class.java, "vod") }
+        card(vod, "SERIES", "Shows • Seasons • Episodes", cyan) { open(ContentActivity::class.java, "series") }
 
         section(content, "QUICK ACTIONS", "Everything important in one place")
         val tools = row(content, 80)
         card(tools, "REFRESH", "Update channels and guide", cyan) { refreshProvider() }
-        card(tools, "CHANGE PROVIDER", "Connect another IPTV service", Color.rgb(86, 96, 120)) {
+        card(tools, "CHANGE PROVIDER", "Connect another IPTV service", muted) {
             clearProviderCache(); SessionStore.clear(this); goToLogin()
         }
 
@@ -304,7 +304,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             isFocusableInTouchMode = true
             stateListAnimator = null
             setOnFocusChangeListener { v, focused ->
-                v.background = if (focused) selectedNav(accent) else if (selected) selectedNav(Color.rgb(30, 47, 68)) else rounded(rail)
+                v.background = if (focused) selectedNav(accent) else if (selected) selectedNav(panel2) else rounded(rail)
                 if (focused) animateFocus(v, true)
             }
             setOnClickListener { action() }
@@ -378,7 +378,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     }
 
     private fun selectedNav(color: Int) = GradientDrawable().apply {
-        setColor(Color.rgb(25, 40, 59)); setStroke((1.5f * resources.displayMetrics.density).toInt(), color)
+        setColor(panel2); setStroke((1.5f * resources.displayMetrics.density).toInt(), color)
         cornerRadius = 14f * resources.displayMetrics.density
     }
 
