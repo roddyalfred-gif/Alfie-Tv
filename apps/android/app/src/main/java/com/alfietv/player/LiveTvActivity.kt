@@ -62,7 +62,7 @@ class LiveTvActivity : ComponentActivity() {
     private val panel get() = skin.surface
     private val row get() = skin.surface2
     private val accent get() = skin.accent
-    private val muted = Color.rgb(185, 195, 210)
+    private val muted get() = skin.secondary
 
     private val widthDp: Int get() = resources.configuration.screenWidthDp
     private val heightDp: Int get() = resources.configuration.screenHeightDp

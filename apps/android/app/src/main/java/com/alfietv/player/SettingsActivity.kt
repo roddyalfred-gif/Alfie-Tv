@@ -21,7 +21,7 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
     private val surface get() = skin.surface
     private val accent get() = skin.accent
     private val primaryText = Color.WHITE
-    private val secondary = Color.rgb(185, 195, 210)
+    private val secondary get() = skin.secondary
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
