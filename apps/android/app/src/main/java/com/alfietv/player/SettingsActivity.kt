@@ -31,14 +31,32 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
     }
 
     private fun buildSettings() {
+        val widthDp = resources.configuration.screenWidthDp
+        val compact = widthDp < 600
+        val horizontalPadding = when {
+            widthDp < 360 -> 12
+            compact -> 16
+            widthDp < 900 -> 28
+            else -> 72
+        }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(72, 28, 72, 40)
+            setPadding(horizontalPadding, if (compact) 16 else 28, horizontalPadding, if (compact) 24 else 40)
             setBackgroundColor(bg)
             isFocusable = false
         }
-        content.addView(TextView(this).apply { text = "SETTINGS"; textSize = 30f; setTextColor(accent); typeface = Typeface.DEFAULT_BOLD })
-        content.addView(TextView(this).apply { text = "Player, picture, interface and recovery options"; textSize = 14f; setTextColor(secondary); setPadding(0, 4, 0, 14) })
+        content.addView(TextView(this).apply {
+            text = "SETTINGS"
+            textSize = if (compact) 24f else 30f
+            setTextColor(accent)
+            typeface = Typeface.DEFAULT_BOLD
+        })
+        content.addView(TextView(this).apply {
+            text = "Player, picture, interface and recovery options"
+            textSize = if (compact) 12f else 14f
+            setTextColor(secondary)
+            setPadding(0, 4, 0, if (compact) 10 else 14)
+        })
 
         addHeader(content, "PLAYBACK")
         addSwitch(content, "Auto-play channels", "Start a stream immediately when selected", SettingsStore.autoPlay(this)) { SettingsStore.setAutoPlay(this, it) }
@@ -52,7 +70,7 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
         addHeader(content, "INTERFACE")
         val selectedSkin = SkinStore.current(this)
         val skinPicker = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+            orientation = if (compact) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
         SkinStore.all().forEach { option ->
@@ -70,9 +88,13 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
                     buildSettings()
                 }
             }
-            skinPicker.addView(button, LinearLayout.LayoutParams(0, 54, 1f).apply { marginEnd = 6 })
+            if (compact) {
+                skinPicker.addView(button, LinearLayout.LayoutParams(-1, 50).apply { topMargin = 4 })
+            } else {
+                skinPicker.addView(button, LinearLayout.LayoutParams(0, 54, 1f).apply { marginEnd = 6 })
+            }
         }
-        content.addView(skinPicker, LinearLayout.LayoutParams(-1, 60))
+        content.addView(skinPicker, LinearLayout.LayoutParams(-1, if (compact) -2 else 60))
         addChoice(content, "Visual skin", "Animated adaptive appearance for phone, tablet and TV", selectedSkin.id, SkinStore.all().map { it.id to it.name }) {
             SkinStore.set(this, it)
             SkinStore.applyWindow(this)
@@ -140,8 +162,11 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
                 changed(next.first); text = next.second
             }
         }
-        row.addView(button, LinearLayout.LayoutParams(150, 52)); row.setOnClickListener { button.performClick() }
-        root.addView(row, LinearLayout.LayoutParams(-1, 72).apply { topMargin = 5 })
+        row.addView(button, LinearLayout.LayoutParams(
+            if (resources.configuration.screenWidthDp < 600) -2 else 150, 52
+        ))
+        row.setOnClickListener { button.performClick() }
+        root.addView(row, LinearLayout.LayoutParams(-1, if (resources.configuration.screenWidthDp < 600) 86 else 72).apply { topMargin = 5 })
     }
 
     private fun addButton(root: LinearLayout, label: String, action: () -> Unit) {
