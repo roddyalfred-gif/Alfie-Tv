@@ -415,21 +415,18 @@ class SafeEpgGuideActivity : ComponentActivity() {
             status.text = "${channel.name} has no stream URL"
             return
         }
-        val index = channels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
+        // Do not pass the entire provider channel list through the Activity Intent.
+        // Large IPTV lists can exceed Android Binder transaction limits and cause
+        // "Unable to open Live TV: Failure from system". LiveTvActivity already
+        // reloads/caches the provider list and only needs the selected channel ID.
         runCatching {
             startActivity(Intent(this, LiveTvActivity::class.java).apply {
                 putExtra("server", config.serverUrl)
                 putExtra("username", config.username)
                 putExtra("password", config.password)
                 putExtra("preview_channel_id", channel.id)
-                putExtra("preview_channel_index", index)
-                putExtra("channel_urls", ArrayList(channels.map { it.streamUrl }))
-                putExtra("channel_titles", ArrayList(channels.map { it.name }))
-                putExtra("channel_ids", ArrayList(channels.map { it.id }))
-                putExtra("channel_fallback_urls", ArrayList(channels.map { it.fallbackStreamUrl ?: "" }))
-                putExtra("channel_numbers", ArrayList(channels.indices.map { (it + 1).toString() }))
             })
-        }.onFailure { status.text = "Unable to open Live TV: ${it.message ?: "unknown error"}" }
+        }.onFailure { status.text = "Unable to open Live TV: " + (it.message ?: "unknown error") }
     }
 
     private fun buildChannelLabel(channel: IptvChannel, position: Int): String {

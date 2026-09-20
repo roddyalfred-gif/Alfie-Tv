@@ -51,14 +51,17 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
     override fun onResume() { super.onResume(); if (::list.isInitialized) reload() }
 
     private fun buildUi() {
+        val widthDp = resources.configuration.screenWidthDp
+        val compact = widthDp < 600
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(18, 14, 18, 10)
-            setBackgroundColor(bg)
+            setPadding(if (widthDp < 360) 10 else if (compact) 14 else 18, if (compact) 10 else 14,
+                if (widthDp < 360) 10 else if (compact) 14 else 18, if (compact) 8 else 10)
+            setBackgroundColor(SkinStore.current(this@FavoritesActivity).background)
         }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         header.addView(TextView(this).apply {
-            text = "My Library"; textSize = 28f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD
+            text = "My Library"; textSize = if (compact) 22f else 28f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD
         }, LinearLayout.LayoutParams(0, -2, 1f))
         search = EditText(this).apply {
             hint = "Search library..."; setSingleLine(true); textSize = 16f
@@ -70,8 +73,20 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
                 override fun afterTextChanged(s: android.text.Editable?) = Unit
             })
         }
-        header.addView(search, LinearLayout.LayoutParams(0, 52, 1.6f))
-        root.addView(header, LinearLayout.LayoutParams(-1, 58))
+        if (compact) {
+            header.orientation = LinearLayout.VERTICAL
+            header.gravity = Gravity.START
+            header.addView(TextView(this).apply {
+                text = if (showingRecent) "Recently Watched" else "Saved Favorites"
+                textSize = 11f
+                setTextColor(muted)
+            }, LinearLayout.LayoutParams(-1, 22))
+            header.addView(search, LinearLayout.LayoutParams(-1, 48).apply { topMargin = 4 })
+            root.addView(header, LinearLayout.LayoutParams(-1, 78))
+        } else {
+            header.addView(search, LinearLayout.LayoutParams(0, 52, 1.6f))
+            root.addView(header, LinearLayout.LayoutParams(-1, 58))
+        }
 
         val tabs = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         favoritesButton = tabButton("FAVORITES") { showingRecent = false; render() }
@@ -130,8 +145,8 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
     private fun applyLayoutMode() {
         list.numColumns = when (currentLayoutMode) {
             LayoutMode.LIST -> 1
-            LayoutMode.GRID -> 2
-            LayoutMode.TILE -> 4
+            LayoutMode.GRID -> if (resources.configuration.screenWidthDp < 360) 1 else if (resources.configuration.screenWidthDp < 600) 2 else 3
+            LayoutMode.TILE -> if (resources.configuration.screenWidthDp < 600) 2 else 4
         }
         list.horizontalSpacing = if (currentLayoutMode == LayoutMode.LIST) 0 else 8
         list.verticalSpacing = 10
@@ -159,7 +174,7 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
                     orientation = if (currentLayoutMode == LayoutMode.LIST) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
                     gravity = Gravity.CENTER
                     minimumHeight = when (currentLayoutMode) { LayoutMode.LIST -> 72; LayoutMode.GRID -> 150; LayoutMode.TILE -> 112 }
-                    setPadding(10, 8, 10, 8); background = roundedBackground(row, 12f)
+                    setPadding(if (resources.configuration.screenWidthDp < 600) 8 else 10, 8, if (resources.configuration.screenWidthDp < 600) 8 else 10, 8); background = roundedBackground(row, 12f)
                 }
                 val imageSize = when (currentLayoutMode) { LayoutMode.LIST -> 52; LayoutMode.GRID -> 86; LayoutMode.TILE -> 58 }
                 val icon = ImageView(this@FavoritesActivity).apply {
@@ -203,5 +218,7 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
         }
     }
 
-    private fun roundedBackground(color: Int, radius: Float): GradientDrawable = GradientDrawable().apply { setColor(color); cornerRadius = radius }
+    private fun roundedBackground(color: Int, radius: Float): GradientDrawable = GradientDrawable().apply {
+        setColor(color); cornerRadius = radius * resources.displayMetrics.density
+    }
 }

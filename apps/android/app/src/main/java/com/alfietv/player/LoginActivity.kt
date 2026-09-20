@@ -64,24 +64,36 @@ class LoginActivity : androidx.activity.ComponentActivity() {
     }
 
     private fun buildLoginForm(saved: XtreamConfig?) {
+        val widthDp = resources.configuration.screenWidthDp
+        val compact = widthDp < 600
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(72, 36, 72, 36)
+            setPadding(
+                if (widthDp < 360) 12 else if (compact) 16 else 72,
+                if (compact) 18 else 36,
+                if (widthDp < 360) 12 else if (compact) 16 else 72,
+                if (compact) 18 else 36
+            )
             setBackgroundColor(backgroundColor)
         }
 
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(56, 44, 56, 44)
+            setPadding(
+                if (widthDp < 360) 18 else if (compact) 24 else 56,
+                if (compact) 28 else 44,
+                if (widthDp < 360) 18 else if (compact) 24 else 56,
+                if (compact) 28 else 44
+            )
             background = roundedBackground(surfaceColor, 24f)
             elevation = 12f
         }
 
         card.addView(TextView(this).apply {
             text = "ALFIE TV"
-            textSize = 30f
+            textSize = if (compact) 25f else 30f
             setTextColor(accentColor)
             gravity = Gravity.CENTER
             typeface = Typeface.DEFAULT_BOLD
@@ -90,7 +102,7 @@ class LoginActivity : androidx.activity.ComponentActivity() {
 
         card.addView(TextView(this).apply {
             text = "Connect your provider"
-            textSize = 22f
+            textSize = if (compact) 19f else 22f
             setTextColor(textColor)
             gravity = Gravity.CENTER
             typeface = Typeface.DEFAULT_BOLD
@@ -98,7 +110,7 @@ class LoginActivity : androidx.activity.ComponentActivity() {
 
         card.addView(TextView(this).apply {
             text = "Enter your IPTV provider credentials to load your content."
-            textSize = 14f
+            textSize = if (compact) 13f else 14f
             setTextColor(secondaryTextColor)
             gravity = Gravity.CENTER
         }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 8 })
@@ -135,10 +147,10 @@ class LoginActivity : androidx.activity.ComponentActivity() {
         }
         card.addView(status, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 4 })
 
-        root.addView(card, LinearLayout.LayoutParams(-1, -2).apply { gravity = Gravity.CENTER; weight = 1f })
+        root.addView(card, LinearLayout.LayoutParams(-1, -2).apply { gravity = Gravity.CENTER; weight = 1f; bottomMargin = if (compact) 8 else 0 })
         root.addView(TextView(this).apply {
             text = "Alfie TV • Live TV • Movies • Series • EPG"
-            textSize = 12f
+            textSize = if (compact) 10f else 12f
             setTextColor(secondaryTextColor)
             gravity = Gravity.CENTER
         }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 14 })
