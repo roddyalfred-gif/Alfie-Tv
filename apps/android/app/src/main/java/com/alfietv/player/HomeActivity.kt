@@ -31,12 +31,13 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     private val purple get() = skin.secondary
     private val cyan get() = skin.current
     private val white = Color.WHITE
+    private var renderedSkinId: String? = null
     private val muted = Color.rgb(153, 166, 188)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = bg
-        window.navigationBarColor = bg
+        SkinStore.applyWindow(this)
+        renderedSkinId = skin.id
         config = SessionStore.load(this) ?: XtreamConfig(
             intent.getStringExtra("server") ?: "",
             intent.getStringExtra("username") ?: "",
@@ -48,6 +49,16 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         }
         SessionStore.save(this, config)
         buildHome()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        SkinStore.applyWindow(this)
+        val selected = skin.id
+        if (renderedSkinId != null && renderedSkinId != selected) {
+            renderedSkinId = selected
+            if (::config.isInitialized && config.serverUrl.isNotBlank() && config.username.isNotBlank() && config.password.isNotBlank()) buildHome()
+        }
     }
 
     private fun buildHome() {

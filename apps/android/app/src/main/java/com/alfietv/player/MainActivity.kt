@@ -86,6 +86,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        SkinStore.applyWindow(this)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         channelUrls = intent.getStringArrayListExtra("channel_urls") ?: emptyList()
         channelTitles = intent.getStringArrayListExtra("channel_titles") ?: emptyList()
