@@ -38,6 +38,8 @@ class AlfiePlayer(context: Context) {
     private var pendingChannelTitle: String? = null
     private var pendingChannelNumber: String? = null
     private var pendingChannelGeneration = 0L
+    private var fallbackUrls: List<String> = emptyList()
+    private var fallbackIndex = 0
     var autoRetryEnabled: Boolean = true
     private val channelSwitchRunnable = Runnable {
         val url = pendingChannelUrl ?: return@Runnable
@@ -95,7 +97,10 @@ class AlfiePlayer(context: Context) {
                     updateVideoDiagnostics()
                 }
                 override fun onTracksChanged(tracks: androidx.media3.common.Tracks) { updateVideoDiagnostics() }
-                override fun onPlayerError(error: PlaybackException) { if (autoRetryEnabled) recover() }
+                override fun onPlayerError(error: PlaybackException) {
+                    if (tryNextFallback()) return
+                    if (autoRetryEnabled) recover()
+                }
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     if (isPlaying) {
                         recoveryAttempts = 0
@@ -125,6 +130,7 @@ class AlfiePlayer(context: Context) {
 
     fun play(url: String, title: String? = null, positionMs: Long = C.TIME_UNSET, channelNumber: String? = null) {
         require(url.startsWith("http://") || url.startsWith("https://")) { "Unsupported stream URL" }
+        if (fallbackUrls.getOrNull(fallbackIndex) != url) { fallbackUrls = emptyList(); fallbackIndex = 0 }
         playbackGeneration.next()
         handler.removeCallbacks(channelSwitchRunnable)
         pendingChannelUrl = null; pendingChannelTitle = null; pendingChannelNumber = null
@@ -159,6 +165,15 @@ class AlfiePlayer(context: Context) {
         player.setMediaItem(builder.build(), if (positionMs == C.TIME_UNSET) C.TIME_UNSET else positionMs)
         player.prepare()
         player.playWhenReady = true
+    }
+
+    /** Try provider direct_source first, then its canonical live endpoint before normal recovery. */
+    fun playWithFallback(urls: List<String>, title: String? = null, channelNumber: String? = null) {
+        val candidates = urls.map { it.trim() }.filter { it.startsWith("http://") || it.startsWith("https://") }.distinct()
+        if (candidates.isEmpty()) return
+        fallbackUrls = candidates
+        fallbackIndex = 0
+        play(candidates.first(), title, C.TIME_UNSET, channelNumber)
     }
 
     fun retryCurrent() {
@@ -294,6 +309,14 @@ class AlfiePlayer(context: Context) {
             if (bufferingSince == 0L) bufferingSince = now
             if (autoRetryEnabled && now - bufferingSince >= 10_000L) recover()
         } else if (autoRetryEnabled && videoPlaying && AudioRecoveryPolicy.shouldRecover(videoPlaying, audioAvailable, 0L, now, lastAudioRecoveryAt, audioRecoveryAttempts)) recoverAudio()
+    }
+
+    private fun tryNextFallback(): Boolean {
+        if (fallbackIndex + 1 >= fallbackUrls.size) return false
+        fallbackIndex++
+        val next = fallbackUrls[fallbackIndex]
+        handler.postDelayed({ play(next, currentTitle, C.TIME_UNSET, currentChannelNumber) }, 150L)
+        return true
     }
 
     private fun recoverAudio(force: Boolean = false) {

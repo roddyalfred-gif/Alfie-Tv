@@ -39,12 +39,13 @@ class SafeEpgGuideActivity : ComponentActivity() {
     private var guideScrollX = 0
     private var syncingGuideScroll = false
 
-    private val bg = Color.rgb(9, 15, 25)
-    private val panel = Color.rgb(20, 27, 38)
-    private val row = Color.rgb(28, 37, 51)
-    private val muted = Color.rgb(160, 170, 185)
-    private val accent = Color.rgb(0, 140, 255)
-    private val current = Color.rgb(0, 85, 160)
+    private val skin get() = SkinStore.current(this)
+    private val bg get() = skin.background
+    private val panel get() = skin.surface
+    private val row get() = skin.surface2
+    private val muted = Color.rgb(185, 195, 210)
+    private val accent get() = skin.accent
+    private val currentAccent: Int get() = skin.current
     private val focusStroke = Color.WHITE
     private val compact get() = resources.configuration.screenWidthDp < 600
     private val labelWidth get() = dp(if (compact) 132 else 180)
@@ -67,11 +68,18 @@ class SafeEpgGuideActivity : ComponentActivity() {
             setBackgroundColor(bg)
         }
         status = TextView(this).apply {
-            text = "Loading provider TV Guide…"
+            text = "TV GUIDE  •  NOW / NEXT / 6-HOUR TIMELINE"
             textSize = if (compact) 12f else 13f
             setTextColor(muted)
             setPadding(dp(12), dp(8), dp(12), dp(8))
         }
+        root.addView(TextView(this).apply {
+            text = "TV GUIDE  •  Provider EPG timeline"
+            textSize = if (compact) 18f else 24f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            setPadding(dp(12), dp(10), dp(12), dp(4))
+        }, LinearLayout.LayoutParams(-1, -2))
         root.addView(status, LinearLayout.LayoutParams(-1, -2))
 
         val loading = ProgressBar(this).apply { isIndeterminate = true }
@@ -117,6 +125,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
         list.adapter = adapter
         root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
+        SkinStore.animate(root, skin)
     }
 
     private fun loadGuide() {
@@ -266,12 +275,12 @@ class SafeEpgGuideActivity : ComponentActivity() {
                     gravity = Gravity.CENTER_VERTICAL
                     maxLines = 2
                     setPadding(dp(8), dp(3), dp(8), dp(3))
-                    background = guideCellBackground(if (currentProgram) current else row, false)
+                    background = guideCellBackground(if (currentProgram) currentAccent else row, false)
                     isFocusable = true
                     isClickable = true
                     contentDescription = "${program.title}, ${if (currentProgram) "now playing" else "upcoming programme"}"
                     setOnFocusChangeListener { view, hasFocus ->
-                        view.background = guideCellBackground(if (currentProgram) current else row, hasFocus)
+                        view.background = guideCellBackground(if (currentProgram) currentAccent else row, hasFocus)
                         if (hasFocus) {
                             (view.parent?.parent as? HorizontalScrollView)?.let { guideScroll ->
                                 val target = (view.left - (guideScroll.width - view.width) / 2).coerceAtLeast(0)
@@ -280,7 +289,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                         }
                     }
                     setOnClickListener {
-                        if (program.startUtcMs <= now) activateChannel(channel) else showFuture(program, channel)
+                        if (now in program.startUtcMs until program.endUtcMs) playChannel(channel) else if (program.startUtcMs <= now) activateChannel(channel) else showFuture(program, channel)
                     }
                 }
                 schedule.addView(card, LinearLayout.LayoutParams(timeWidth(to - from), -1).apply { marginEnd = dp(2) })
@@ -377,7 +386,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(if (index == 1) Color.WHITE else muted)
                 gravity = Gravity.CENTER
-                background = rounded(if (index == 1) current else row, 6f)
+                background = rounded(if (index == 1) currentAccent else row, 6f)
             }, LinearLayout.LayoutParams(timeWidth(30L * 60L * 1000L), dp(40)).apply { marginEnd = dp(1) })
         }
     }
@@ -416,6 +425,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 putExtra("channel_urls", ArrayList(channels.map { it.streamUrl }))
                 putExtra("channel_titles", ArrayList(channels.map { it.name }))
                 putExtra("channel_ids", ArrayList(channels.map { it.id }))
+                putExtra("channel_fallback_urls", ArrayList(channels.map { it.fallbackStreamUrl ?: "" }))
                 putExtra("channel_numbers", ArrayList(channels.indices.map { (it + 1).toString() }))
             })
         }.onFailure { status.text = "Unable to open Live TV: ${it.message ?: "unknown error"}" }

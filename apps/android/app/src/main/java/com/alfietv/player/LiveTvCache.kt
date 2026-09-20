@@ -43,7 +43,8 @@ object LiveTvCache {
                     id, o.optString("name"), streamUrl,
                     o.optString("categoryId").ifBlank { null },
                     o.optString("logoUrl").ifBlank { null },
-                    o.optString("epgId").ifBlank { null }
+                    o.optString("epgId").ifBlank { null },
+                    o.optString("fallbackStreamUrl").ifBlank { "${config.serverUrl.trimEnd('/')}/live/${enc(config.username)}/${enc(config.password)}/$id.ts" }
                 )
             }
             if (channels.isEmpty()) return null
@@ -58,7 +59,7 @@ object LiveTvCache {
         root.put("channels", JSONArray().also { array ->
             channels.forEach { channel ->
                 array.put(JSONObject().put("id", channel.id).put("name", channel.name).put("streamUrl", channel.streamUrl)
-                    .put("categoryId", channel.categoryId ?: "").put("logoUrl", channel.logoUrl ?: "").put("epgId", channel.epgId ?: ""))
+                    .put("categoryId", channel.categoryId ?: "").put("logoUrl", channel.logoUrl ?: "").put("epgId", channel.epgId ?: "").put("fallbackStreamUrl", channel.fallbackStreamUrl ?: ""))
             }
         })
         runCatching { context.openFileOutput(fileName(config), Context.MODE_PRIVATE).bufferedWriter().use { it.write(root.toString()) } }
