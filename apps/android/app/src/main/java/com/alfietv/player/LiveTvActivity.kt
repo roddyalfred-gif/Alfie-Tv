@@ -287,6 +287,17 @@ class LiveTvActivity : ComponentActivity() {
         if (focused) setStroke(dp(if (compact) 2 else 3), Color.WHITE)
     }
     private fun animateFocus(view: View, focused: Boolean) { ObjectAnimator.ofFloat(view, "scaleX", if (focused) 1.03f else 1f).setDuration(120).start(); ObjectAnimator.ofFloat(view, "scaleY", if (focused) 1.03f else 1f).setDuration(120).start() }
-    override fun onBackPressed() { if (search.hasFocus() && search.text.isNotEmpty()) { search.text.clear(); list.requestFocus(); return }; super.onBackPressed() }
+    override fun onBackPressed() {
+        if (search.hasFocus() && search.text.isNotEmpty()) {
+            search.text.clear()
+            list.requestFocus()
+            return
+        }
+        if (intent.getBooleanExtra("guide_handoff", false)) {
+            finish()
+            return
+        }
+        super.onBackPressed()
+    }
     override fun onDestroy() { mainHandler.removeCallbacks(ticker); previewPlayer?.release(); previewPlayer = null; executor.shutdownNow(); super.onDestroy() }
 }

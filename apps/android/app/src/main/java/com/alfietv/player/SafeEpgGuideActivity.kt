@@ -445,6 +445,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 putExtra("username", config.username)
                 putExtra("password", config.password)
                 putExtra("preview_channel_id", channel.id)
+                putExtra("guide_handoff", true)
             })
         }.onFailure { status.text = "Unable to open Live TV: " + (it.message ?: "unknown error") }
     }
