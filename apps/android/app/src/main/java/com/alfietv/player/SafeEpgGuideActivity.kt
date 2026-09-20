@@ -272,7 +272,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                     val currentProgram = now in program.startUtcMs until program.endUtcMs
                     val startLabel = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(program.startUtcMs))
                     val endLabel = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(program.endUtcMs))
-                    val description = program.description.trim()
+                    val description = program.description?.trim().orEmpty()
                     text = buildString {
                         append(if (currentProgram) "● NOW  " else "")
                         append(program.title.ifBlank { "Program" })
