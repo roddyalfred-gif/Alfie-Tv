@@ -65,7 +65,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         search = EditText(this).apply {
             hint = "Search"
             setTextColor(Color.WHITE)
-            setHintTextColor(android.graphics.Color.rgb(185, 195, 210))
+            setHintTextColor(skin.secondary)
             background = roundedSkinField()
             setSingleLine(true)
             isFocusable = true
