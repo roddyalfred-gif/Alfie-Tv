@@ -11,6 +11,11 @@ import android.widget.*
 import java.util.concurrent.Executors
 
 class ContentActivity : androidx.activity.ComponentActivity() {
+    private val skin get() = SkinStore.current(this)
+    private val bg get() = skin.background
+    private val panel get() = skin.surface
+    private val row get() = skin.surface2
+    private val accent get() = skin.accent
     private val executor = Executors.newSingleThreadExecutor()
     private lateinit var config: XtreamConfig
     private lateinit var list: GridView
@@ -31,6 +36,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        SkinStore.applyWindow(this)
         mode = intent.getStringExtra("mode") ?: "vod"
         config = XtreamConfig(intent.getStringExtra("server") ?: "", intent.getStringExtra("username") ?: "", intent.getStringExtra("password") ?: "")
         pendingSeriesId = intent.getStringExtra("selected_series_id")
@@ -40,6 +46,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         val compact = widthDp < 600
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            setBackgroundColor(bg)
             setPadding(if (widthDp < 360) 10 else if (compact) 14 else 20, if (compact) 10 else 16,
                 if (widthDp < 360) 10 else if (compact) 14 else 20, if (compact) 10 else 16)
         }
@@ -49,17 +56,24 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         }
         val title = TextView(this).apply {
             text = if (mode == "series") "Series" else "Movies"
+            setTextColor(Color.WHITE)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
             textSize = if (compact) 22f else 26f
             isFocusable = false
         }
         search = EditText(this).apply {
             hint = "Search"
+            setTextColor(Color.WHITE)
+            setHintTextColor(android.graphics.Color.rgb(185, 195, 210))
+            background = roundedSkinField()
             setSingleLine(true)
             isFocusable = true
             isFocusableInTouchMode = true
         }
         val sort = Button(this).apply {
             text = "A-Z"
+            setTextColor(Color.WHITE)
+            background = roundedSkinField()
             isAllCaps = false
             isFocusable = true
             isFocusableInTouchMode = true
@@ -108,6 +122,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(status)
         setContentView(root)
+        SkinStore.animate(root, skin)
 
         search.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
@@ -140,6 +155,8 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         }
         load()
     }
+
+    private fun roundedSkinField() = android.graphics.drawable.GradientDrawable().apply { setColor(panel); cornerRadius = 12f * resources.displayMetrics.density }
 
     private fun screenKey(): String = if (mode == "series") "series" else "movies"
 
@@ -243,6 +260,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
                     orientation = if (vertical) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
                     gravity = if (vertical) Gravity.TOP else Gravity.CENTER_VERTICAL
                     setPadding(if (vertical) 6 else 14, 8, if (vertical) 6 else 14, 8)
+                    setBackgroundColor(panel)
                     minimumHeight = if (vertical) 170 else 78
                 }
                 val icon = ImageView(this@ContentActivity).apply {
@@ -259,6 +277,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
                     maxLines = if (vertical) 2 else 1
                     gravity = if (vertical) Gravity.CENTER_HORIZONTAL else Gravity.CENTER_VERTICAL
                     setPadding(4, if (vertical) 8 else 0, 4, 0)
+                    setTextColor(Color.WHITE)
                 }
                 text.text = labels[position]
                 row.addView(icon)
