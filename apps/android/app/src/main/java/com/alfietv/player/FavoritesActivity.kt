@@ -32,6 +32,9 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
     private var currentLayoutMode = LayoutMode.LIST
     private var query = ""
     private var renderedSkinId: String? = null
+    private var initialFocusPending = true
+    private var restoreSearchFocus = false
+    private var restoreListPosition = 0
 
     private val skin get() = SkinStore.current(this)
     private val bg get() = skin.background
@@ -65,6 +68,10 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
     }
 
     private fun buildUi() {
+        val hadList = ::list.isInitialized
+        val hadSearch = ::search.isInitialized
+        restoreSearchFocus = hadSearch && search.hasFocus()
+        restoreListPosition = if (hadList) list.selectedItemPosition.coerceAtLeast(0) else 0
         val widthDp = resources.configuration.screenWidthDp
         val compact = widthDp < 600
         val root = LinearLayout(this).apply {
@@ -79,6 +86,7 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
         }, LinearLayout.LayoutParams(0, -2, 1f))
         search = EditText(this).apply {
             hint = "Search library..."; setSingleLine(true); textSize = 16f
+            setText(query)
             setTextColor(Color.WHITE); setHintTextColor(muted); setPadding(16, 0, 16, 0)
             background = roundedBackground(panel, 12f)
             addTextChangedListener(object : android.text.TextWatcher {
@@ -149,6 +157,15 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
             } else false
         }
         applyLayoutMode()
+        list.post {
+            val items = filteredItems()
+            if (items.isNotEmpty()) list.setSelection(restoreListPosition.coerceIn(0, items.lastIndex))
+            if (restoreSearchFocus) search.requestFocus()
+            else if (initialFocusPending) {
+                list.requestFocus()
+                initialFocusPending = false
+            }
+        }
     }
 
     private fun tabButton(label: String, action: () -> Unit) = TextView(this).apply {
@@ -180,6 +197,7 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
 
     private fun render() {
         val items = filteredItems()
+        val keepListFocus = ::list.isInitialized && list.hasFocus()
         favoritesButton.setTextColor(if (!showingRecent) Color.WHITE else muted)
         recentButton.setTextColor(if (showingRecent) Color.WHITE else muted)
         list.adapter = object : ArrayAdapter<UserLibraryStore.Item>(this, android.R.layout.simple_list_item_1, items) {
@@ -221,7 +239,12 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
         status.text = if (items.isEmpty()) {
             if (showingRecent) "Nothing watched yet" else "No favorites yet • Long-press an item to remove it"
         } else if (showingRecent) "${items.size} recently watched • ${layoutLabel()} view" else "${items.size} favorites • Long-press to remove • ${layoutLabel()} view"
-        list.post { list.requestFocus() }
+        list.post {
+            if (initialFocusPending || keepListFocus) {
+                if (items.isNotEmpty()) list.requestFocus()
+                initialFocusPending = false
+            }
+        }
     }
 
     private fun layoutLabel() = when (currentLayoutMode) { LayoutMode.GRID -> "Grid"; LayoutMode.LIST -> "List"; LayoutMode.TILE -> "Tile" }
