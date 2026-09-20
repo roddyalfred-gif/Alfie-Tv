@@ -174,7 +174,7 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
                     orientation = if (currentLayoutMode == LayoutMode.LIST) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
                     gravity = Gravity.CENTER
                     minimumHeight = when (currentLayoutMode) { LayoutMode.LIST -> 72; LayoutMode.GRID -> 150; LayoutMode.TILE -> 112 }
-                    setPadding(if (compact) 8 else 10, 8, if (compact) 8 else 10, 8); background = roundedBackground(row, 12f)
+                    setPadding(if (resources.configuration.screenWidthDp < 600) 8 else 10, 8, if (resources.configuration.screenWidthDp < 600) 8 else 10, 8); background = roundedBackground(row, 12f)
                 }
                 val imageSize = when (currentLayoutMode) { LayoutMode.LIST -> 52; LayoutMode.GRID -> 86; LayoutMode.TILE -> 58 }
                 val icon = ImageView(this@FavoritesActivity).apply {
