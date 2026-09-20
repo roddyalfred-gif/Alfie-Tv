@@ -15,6 +15,7 @@ import android.widget.Switch
 
 /** TV-friendly settings hub. Options persist locally and are usable with a remote. */
 class SettingsActivity : androidx.activity.ComponentActivity() {
+    private var renderedSkinId: String? = null
     private val skin get() = SkinStore.current(this)
     private val bg get() = skin.background
     private val surface get() = skin.surface
@@ -27,7 +28,18 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
         window.statusBarColor = bg
         window.navigationBarColor = bg
         SkinStore.applyWindow(this)
+        renderedSkinId = skin.id
         buildSettings()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        SkinStore.applyWindow(this)
+        val selectedSkin = skin.id
+        if (renderedSkinId != selectedSkin) {
+            renderedSkinId = selectedSkin
+            buildSettings()
+        }
     }
 
     private fun buildSettings() {
