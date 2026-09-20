@@ -287,6 +287,24 @@ class LiveTvActivity : ComponentActivity() {
         if (focused) setStroke(dp(if (compact) 2 else 3), Color.WHITE)
     }
     private fun animateFocus(view: View, focused: Boolean) { ObjectAnimator.ofFloat(view, "scaleX", if (focused) 1.03f else 1f).setDuration(120).start(); ObjectAnimator.ofFloat(view, "scaleY", if (focused) 1.03f else 1f).setDuration(120).start() }
+    override fun onResume() {
+        super.onResume()
+        if (awaitingFullscreenReturn && !isFinishing) {
+            awaitingFullscreenReturn = false
+            fullscreenLaunchInProgress = false
+            val channelId = previewChannelId
+            allChannels.firstOrNull { it.id == channelId }?.let { channel ->
+                selectedIndex = filteredChannels().indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
+                list.post {
+                    list.setSelection(selectedIndex)
+                    preview(channel)
+                    focusSelectedChannel()
+                }
+            }
+        } else if (!isFinishing) {
+            fullscreenLaunchInProgress = false
+        }
+    }
     override fun onBackPressed() {
         if (search.hasFocus() && search.text.isNotEmpty()) {
             search.text.clear()
