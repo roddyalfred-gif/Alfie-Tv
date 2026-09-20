@@ -18,17 +18,17 @@ class LoginActivity : androidx.activity.ComponentActivity() {
     private lateinit var status: TextView
     private lateinit var button: Button
 
-    private val backgroundColor = Color.rgb(7, 10, 18)
-    private val surfaceColor = Color.rgb(17, 23, 36)
-    private val fieldColor = Color.rgb(25, 34, 51)
-    private val accentColor = Color.rgb(0, 168, 255)
+    private val skin get() = SkinStore.current(this)
+    private val backgroundColor get() = skin.background
+    private val surfaceColor get() = skin.surface
+    private val fieldColor get() = skin.surface2
+    private val accentColor get() = skin.accent
     private val textColor = Color.WHITE
-    private val secondaryTextColor = Color.rgb(170, 181, 200)
+    private val secondaryTextColor = Color.rgb(185, 195, 210)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = backgroundColor
-        window.navigationBarColor = backgroundColor
+        SkinStore.applyWindow(this)
 
         val forceLogin = intent.getBooleanExtra("forceLogin", false)
         if (!forceLogin) {
@@ -148,6 +148,7 @@ class LoginActivity : androidx.activity.ComponentActivity() {
         card.addView(status, LinearLayout.LayoutParams(-1, -2).apply { topMargin = 4 })
 
         root.addView(card, LinearLayout.LayoutParams(-1, -2).apply { gravity = Gravity.CENTER; weight = 1f; bottomMargin = if (compact) 8 else 0 })
+        SkinStore.animate(root, skin)
         root.addView(TextView(this).apply {
             text = "Alfie TV • Live TV • Movies • Series • EPG"
             textSize = if (compact) 10f else 12f
