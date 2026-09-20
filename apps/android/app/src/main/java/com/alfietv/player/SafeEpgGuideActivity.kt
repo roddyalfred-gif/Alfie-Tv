@@ -289,7 +289,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                         }
                     }
                     setOnClickListener {
-                        if (program.startUtcMs <= now) activateChannel(channel) else showFuture(program, channel)
+                        if (program.startUtcMs <= now) playChannel(channel) else showFuture(program, channel)
                     }
                 }
                 schedule.addView(card, LinearLayout.LayoutParams(timeWidth(to - from), -1).apply { marginEnd = dp(2) })
