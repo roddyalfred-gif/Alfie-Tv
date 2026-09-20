@@ -32,16 +32,16 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
     private var currentLayoutMode = LayoutMode.LIST
     private var query = ""
 
-    private val bg = Color.rgb(5, 9, 18)
-    private val panel = Color.rgb(13, 21, 35)
-    private val row = Color.rgb(15, 24, 40)
-    private val accent = Color.rgb(0, 168, 255)
-    private val muted = Color.rgb(170, 181, 200)
+    private val skin get() = SkinStore.current(this)
+    private val bg get() = skin.background
+    private val panel get() = skin.surface
+    private val row get() = skin.surface2
+    private val accent get() = skin.accent
+    private val muted = Color.rgb(185, 195, 210)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = bg
-        window.navigationBarColor = bg
+        SkinStore.applyWindow(this)
         config = XtreamConfig(intent.getStringExtra("server") ?: "", intent.getStringExtra("username") ?: "", intent.getStringExtra("password") ?: "")
         currentLayoutMode = LayoutModeStore.get(this, "favorites", LayoutMode.LIST)
         buildUi()
@@ -121,6 +121,7 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
         status = TextView(this).apply { textSize = 13f; setTextColor(muted); setPadding(4, 7, 4, 2) }
         root.addView(status, LinearLayout.LayoutParams(-1, 28))
         setContentView(root)
+        SkinStore.animate(root, skin)
 
         list.setOnItemClickListener { _, _, position, _ -> filteredItems().getOrNull(position)?.let(::open) }
         list.setOnItemLongClickListener { _, _, position, _ ->
@@ -174,7 +175,13 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
                     orientation = if (currentLayoutMode == LayoutMode.LIST) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
                     gravity = Gravity.CENTER
                     minimumHeight = when (currentLayoutMode) { LayoutMode.LIST -> 72; LayoutMode.GRID -> 150; LayoutMode.TILE -> 112 }
-                    setPadding(if (resources.configuration.screenWidthDp < 600) 8 else 10, 8, if (resources.configuration.screenWidthDp < 600) 8 else 10, 8); background = roundedBackground(row, 12f)
+                    setPadding(if (resources.configuration.screenWidthDp < 600) 8 else 10, 8, if (resources.configuration.screenWidthDp < 600) 8 else 10, 8)
+                    background = roundedBackground(row, 12f)
+                    isFocusable = true
+                    isFocusableInTouchMode = true
+                    setOnFocusChangeListener { view, focused ->
+                        view.background = roundedBackground(if (focused) accent else row, 12f)
+                    }
                 }
                 val imageSize = when (currentLayoutMode) { LayoutMode.LIST -> 52; LayoutMode.GRID -> 86; LayoutMode.TILE -> 58 }
                 val icon = ImageView(this@FavoritesActivity).apply {
