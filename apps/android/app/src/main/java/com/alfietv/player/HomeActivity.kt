@@ -22,13 +22,14 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     private val executor = Executors.newSingleThreadExecutor()
     private var status: TextView? = null
 
-    private val bg = Color.rgb(5, 7, 12)
-    private val rail = Color.rgb(11, 15, 24)
-    private val panel = Color.rgb(18, 24, 36)
-    private val panel2 = Color.rgb(24, 31, 46)
-    private val accent = Color.rgb(35, 168, 255)
-    private val purple = Color.rgb(126, 91, 255)
-    private val cyan = Color.rgb(53, 224, 220)
+    private val skin get() = SkinStore.current(this)
+    private val bg get() = skin.background
+    private val rail get() = skin.surface
+    private val panel get() = skin.surface
+    private val panel2 get() = skin.surface2
+    private val accent get() = skin.accent
+    private val purple get() = skin.secondary
+    private val cyan get() = skin.current
     private val white = Color.WHITE
     private val muted = Color.rgb(153, 166, 188)
 
@@ -237,6 +238,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         })
 
         setContentView(root)
+        SkinStore.animate(hero, skin)
         root.post { navHome.requestFocus() }
     }
 
