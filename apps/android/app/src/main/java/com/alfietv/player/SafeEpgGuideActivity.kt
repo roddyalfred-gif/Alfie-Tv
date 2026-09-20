@@ -470,6 +470,21 @@ class SafeEpgGuideActivity : ComponentActivity() {
         if (focused) setStroke(dp(if (compact) 2 else 3), focusStroke)
     }
 
+    override fun onResume() {
+        super.onResume()
+        val persisted = getSharedPreferences("alfie_tv", MODE_PRIVATE)
+            .getString("last_channel_${config.serverUrl}_${config.username}", null)
+        val restoredId = intent.getStringExtra("preview_channel_id") ?: persisted
+        if (!restoredId.isNullOrBlank() && channels.any { it.id == restoredId }) {
+            selectedChannelId = restoredId
+            adapter.notifyDataSetChanged()
+            focusSelectedChannel()
+        }
+        // Rebuild the timeline anchor so NOW/current-program styling stays aligned after returning.
+        renderTimeHeader()
+        if (guideScrollX > 0) timeHeaderScroll.post { timeHeaderScroll.scrollTo(guideScrollX, 0) }
+    }
+
     override fun onDestroy() {
         executor.shutdownNow()
         epgExecutor.shutdownNow()
