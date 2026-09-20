@@ -5,6 +5,7 @@ import android.animation.ValueAnimator
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.view.View
+import android.app.Activity
 import android.view.animation.LinearInterpolator
 import java.util.WeakHashMap
 
@@ -33,6 +34,12 @@ object SkinStore {
                 .putString(KEY, id)
                 .apply()
         }
+    }
+
+    fun applyWindow(activity: Activity) {
+        val selected = current(activity)
+        activity.window.statusBarColor = selected.background
+        activity.window.navigationBarColor = selected.background
     }
 
     fun animate(view: View, skin: Skin) {
