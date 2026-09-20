@@ -93,7 +93,25 @@ class MainActivity : ComponentActivity() {
         channelIds = intent.getStringArrayListExtra("channel_ids") ?: emptyList()
         channelNumbers = intent.getStringArrayListExtra("channel_numbers") ?: emptyList()
         channelFallbackUrls = intent.getStringArrayListExtra("channel_fallback_urls") ?: emptyList()
+
+        // Fullscreen handoff intentionally carries only the selected channel.
+        // Resolve the complete channel list from the provider cache instead of
+        // sending a potentially huge IPTV list through the Activity Intent.
+        if (channelUrls.isEmpty()) {
+            val cached = SessionStore.load(this)?.let { LiveTvCache.read(this, it) }
+            val cachedChannels = cached?.channels.orEmpty()
+            channelUrls = ArrayList(cachedChannels.map { it.streamUrl })
+            channelTitles = ArrayList(cachedChannels.map { it.name })
+            channelIds = ArrayList(cachedChannels.map { it.id })
+            channelNumbers = ArrayList(cachedChannels.indices.map { (it + 1).toString() })
+            channelFallbackUrls = ArrayList(cachedChannels.map { it.fallbackStreamUrl ?: "" })
+        }
         channelIndex = intent.getIntExtra("channel_index", 0).coerceIn(0, (channelUrls.size - 1).coerceAtLeast(0))
+        if (intent.getBooleanExtra("fullscreen_handoff", false)) {
+            val selectedId = intent.getStringExtra("channel_id")
+            val selectedIndex = selectedId?.let { id -> channelIds.indexOf(id) } ?: -1
+            if (selectedIndex >= 0) channelIndex = selectedIndex
+        }
         persistLiveChannelState()
         setupLibraryProgress()
         root = FrameLayout(this)
@@ -338,9 +356,18 @@ class MainActivity : ComponentActivity() {
 
     @Deprecated("Deprecated in Android API 33")
     override fun onBackPressed() {
-        if (trackPanel.visibility == View.VISIBLE) { showingPlaybackRetry = false; trackPanel.visibility = View.GONE; playerView.requestFocus() }
-        else if (playerView.isControllerFullyVisible) { playerView.hideController(); playerView.requestFocus() }
-        else if (!dispatchExit()) finish()
+        if (trackPanel.visibility == View.VISIBLE) {
+            showingPlaybackRetry = false
+            trackPanel.visibility = View.GONE
+            playerView.requestFocus()
+        } else if (playerView.isControllerFullyVisible) {
+            playerView.hideController()
+            playerView.requestFocus()
+        } else if (intent.getBooleanExtra("fullscreen_handoff", false)) {
+            // Fullscreen is a child of Live TV preview. One BACK returns to the
+            // existing LiveTvActivity instead of showing the app-exit flow.
+            finish()
+        } else if (!dispatchExit()) finish()
     }
 
     override fun onUserLeaveHint() {
