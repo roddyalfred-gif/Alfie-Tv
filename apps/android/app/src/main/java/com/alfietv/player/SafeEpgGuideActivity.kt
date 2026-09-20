@@ -165,7 +165,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 channels.forEach { channel ->
                     epgExecutor.execute {
                         try {
-                            val programs = XtreamClient().loadEpg(config, channel, 24)
+                            val programs = XtreamClient().loadEpg(config, channel, 48)
                             if (programs.isNotEmpty()) {
                                 synchronized(epgByChannel) { epgByChannel[channel.id] = programs }
                                 runCatching { EpgCache.write(this, config, channel, programs) }
@@ -240,7 +240,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 }
                 setOnClickListener { activateChannel(channel) }
             }
-            root.addView(channelCell, LinearLayout.LayoutParams(labelWidth, dp(if (compact) 68 else 74)).apply { marginEnd = dp(3) })
+            root.addView(channelCell, LinearLayout.LayoutParams(labelWidth, dp(if (compact) 92 else 104)).apply { marginEnd = dp(3) })
 
             val scroll = HorizontalScrollView(this@SafeEpgGuideActivity).apply {
                 isHorizontalScrollBarEnabled = false
@@ -270,16 +270,29 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 val card = TextView(this@SafeEpgGuideActivity).apply {
                     val now = System.currentTimeMillis()
                     val currentProgram = now in program.startUtcMs until program.endUtcMs
-                    text = if (currentProgram) "NOW\n${program.title}" else "${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(program.startUtcMs))}\n${program.title}"
+                    val startLabel = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(program.startUtcMs))
+                    val endLabel = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(program.endUtcMs))
+                    val description = program.description?.trim().orEmpty()
+                    text = buildString {
+                        append(if (currentProgram) "● NOW  " else "")
+                        append(program.title.ifBlank { "Program" })
+                        append("\n")
+                        append("$startLabel – $endLabel")
+                        if (description.isNotBlank()) {
+                            append("\n")
+                            append(description)
+                        }
+                    }
                     textSize = if (compact) 10f else 11f
                     setTextColor(Color.WHITE)
                     gravity = Gravity.CENTER_VERTICAL
-                    maxLines = 2
-                    setPadding(dp(8), dp(3), dp(8), dp(3))
+                    maxLines = 4
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    setPadding(dp(8), dp(4), dp(8), dp(4))
                     background = guideCellBackground(if (currentProgram) currentAccent else row, false)
                     isFocusable = true
                     isClickable = true
-                    contentDescription = "${program.title}, ${if (currentProgram) "now playing" else "upcoming programme"}"
+                    contentDescription = "${program.title}, ${startLabel} to ${endLabel}, ${if (currentProgram) "now playing" else "upcoming programme"}"
                     setOnFocusChangeListener { view, hasFocus ->
                         view.background = guideCellBackground(if (currentProgram) currentAccent else row, hasFocus)
                         if (hasFocus) {
