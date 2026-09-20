@@ -45,7 +45,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
     private val row get() = skin.surface2
     private val muted = Color.rgb(185, 195, 210)
     private val accent get() = skin.accent
-    private val current get() = skin.current
+    private val currentAccent: Int get() = skin.current
     private val focusStroke = Color.WHITE
     private val compact get() = resources.configuration.screenWidthDp < 600
     private val labelWidth get() = dp(if (compact) 132 else 180)
@@ -275,7 +275,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                     gravity = Gravity.CENTER_VERTICAL
                     maxLines = 2
                     setPadding(dp(8), dp(3), dp(8), dp(3))
-                    background = guideCellBackground(if (currentProgram) current else row, false)
+                    background = guideCellBackground(if (currentProgram) currentAccent else row, false)
                     isFocusable = true
                     isClickable = true
                     contentDescription = "${program.title}, ${if (currentProgram) "now playing" else "upcoming programme"}"
@@ -386,7 +386,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(if (index == 1) Color.WHITE else muted)
                 gravity = Gravity.CENTER
-                background = rounded(if (index == 1) current else row, 6f)
+                background = rounded(if (index == 1) currentAccent else row, 6f)
             }, LinearLayout.LayoutParams(timeWidth(30L * 60L * 1000L), dp(40)).apply { marginEnd = dp(1) })
         }
     }
