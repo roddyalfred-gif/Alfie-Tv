@@ -32,6 +32,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     private val cyan get() = skin.current
     private val white = Color.WHITE
     private var renderedSkinId: String? = null
+    private var homeLiveCard: View? = null
     private val muted = Color.rgb(153, 166, 188)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,6 +59,9 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         if (renderedSkinId != null && renderedSkinId != selected) {
             renderedSkinId = selected
             if (::config.isInitialized && config.serverUrl.isNotBlank() && config.username.isNotBlank() && config.password.isNotBlank()) buildHome()
+        } else {
+            // Restore the primary TV landing focus after returning from Live TV, Guide, or fullscreen.
+            homeLiveCard?.post { if (!isFinishing) homeLiveCard?.requestFocus() }
         }
     }
 
@@ -206,6 +210,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         section(content, "LIVE TV", "Jump into your channels")
         val liveRow = row(content, when { widthDp < 360 -> 96; compact -> 104; tablet -> 112; else -> 124 })
         val live = card(liveRow, "LIVE TV", "Channels and categories", accent) { open(LiveTvActivity::class.java) }
+        homeLiveCard = live
         card(liveRow, "TV GUIDE", "Now • Next • Full schedule", purple) { open(SafeEpgGuideActivity::class.java) }
         navHome.setOnKeyListener { _, keyCode, event ->
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
