@@ -345,7 +345,7 @@ class EpgGuideActivity : ComponentActivity() {
                 putExtra("server", config.serverUrl); putExtra("username", config.username); putExtra("password", config.password)
                 putExtra("preview_channel_id", channel.id); putExtra("preview_channel_index", channelIndex)
                 putExtra("channel_urls", ArrayList(channels.map { it.streamUrl })); putExtra("channel_titles", ArrayList(channels.map { it.name }))
-                putExtra("channel_ids", ArrayList(channels.map { it.id })); putExtra("channel_numbers", ArrayList(channels.indices.map { (it + 1).toString() }))
+                putExtra("channel_ids", ArrayList(channels.map { it.id })); putExtra("channel_fallback_urls", ArrayList(channels.map { it.fallbackStreamUrl ?: "" })); putExtra("channel_numbers", ArrayList(channels.indices.map { (it + 1).toString() }))
             })
         } catch (e: Exception) { status.text = "Unable to open Live TV: ${e.message ?: "unknown error"}" }
     }
