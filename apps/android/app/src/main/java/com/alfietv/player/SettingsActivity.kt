@@ -26,6 +26,7 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = bg
         window.navigationBarColor = bg
+        SkinStore.applyWindow(this)
         buildSettings()
     }
 
