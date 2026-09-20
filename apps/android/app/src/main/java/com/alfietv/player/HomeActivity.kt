@@ -113,7 +113,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
                 text = "● ONLINE"
                 textSize = 9f
                 gravity = Gravity.CENTER
-                setTextColor(Color.rgb(120, 235, 175))
+                setTextColor(cyan)
             }
             navigation.addView(status, LinearLayout.LayoutParams(-1, 36))
         }
