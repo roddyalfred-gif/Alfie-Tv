@@ -215,29 +215,61 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         }
     }
 
+    private fun filterButton(textValue: String, selected: Boolean, action: () -> Unit): Button = Button(this).apply {
+        text = textValue
+        isAllCaps = false
+        minHeight = (44 * resources.displayMetrics.density).toInt()
+        setTextColor(Color.WHITE)
+        isFocusable = true
+        isFocusableInTouchMode = true
+        stateListAnimator = null
+        background = filterBackground(selected)
+        setOnFocusChangeListener { v, focused ->
+            v.background = filterBackground(selected || focused)
+        }
+        setOnClickListener {
+            action()
+        }
+    }
+
+    private fun filterBackground(active: Boolean) = android.graphics.drawable.GradientDrawable().apply {
+        setColor(if (active) skin.surface2 else skin.surface)
+        if (active) setStroke((2 * resources.displayMetrics.density).toInt(), accent)
+        cornerRadius = 12f * resources.displayMetrics.density
+    }
+
     private fun rebuildCategoryButtons() {
         while (categoryRow.childCount > 0) categoryRow.removeViewAt(0)
-        categoryRow.addView(Button(this).apply { text = "All"; isAllCaps = false; isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { selectedCategory = null; render(); list.requestFocus() } })
-        categories.forEach { c -> categoryRow.addView(Button(this).apply { text = c.name; isAllCaps = false; isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { selectedCategory = c.id; render(); list.requestFocus() } }) }
+        categoryRow.addView(filterButton("All", selectedCategory == null) {
+            selectedCategory = null
+            render()
+            list.requestFocus()
+        })
+        categories.forEach { category ->
+            categoryRow.addView(filterButton(category.name, selectedCategory == category.id) {
+                selectedCategory = category.id
+                rebuildCategoryButtons()
+                render()
+                list.requestFocus()
+            })
+        }
     }
 
     private fun rebuildSeasonButtons() {
         while (categoryRow.childCount > 0) categoryRow.removeViewAt(0)
         val seasons = episodes.mapNotNull { it.season }.distinct().sorted()
-        categoryRow.addView(Button(this).apply {
-            text = "All Seasons"
-            isAllCaps = false
-            isFocusable = true
-            isFocusableInTouchMode = true
-            setOnClickListener { selectedSeason = null; render(); list.requestFocus() }
+        categoryRow.addView(filterButton("All Seasons", selectedSeason == null) {
+            selectedSeason = null
+            rebuildSeasonButtons()
+            render()
+            list.requestFocus()
         })
         seasons.forEach { season ->
-            categoryRow.addView(Button(this).apply {
-                text = "Season $season"
-                isAllCaps = false
-                isFocusable = true
-                isFocusableInTouchMode = true
-                setOnClickListener { selectedSeason = season; render(); list.requestFocus() }
+            categoryRow.addView(filterButton("Season $season", selectedSeason == season) {
+                selectedSeason = season
+                rebuildSeasonButtons()
+                render()
+                list.requestFocus()
             })
         }
     }
@@ -253,6 +285,12 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private fun sortVod(items: List<VodItem>) = when (sortMode) { 1 -> items.sortedByDescending { it.name.lowercase() }; 2 -> items.sortedByDescending { it.year ?: "" }; else -> items.sortedBy { it.name.lowercase() } }
     private fun sortSeries(items: List<SeriesItem>) = when (sortMode) { 1 -> items.sortedByDescending { it.name.lowercase() }; 2 -> items.sortedByDescending { it.year ?: "" }; else -> items.sortedBy { it.name.lowercase() } }
 
+    private fun listItemBackground(focused: Boolean) = android.graphics.drawable.GradientDrawable().apply {
+        setColor(if (focused) skin.surface2 else panel)
+        if (focused) setStroke((2 * resources.displayMetrics.density).toInt(), accent)
+        cornerRadius = 14f * resources.displayMetrics.density
+    }
+
     private fun renderArtworkList(items: List<Any>, labels: List<String>, urls: List<String?>, placeholder: Int) {
         list.adapter = object : ArrayAdapter<Any>(this, android.R.layout.simple_list_item_1, items) {
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
@@ -261,8 +299,13 @@ class ContentActivity : androidx.activity.ComponentActivity() {
                     orientation = if (vertical) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
                     gravity = if (vertical) Gravity.TOP else Gravity.CENTER_VERTICAL
                     setPadding(if (vertical) 6 else 14, 8, if (vertical) 6 else 14, 8)
-                    setBackgroundColor(panel)
+                    background = listItemBackground(false)
+                    isFocusable = true
+                    isFocusableInTouchMode = true
                     minimumHeight = if (vertical) 170 else 78
+                    setOnFocusChangeListener { v, focused ->
+                        v.background = listItemBackground(focused)
+                    }
                 }
                 val icon = ImageView(this@ContentActivity).apply {
                     scaleType = ImageView.ScaleType.CENTER_CROP
