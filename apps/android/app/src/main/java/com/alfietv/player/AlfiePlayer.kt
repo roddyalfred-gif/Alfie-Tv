@@ -130,6 +130,7 @@ class AlfiePlayer(context: Context) {
 
     fun play(url: String, title: String? = null, positionMs: Long = C.TIME_UNSET, channelNumber: String? = null) {
         require(url.startsWith("http://") || url.startsWith("https://")) { "Unsupported stream URL" }
+        if (fallbackUrls.getOrNull(fallbackIndex) != url) { fallbackUrls = emptyList(); fallbackIndex = 0 }
         playbackGeneration.next()
         handler.removeCallbacks(channelSwitchRunnable)
         pendingChannelUrl = null; pendingChannelTitle = null; pendingChannelNumber = null
