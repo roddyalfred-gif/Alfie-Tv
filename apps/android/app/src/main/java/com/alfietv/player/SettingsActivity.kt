@@ -15,11 +15,12 @@ import android.widget.Switch
 
 /** TV-friendly settings hub. Options persist locally and are usable with a remote. */
 class SettingsActivity : androidx.activity.ComponentActivity() {
-    private val bg = Color.rgb(8, 12, 22)
-    private val surface = Color.rgb(18, 25, 40)
-    private val accent = Color.rgb(0, 168, 255)
+    private val skin get() = SkinStore.current(this)
+    private val bg get() = skin.background
+    private val surface get() = skin.surface
+    private val accent get() = skin.accent
     private val primaryText = Color.WHITE
-    private val secondary = Color.rgb(170, 181, 200)
+    private val secondary = Color.rgb(185, 195, 210)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,6 +49,7 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
         addChoice(content, "Seek interval", "Skip amount for movies and episodes", SettingsStore.seekSeconds(this).toString(), listOf("5" to "5 sec", "10" to "10 sec", "15" to "15 sec", "30" to "30 sec", "60" to "60 sec")) { SettingsStore.setSeekSeconds(this, it.toInt()) }
 
         addHeader(content, "INTERFACE")
+        addChoice(content, "Visual skin", "Animated adaptive appearance for phone, tablet and TV", SkinStore.current(this).id, SkinStore.all().map { it.id to it.name }) { SkinStore.set(this, it); buildSettings() }
         addSwitch(content, "Show clock", "Display the current device time in the player overlay", SettingsStore.showClock(this)) { SettingsStore.setShowClock(this, it) }
         addSwitch(content, "Confirm exit", "Ask before closing the player with Back", SettingsStore.confirmExit(this)) { SettingsStore.setConfirmExit(this, it) }
 
