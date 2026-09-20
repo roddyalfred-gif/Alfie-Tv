@@ -304,7 +304,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             isFocusableInTouchMode = true
             stateListAnimator = null
             setOnFocusChangeListener { v, focused ->
-                v.background = if (focused) selectedNav(accent) else if (selected) selectedNav(panel2) else rounded(rail)
+                v.background = if (focused) selectedNav(accent) else if (selected) selectedNav(accent) else rounded(rail)
                 if (focused) animateFocus(v, true)
             }
             setOnClickListener { action() }
