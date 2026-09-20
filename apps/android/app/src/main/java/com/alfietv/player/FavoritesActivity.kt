@@ -31,6 +31,7 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
     private var showingRecent = false
     private var currentLayoutMode = LayoutMode.LIST
     private var query = ""
+    private var renderedSkinId: String? = null
 
     private val skin get() = SkinStore.current(this)
     private val bg get() = skin.background
@@ -42,13 +43,26 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         SkinStore.applyWindow(this)
+        renderedSkinId = skin.id
         config = XtreamConfig(intent.getStringExtra("server") ?: "", intent.getStringExtra("username") ?: "", intent.getStringExtra("password") ?: "")
         currentLayoutMode = LayoutModeStore.get(this, "favorites", LayoutMode.LIST)
         buildUi()
         reload()
     }
 
-    override fun onResume() { super.onResume(); if (::list.isInitialized) reload() }
+    override fun onResume() {
+        super.onResume()
+        SkinStore.applyWindow(this)
+        if (!::list.isInitialized) return
+        val selectedSkin = skin.id
+        if (renderedSkinId != selectedSkin) {
+            renderedSkinId = selectedSkin
+            buildUi()
+            reload()
+        } else {
+            reload()
+        }
+    }
 
     private fun buildUi() {
         val widthDp = resources.configuration.screenWidthDp
