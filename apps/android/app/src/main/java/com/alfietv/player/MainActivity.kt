@@ -39,6 +39,7 @@ class MainActivity : ComponentActivity() {
     private var channelTitles = emptyList<String>()
     private var channelIds = emptyList<String>()
     private var channelNumbers = emptyList<String>()
+    private var channelFallbackUrls = emptyList<String>()
     private var channelIndex = 0
     private var zapHideAt = 0L
     private var numericBuffer = ""
@@ -90,6 +91,7 @@ class MainActivity : ComponentActivity() {
         channelTitles = intent.getStringArrayListExtra("channel_titles") ?: emptyList()
         channelIds = intent.getStringArrayListExtra("channel_ids") ?: emptyList()
         channelNumbers = intent.getStringArrayListExtra("channel_numbers") ?: emptyList()
+        channelFallbackUrls = intent.getStringArrayListExtra("channel_fallback_urls") ?: emptyList()
         channelIndex = intent.getIntExtra("channel_index", 0).coerceIn(0, (channelUrls.size - 1).coerceAtLeast(0))
         persistLiveChannelState()
         setupLibraryProgress()
@@ -218,7 +220,7 @@ class MainActivity : ComponentActivity() {
         saveProgress()
         channelIndex = next; showingPlaybackRetry = false; trackPanel.visibility = View.GONE
         playerView.hideController(); topOverlay.visibility = View.VISIBLE
-        alfiePlayer.switchChannel(channelUrls[channelIndex], currentTitle(), currentChannelNumber())
+        alfiePlayer.playWithFallback(listOf(channelUrls[channelIndex], channelFallbackUrls.getOrNull(channelIndex) ?: "").filter { it.isNotBlank() }, currentTitle(), currentChannelNumber())
         persistLiveChannelState()
         showZapOverlay(); refreshOverlay()
     }

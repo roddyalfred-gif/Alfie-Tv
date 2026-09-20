@@ -53,6 +53,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        SkinStore.applyWindow(this)
         config = XtreamConfig(
             intent.getStringExtra("server") ?: "",
             intent.getStringExtra("username") ?: "",
@@ -164,7 +165,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 channels.forEach { channel ->
                     epgExecutor.execute {
                         try {
-                            val programs = XtreamClient().loadEpg(config, channel)
+                            val programs = XtreamClient().loadEpg(config, channel, 24)
                             if (programs.isNotEmpty()) {
                                 synchronized(epgByChannel) { epgByChannel[channel.id] = programs }
                                 runCatching { EpgCache.write(this, config, channel, programs) }
@@ -223,7 +224,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
 
             val selected = channel.id == selectedChannelId
             val channelCell = TextView(this@SafeEpgGuideActivity).apply {
-                text = channel.name
+                text = buildChannelLabel(channel, position)
                 textSize = if (compact) 12f else 13f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE)
@@ -429,6 +430,13 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 putExtra("channel_numbers", ArrayList(channels.indices.map { (it + 1).toString() }))
             })
         }.onFailure { status.text = "Unable to open Live TV: ${it.message ?: "unknown error"}" }
+    }
+
+    private fun buildChannelLabel(channel: IptvChannel, position: Int): String {
+        val number = (position + 1).toString()
+        val category = channel.categoryId?.takeIf { it.isNotBlank() }?.let { " • $it" } ?: ""
+        val epg = channel.epgId?.takeIf { it.isNotBlank() }?.let { "\nEPG: $it" } ?: ""
+        return "CH $number • ${channel.name}$category$epg"
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt().coerceAtLeast(1)
