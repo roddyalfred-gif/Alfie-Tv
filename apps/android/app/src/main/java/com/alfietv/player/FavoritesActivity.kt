@@ -41,7 +41,7 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
     private val panel get() = skin.surface
     private val row get() = skin.surface2
     private val accent get() = skin.accent
-    private val muted = Color.rgb(185, 195, 210)
+    private val muted get() = skin.secondary
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
