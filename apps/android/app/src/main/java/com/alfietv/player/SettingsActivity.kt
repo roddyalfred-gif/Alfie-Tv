@@ -50,7 +50,34 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
         addChoice(content, "Seek interval", "Skip amount for movies and episodes", SettingsStore.seekSeconds(this).toString(), listOf("5" to "5 sec", "10" to "10 sec", "15" to "15 sec", "30" to "30 sec", "60" to "60 sec")) { SettingsStore.setSeekSeconds(this, it.toInt()) }
 
         addHeader(content, "INTERFACE")
-        addChoice(content, "Visual skin", "Animated adaptive appearance for phone, tablet and TV", SkinStore.current(this).id, SkinStore.all().map { it.id to it.name }) { SkinStore.set(this, it); buildSettings() }
+        val selectedSkin = SkinStore.current(this)
+        val skinPicker = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        SkinStore.all().forEach { option ->
+            val button = Button(this).apply {
+                text = if (option.id == selectedSkin.id) "✓ ${option.name}" else option.name
+                isAllCaps = false
+                setTextColor(primaryText)
+                stateListAnimator = null
+                background = rounded(if (option.id == selectedSkin.id) option.accent else option.surface)
+                isFocusable = true
+                isFocusableInTouchMode = true
+                setOnClickListener {
+                    SkinStore.set(this@SettingsActivity, option.id)
+                    SkinStore.applyWindow(this@SettingsActivity)
+                    buildSettings()
+                }
+            }
+            skinPicker.addView(button, LinearLayout.LayoutParams(0, 54, 1f).apply { marginEnd = 6 })
+        }
+        content.addView(skinPicker, LinearLayout.LayoutParams(-1, 60))
+        addChoice(content, "Visual skin", "Animated adaptive appearance for phone, tablet and TV", selectedSkin.id, SkinStore.all().map { it.id to it.name }) {
+            SkinStore.set(this, it)
+            SkinStore.applyWindow(this)
+            buildSettings()
+        }
         addSwitch(content, "Show clock", "Display the current device time in the player overlay", SettingsStore.showClock(this)) { SettingsStore.setShowClock(this, it) }
         addSwitch(content, "Confirm exit", "Ask before closing the player with Back", SettingsStore.confirmExit(this)) { SettingsStore.setConfirmExit(this, it) }
 
