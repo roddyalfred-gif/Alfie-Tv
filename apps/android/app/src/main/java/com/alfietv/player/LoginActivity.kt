@@ -24,7 +24,7 @@ class LoginActivity : androidx.activity.ComponentActivity() {
     private val fieldColor get() = skin.surface2
     private val accentColor get() = skin.accent
     private val textColor = Color.WHITE
-    private val secondaryTextColor = Color.rgb(185, 195, 210)
+    private val secondaryTextColor get() = skin.secondary
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
