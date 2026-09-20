@@ -58,7 +58,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
     private val bg get() = skin.background
     private val panel get() = skin.surface
     private val row get() = skin.surface2
-    private val muted = Color.rgb(185, 195, 210)
+    private val muted get() = skin.secondary
     private val accent get() = skin.accent
     private val currentAccent: Int get() = skin.current
     private val focusStroke = Color.WHITE
