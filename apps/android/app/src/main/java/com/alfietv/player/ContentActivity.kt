@@ -36,10 +36,28 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         pendingSeriesId = intent.getStringExtra("selected_series_id")
         layoutMode = LayoutModeStore.get(this, screenKey(), LayoutMode.GRID)
 
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(20, 16, 20, 16) }
-        val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        val title = TextView(this).apply { text = if (mode == "series") "Series" else "Movies"; textSize = 26f; isFocusable = false }
-        search = EditText(this).apply { hint = "Search"; setSingleLine(true); isFocusable = true; isFocusableInTouchMode = true }
+        val widthDp = resources.configuration.screenWidthDp
+        val compact = widthDp < 600
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(if (widthDp < 360) 10 else if (compact) 14 else 20, if (compact) 10 else 16,
+                if (widthDp < 360) 10 else if (compact) 14 else 20, if (compact) 10 else 16)
+        }
+        val header = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            orientation = if (compact) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+        }
+        val title = TextView(this).apply {
+            text = if (mode == "series") "Series" else "Movies"
+            textSize = if (compact) 22f else 26f
+            isFocusable = false
+        }
+        search = EditText(this).apply {
+            hint = "Search"
+            setSingleLine(true)
+            isFocusable = true
+            isFocusableInTouchMode = true
+        }
         val sort = Button(this).apply {
             text = "A-Z"
             isAllCaps = false
@@ -52,9 +70,15 @@ class ContentActivity : androidx.activity.ComponentActivity() {
                 list.requestFocus()
             }
         }
-        header.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
-        header.addView(search, LinearLayout.LayoutParams(0, -2, 2f))
-        header.addView(sort, LinearLayout.LayoutParams(0, -2, 0.8f))
+        if (compact) {
+            header.addView(title, LinearLayout.LayoutParams(-1, 32))
+            header.addView(search, LinearLayout.LayoutParams(-1, 48).apply { topMargin = 4 })
+            header.addView(sort, LinearLayout.LayoutParams(-1, 44).apply { topMargin = 4 })
+        } else {
+            header.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
+            header.addView(search, LinearLayout.LayoutParams(0, -2, 2f))
+            header.addView(sort, LinearLayout.LayoutParams(0, -2, 0.8f))
+        }
 
         val layoutControls = LayoutModeControls.create(this, screenKey(), LayoutMode.GRID) { selected ->
             layoutMode = selected
@@ -122,8 +146,17 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private fun applyLayoutMode() {
         val columns = when (layoutMode) {
             LayoutMode.LIST -> 1
-            LayoutMode.GRID -> if (resources.configuration.screenWidthDp >= 900) 3 else 2
-            LayoutMode.TILE -> if (resources.configuration.screenWidthDp >= 900) 5 else 4
+            LayoutMode.GRID -> when {
+                resources.configuration.screenWidthDp < 360 -> 1
+                resources.configuration.screenWidthDp < 600 -> 2
+                resources.configuration.screenWidthDp < 900 -> 3
+                else -> 4
+            }
+            LayoutMode.TILE -> when {
+                resources.configuration.screenWidthDp < 600 -> 2
+                resources.configuration.screenWidthDp < 900 -> 4
+                else -> 5
+            }
         }
         list.numColumns = columns
         list.verticalSpacing = if (layoutMode == LayoutMode.LIST) 6 else 14
