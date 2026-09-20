@@ -235,39 +235,42 @@ class LiveTvActivity : ComponentActivity() {
             ChannelActivationPolicy.Action.PREVIEW -> preview(channel)
         } }
     private fun preview(channel: IptvChannel) { val url = channel.streamUrl.trim(); if (url.isBlank()) { status.text = "${channel.name} has no stream URL"; return }; previewChannelId = channel.id; previewCategoryId = channel.categoryId; if (!favoritesMode) selectedCategory = channel.categoryId; getSharedPreferences("alfie_tv", Context.MODE_PRIVATE).edit().putString("last_channel_${config.serverUrl}_${config.username}", channel.id).putString("last_category_${config.serverUrl}_${config.username}", channel.categoryId ?: "").apply(); rebuildCategories(); if (previewPlayer == null) previewPlayer = AlfiePlayer(this).also { it.attach(previewView) }; previewPlayer?.playWithFallback(listOf(url, channel.fallbackStreamUrl ?: "").filter { it.isNotBlank() }, channel.name, (displayedChannels.indexOfFirst { it.id == channel.id } + 1).coerceAtLeast(1).toString()); epgTitle.text = "PREVIEW  •  ${channel.name}"; status.text = "${channel.name}  •  Preview playing  •  OK again = fullscreen"; showEpg(channel); list.post { list.invalidateViews(); focusSelectedChannel() } }
-    private fun playFullscreen(channel: IptvChannel) { if (fullscreenLaunchInProgress) return; val url = channel.streamUrl.trim(); if (url.isBlank()) return; fullscreenLaunchInProgress = true; awaitingFullscreenReturn = true; previewChannelId = channel.id; previewCategoryId = channel.categoryId; if (!favoritesMode) selectedCategory = channel.categoryId; val channels = displayedChannels; val index = channels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0); val intent = android.content.Intent(this, MainActivity::class.java).apply { putExtra("url", url); putExtra("stream_url", url); putExtra("fallback_stream_url", channel.fallbackStreamUrl ?: ""); putExtra("title", channel.name); putExtra("content_id", channel.id); putExtra("content_type", "LIVE"); putExtra("channel_id", channel.id); putExtra("channel_number", (index + 1).toString()); putExtra("preview_category_id", channel.categoryId); putExtra("channel_urls", ArrayList(channels.map { it.streamUrl })); putExtra("channel_titles", ArrayList(channels.map { it.name })); putExtra("channel_ids", ArrayList(channels.map { it.id })); putExtra("channel_fallback_urls", ArrayList(channels.map { it.fallbackStreamUrl ?: "" })); putExtra("channel_numbers", ArrayList(channels.indices.map { (it + 1).toString() })); putExtra("channel_index", index); putExtra("server", config.serverUrl); putExtra("username", config.username); putExtra("password", config.password) }; previewPlayer?.release(); previewPlayer = null; previewView.player = null; try { startActivity(intent) } catch (e: Exception) { fullscreenLaunchInProgress = false; awaitingFullscreenReturn = false; preview(channel); status.text = "Unable to open fullscreen player: ${e.message ?: "unknown error"}" } }
-    override fun onResume() {
-        super.onResume()
-        if (!awaitingFullscreenReturn) return
-        awaitingFullscreenReturn = false
-        fullscreenLaunchInProgress = false
-
-        val prefs = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
-        val persistedId = prefs.getString("last_channel_${config.serverUrl}_${config.username}", null)
-        val persistedCategory = prefs.getString("last_category_${config.serverUrl}_${config.username}", null)
-        val returnId = persistedId ?: previewChannelId
-        val returnChannel = allChannels.firstOrNull { it.id == returnId }
-
-        if (returnChannel != null) {
-            favoritesMode = false
-            selectedCategory = returnChannel.categoryId ?: persistedCategory ?: previewCategoryId ?: selectedCategory
-            previewCategoryId = returnChannel.categoryId ?: persistedCategory ?: previewCategoryId
-            previewChannelId = returnChannel.id
-            rebuildCategories()
-            selectedIndex = filteredChannels().indexOfFirst { it.id == returnChannel.id }.coerceAtLeast(0)
-            list.post {
-                list.setSelection(selectedIndex)
-                preview(returnChannel)
-                list.invalidateViews()
-                focusSelectedChannel()
-                highlightSelectedCategory()
-            }
-        } else {
-            favoritesMode = false
-            selectedCategory = persistedCategory ?: previewCategoryId ?: selectedCategory
-            rebuildCategories()
-            focusSelectedChannel()
-            highlightSelectedCategory()
+    private fun playFullscreen(channel: IptvChannel) {
+        if (fullscreenLaunchInProgress) return
+        val url = channel.streamUrl.trim()
+        if (url.isBlank()) return
+        fullscreenLaunchInProgress = true
+        awaitingFullscreenReturn = true
+        previewChannelId = channel.id
+        previewCategoryId = channel.categoryId
+        if (!favoritesMode) selectedCategory = channel.categoryId
+        val index = displayedChannels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
+        val intent = android.content.Intent(this, MainActivity::class.java).apply {
+            putExtra("url", url)
+            putExtra("stream_url", url)
+            putExtra("fallback_stream_url", channel.fallbackStreamUrl ?: "")
+            putExtra("title", channel.name)
+            putExtra("content_id", channel.id)
+            putExtra("content_type", "LIVE")
+            putExtra("channel_id", channel.id)
+            putExtra("channel_number", (index + 1).toString())
+            putExtra("preview_category_id", channel.categoryId)
+            putExtra("channel_index", index)
+            putExtra("server", config.serverUrl)
+            putExtra("username", config.username)
+            putExtra("password", config.password)
+            putExtra("fullscreen_handoff", true)
+        }
+        previewPlayer?.release()
+        previewPlayer = null
+        previewView.player = null
+        try {
+            startActivity(intent)
+        } catch (e: Exception) {
+            fullscreenLaunchInProgress = false
+            awaitingFullscreenReturn = false
+            preview(channel)
+            status.text = "Unable to open fullscreen player: " + (e.message ?: "unknown error")
         }
     }
     private fun focusSelectedChannel() { val channels = displayedChannels; if (channels.isEmpty()) return; selectedIndex = selectedIndex.coerceIn(0, channels.lastIndex); list.post { list.setSelection(selectedIndex); list.requestFocus(); list.invalidateViews() } }
