@@ -37,7 +37,7 @@ class SplashActivity : ComponentActivity() {
     private fun openNext() {
         if (isFinishing) return
         val target = if (SessionStore.load(this) != null) HomeActivity::class.java else LoginActivity::class.java
-        startActivity(Intent(this, target).apply { addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK) })
+        startActivity(Intent(this, target).apply { addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP) })
         finish()
         overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
     }
