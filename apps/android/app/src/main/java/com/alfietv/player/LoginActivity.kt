@@ -66,13 +66,14 @@ class LoginActivity : androidx.activity.ComponentActivity() {
     private fun buildLoginForm(saved: XtreamConfig?) {
         val widthDp = resources.configuration.screenWidthDp
         val heightDp = resources.configuration.screenHeightDp
-        // Landscape phones can exceed 600dp in width, so use the shorter dimension too.\n        val adaptiveWidthDp = minOf(widthDp, heightDp)\n        val compact = adaptiveWidthDp < 600\n        val root = LinearLayout(this).apply {
+        // Landscape phones can exceed 600dp in width, so use the shorter dimension too.
+        val adaptiveWidthDp = minOf(widthDp, heightDp)\n        val compact = adaptiveWidthDp < 600\n        val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(
-                if (widthDp < 360) 12 else if (compact) 16 else 72,
+                if (adaptiveWidthDp < 360) 12 else if (compact) 16 else 72,
                 if (compact) 18 else 36,
-                if (widthDp < 360) 12 else if (compact) 16 else 72,
+                if (adaptiveWidthDp < 360) 12 else if (compact) 16 else 72,
                 if (compact) 18 else 36
             )
             setBackgroundColor(backgroundColor)
@@ -82,9 +83,9 @@ class LoginActivity : androidx.activity.ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             setPadding(
-                if (widthDp < 360) 18 else if (compact) 24 else 56,
+                if (adaptiveWidthDp < 360) 18 else if (compact) 24 else 56,
                 if (compact) 28 else 44,
-                if (widthDp < 360) 18 else if (compact) 24 else 56,
+                if (adaptiveWidthDp < 360) 18 else if (compact) 24 else 56,
                 if (compact) 28 else 44
             )
             background = roundedBackground(surfaceColor, 24f)
