@@ -115,6 +115,10 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
         addSwitch(content, "Show clock", "Display the current device time in the player overlay", SettingsStore.showClock(this)) { SettingsStore.setShowClock(this, it) }
         addSwitch(content, "Confirm exit", "Ask before closing the player with Back", SettingsStore.confirmExit(this)) { SettingsStore.setConfirmExit(this, it) }
 
+        addHeader(content, "BOOT SPLASH")
+        addSwitch(content, "Animated Alfie TV boot screen", "Show the branded animated splash when the app starts", SettingsStore.splashEnabled(this)) { SettingsStore.setSplashEnabled(this, it) }
+        addChoice(content, "Splash effect", "Choose the startup animation; Neon is the default 4K-scalable Alfie TV treatment", SettingsStore.splashStyle(this), listOf("neon" to "Neon Pulse", "orbit" to "Orbit Glow", "cinematic" to "Cinematic Zoom")) { SettingsStore.setSplashStyle(this, it) }
+
         addHeader(content, "MAINTENANCE")
         addButton(content, "↻  Refresh provider data") { refresh() }
         addButton(content, "♻  Reset app preferences") { SettingsStore.reset(this); buildSettings() }
