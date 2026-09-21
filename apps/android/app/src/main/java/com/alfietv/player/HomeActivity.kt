@@ -68,7 +68,8 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     private fun buildHome() {
         val widthDp = resources.configuration.screenWidthDp
         val heightDp = resources.configuration.screenHeightDp
-        // Landscape phones can report a wide screen width, so classify by the shorter dimension too.\n        val compact = widthDp < 600 || heightDp < 500\n        val tablet = widthDp in 600..899
+        // Landscape phones can report a wide screen width, so classify by the shorter dimension too.
+        val compact = widthDp < 600 || heightDp < 500\n        val tablet = widthDp in 600..899
         val wide = widthDp >= 900
         val contentHorizontalPadding = when {
             widthDp < 360 -> 10
