@@ -195,7 +195,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         }
     }
 
- = android.graphics.drawable.GradientDrawable().apply { setColor(panel); cornerRadius = 12f * resources.displayMetrics.density }
+    private fun roundedSkinField() = android.graphics.drawable.GradientDrawable().apply { setColor(panel); cornerRadius = 12f * resources.displayMetrics.density }
 
     private fun screenKey(): String = if (mode == "series") "series" else "movies"
 
