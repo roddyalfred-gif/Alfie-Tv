@@ -239,7 +239,7 @@ class MainActivity : ComponentActivity() {
             isHorizontalScrollBarEnabled = false
             addView(trackPanel, android.widget.HorizontalScrollView.LayoutParams(-2, -2))
         }
-        root.addView(trackScroll, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
+        root.addView(trackScroll, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
     }
 
     private fun refreshOverlay() {
