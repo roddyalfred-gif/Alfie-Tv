@@ -212,12 +212,6 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         val live = card(liveRow, "LIVE TV", "Channels and categories", accent) { open(LiveTvActivity::class.java) }
         homeLiveCard = live
         card(liveRow, "TV GUIDE", "Now • Next • Full schedule", purple) { open(SafeEpgGuideActivity::class.java) }
-        navHome.setOnKeyListener { _, keyCode, event ->
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
-                (keyCode == KeyEvent.KEYCODE_DPAD_DOWN || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT)) {
-                        true
-            } else false
-        }
         live.setOnKeyListener { _, keyCode, event ->
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
                 (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_LEFT)) {
