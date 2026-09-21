@@ -69,7 +69,8 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         val widthDp = resources.configuration.screenWidthDp
         val heightDp = resources.configuration.screenHeightDp
         // Landscape phones can report a wide screen width, so classify by the shorter dimension too.
-        val compact = widthDp < 600 || heightDp < 500\n        val tablet = widthDp in 600..899
+        val compact = widthDp < 600 || heightDp < 500
+        val tablet = widthDp in 600..899
         val wide = widthDp >= 900
         val contentHorizontalPadding = when {
             widthDp < 360 -> 10
@@ -270,7 +271,8 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     }
 
     private fun row(root: LinearLayout, height: Int): LinearLayout {
-        val screen = resources.configuration\n        val compact = screen.screenWidthDp < 600 || screen.screenHeightDp < 500
+        val screen = resources.configuration
+        val compact = screen.screenWidthDp < 600 || screen.screenHeightDp < 500
         val r = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -351,7 +353,8 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             }
             setOnClickListener { action() }
         }
-        val compact = resources.configuration.screenWidthDp < 600
+        val screen = resources.configuration
+        val compact = screen.screenWidthDp < 600 || screen.screenHeightDp < 500
         if (compact) {
             val widthDp = if (resources.configuration.screenWidthDp < 360) 230 else 260
             root.addView(
