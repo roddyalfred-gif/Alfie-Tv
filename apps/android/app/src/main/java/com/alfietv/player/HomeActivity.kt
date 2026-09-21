@@ -291,7 +291,8 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     }
 
     private fun navButton(root: LinearLayout, icon: String, title: String, selected: Boolean = false, action: () -> Unit): Button {
-        val compact = resources.configuration.screenWidthDp < 600
+        val screen = resources.configuration
+        val compact = screen.screenWidthDp < 600 || screen.screenHeightDp < 500
         val b = Button(this).apply {
             text = "$icon\n$title"
             contentDescription = title
