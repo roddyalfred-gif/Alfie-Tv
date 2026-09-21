@@ -237,7 +237,7 @@ class MainActivity : ComponentActivity() {
         }
         val trackScroll = android.widget.HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
-            addView(trackPanel, android.widget.HorizontalScrollView.LayoutParams(-2, -2))
+            addView(trackPanel, android.view.ViewGroup.LayoutParams(-2, -2))
         }
         root.addView(trackScroll, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
     }
