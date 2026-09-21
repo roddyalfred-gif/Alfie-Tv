@@ -269,7 +269,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     }
 
     private fun row(root: LinearLayout, height: Int): LinearLayout {
-        val compact = resources.configuration.screenWidthDp < 600
+        val screen = resources.configuration\n        val compact = screen.screenWidthDp < 600 || screen.screenHeightDp < 500
         val r = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
