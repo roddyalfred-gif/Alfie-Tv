@@ -331,7 +331,7 @@ class MainActivity : ComponentActivity() {
             text = label; textSize = if (phonePlayer) 12f else 14f; minHeight = dp(44)
             isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { action() }
         }
-        trackPanel.addView(button, LinearLayout.LayoutParams(if (phonePlayer) dp(132) else dp(150), FrameLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(dp(4), 0, dp(4), 0) })
+        trackPanel.addView(button, LinearLayout.LayoutParams(if (phonePlayer) dp(132) else dp(150), LinearLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(dp(4), 0, dp(4), 0) })
     }
 
     private fun seekBy(deltaMs: Long) {
