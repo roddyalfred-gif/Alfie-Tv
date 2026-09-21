@@ -35,6 +35,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var zapView: TextView
     private lateinit var zapProgress: ProgressBar
     private lateinit var trackPanel: LinearLayout
+    private lateinit var trackScroll: android.widget.HorizontalScrollView
     private var channelUrls = emptyList<String>()
     private var channelTitles = emptyList<String>()
     private var channelIds = emptyList<String>()
@@ -235,8 +236,9 @@ class MainActivity : ComponentActivity() {
             setPadding(if (phonePlayer) dp(8) else dp(18), dp(10), if (phonePlayer) dp(8) else dp(18), if (phonePlayer) dp(12) else dp(18))
             setBackgroundColor(Color.argb(200, 0, 0, 0)); visibility = View.GONE
         }
-        val trackScroll = android.widget.HorizontalScrollView(this).apply {
+        trackScroll = android.widget.HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
+            visibility = View.GONE
             addView(trackPanel, android.view.ViewGroup.LayoutParams(-2, -2))
         }
         root.addView(trackScroll, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
@@ -291,7 +293,15 @@ class MainActivity : ComponentActivity() {
         if (exact >= 0) switchToChannel(exact) else showZapOverlay()
     }
 
+    private fun hideTrackPanel() {
+        showingPlaybackRetry = false
+        trackPanel.visibility = View.GONE
+        trackScroll.visibility = View.GONE
+        playerView.requestFocus()
+    }
+
     private fun showTrackPanel() {
+        trackScroll.visibility = View.VISIBLE
         trackPanel.visibility = View.VISIBLE
         trackPanel.removeAllViews()
         addTrackButton("AUDIO") { showAudioOptions(alfiePlayer.audioTracks()) }
@@ -299,7 +309,7 @@ class MainActivity : ComponentActivity() {
         addTrackButton("FIT") { setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
         addTrackButton("FILL") { setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL) }
         addTrackButton("ZOOM") { setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM) }
-        addTrackButton("REFRESH AUDIO") { alfiePlayer.refreshAudio(); trackPanel.visibility = View.GONE; playerView.requestFocus() }
+        addTrackButton("REFRESH AUDIO") { alfiePlayer.refreshAudio(); hideTrackPanel() }
         if (showingPlaybackRetry) addTrackButton("RETRY PLAYBACK") { showingPlaybackRetry = false; alfiePlayer.retryCurrent() }
         trackPanel.getChildAt(0)?.requestFocus()
     }
@@ -361,8 +371,9 @@ class MainActivity : ComponentActivity() {
             KeyEvent.KEYCODE_DPAD_RIGHT -> { if (trackPanel.visibility == View.GONE) { seekBy(10_000L); return true } }
             KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_INFO -> { showTrackPanel(); return true }
             KeyEvent.KEYCODE_BACK -> {
-                if (trackPanel.visibility == View.VISIBLE) { showingPlaybackRetry = false; trackPanel.visibility = View.GONE; playerView.requestFocus() }
+                if (trackPanel.visibility == View.VISIBLE) { hideTrackPanel() }
                 else if (playerView.isControllerFullyVisible) { playerView.hideController(); playerView.requestFocus() }
+                else if (intent.getBooleanExtra("fullscreen_handoff", false)) finish()
                 else if (!dispatchExit()) finish()
                 return true
             }
@@ -384,9 +395,7 @@ class MainActivity : ComponentActivity() {
     @Deprecated("Deprecated in Android API 33")
     override fun onBackPressed() {
         if (trackPanel.visibility == View.VISIBLE) {
-            showingPlaybackRetry = false
-            trackPanel.visibility = View.GONE
-            playerView.requestFocus()
+            hideTrackPanel()
         } else if (playerView.isControllerFullyVisible) {
             playerView.hideController()
             playerView.requestFocus()
