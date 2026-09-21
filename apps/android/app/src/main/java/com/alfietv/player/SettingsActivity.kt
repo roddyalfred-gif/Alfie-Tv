@@ -53,7 +53,7 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
         val horizontalPadding = when {
             layoutWidthDp < 360 -> 12
             compact -> 16
-            layoutWidthDp < 900 -> 28
+            adaptiveWidthDp < 900 -> 28
             else -> 72
         }
         val content = LinearLayout(this).apply {
@@ -209,10 +209,10 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
             }
         }
         row.addView(button, LinearLayout.LayoutParams(
-            if (layoutWidthDp < 600) -2 else 150, 52
+            if (adaptiveWidthDp < 600) -2 else 150, 52
         ))
         row.setOnClickListener { button.performClick() }
-        root.addView(row, LinearLayout.LayoutParams(-1, if (layoutWidthDp < 600) 86 else 72).apply { topMargin = 5 })
+        root.addView(row, LinearLayout.LayoutParams(-1, if (adaptiveWidthDp < 600) 86 else 72).apply { topMargin = 5 })
     }
 
     private fun addButton(root: LinearLayout, label: String, action: () -> Unit) {
