@@ -37,6 +37,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private var restoreListPosition = 0
     private var restoreSearchFocus = false
     private var restoreSearchText = ""
+    private val adaptiveWidthDp get() = minOf(resources.configuration.screenWidthDp, resources.configuration.screenHeightDp)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -205,14 +206,14 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         val columns = when (layoutMode) {
             LayoutMode.LIST -> 1
             LayoutMode.GRID -> when {
-                layoutWidthDp < 360 -> 1
-                layoutWidthDp < 600 -> 2
-                layoutWidthDp < 900 -> 3
+                adaptiveWidthDp < 360 -> 1
+                adaptiveWidthDp < 600 -> 2
+                adaptiveWidthDp < 900 -> 3
                 else -> 4
             }
             LayoutMode.TILE -> when {
-                layoutWidthDp < 600 -> 2
-                layoutWidthDp < 900 -> 4
+                adaptiveWidthDp < 600 -> 2
+                adaptiveWidthDp < 900 -> 4
                 else -> 5
             }
         }
