@@ -42,6 +42,7 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
     private val row get() = skin.surface2
     private val accent get() = skin.accent
     private val muted get() = skin.secondary
+    private val adaptiveWidthDp get() = minOf(resources.configuration.screenWidthDp, resources.configuration.screenHeightDp)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
