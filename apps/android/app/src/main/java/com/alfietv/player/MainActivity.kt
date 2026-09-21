@@ -50,6 +50,9 @@ class MainActivity : ComponentActivity() {
     private var libraryItem: UserLibraryStore.Item? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private val numericCommit = Runnable { commitNumericChannel() }
+    private val widthDp: Int get() = resources.configuration.screenWidthDp
+    private val phonePlayer get() = widthDp < 600
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt().coerceAtLeast(1)
     private val progressSaver = object : Runnable {
         override fun run() {
             saveProgress()
@@ -203,19 +206,40 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun buildOverlay() {
-        topOverlay = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(28, 20, 28, 16); setBackgroundColor(Color.argb(185, 0, 0, 0)) }
-        titleView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 22f }
-        statusView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 14f; setPadding(0, 6, 0, 0) }
-        formatView = TextView(this).apply { setTextColor(Color.LTGRAY); textSize = 13f; setPadding(0, 3, 0, 0) }
-        epgView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 14f; setPadding(0, 8, 0, 0) }
+        val pad = if (phonePlayer) dp(14) else dp(28)
+        topOverlay = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, if (phonePlayer) dp(12) else dp(20), pad, if (phonePlayer) dp(10) else dp(16))
+            setBackgroundColor(Color.argb(185, 0, 0, 0))
+        }
+        titleView = TextView(this).apply { setTextColor(Color.WHITE); textSize = if (phonePlayer) 18f else 22f; maxLines = 2 }
+        statusView = TextView(this).apply { setTextColor(Color.WHITE); textSize = if (phonePlayer) 12f else 14f; setPadding(0, dp(6), 0, 0); maxLines = 2 }
+        formatView = TextView(this).apply { setTextColor(Color.LTGRAY); textSize = if (phonePlayer) 11f else 13f; setPadding(0, dp(3), 0, 0); maxLines = 3 }
+        epgView = TextView(this).apply { setTextColor(Color.WHITE); textSize = if (phonePlayer) 12f else 14f; setPadding(0, dp(8), 0, 0); maxLines = 2 }
         topOverlay.addView(titleView); topOverlay.addView(statusView); topOverlay.addView(formatView); topOverlay.addView(epgView)
         root.addView(topOverlay, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP))
-        zapView = TextView(this).apply { setTextColor(Color.WHITE); textSize = 26f; gravity = Gravity.CENTER; setPadding(32, 22, 32, 12); setBackgroundColor(Color.argb(205, 0, 0, 0)); visibility = View.GONE }
+        zapView = TextView(this).apply {
+            setTextColor(Color.WHITE); textSize = if (phonePlayer) 22f else 26f; gravity = Gravity.CENTER
+            setPadding(if (phonePlayer) dp(20) else dp(32), if (phonePlayer) dp(16) else dp(22), if (phonePlayer) dp(20) else dp(32), dp(12))
+            setBackgroundColor(Color.argb(205, 0, 0, 0)); visibility = View.GONE
+        }
         root.addView(zapView, FrameLayout.LayoutParams(-2, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
         zapProgress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; progress = 0; visibility = View.GONE }
-        root.addView(zapProgress, FrameLayout.LayoutParams(500, 10, Gravity.CENTER).apply { topMargin = 100 })
-        trackPanel = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(18, 12, 18, 18); setBackgroundColor(Color.argb(200, 0, 0, 0)); visibility = View.GONE }
-        root.addView(trackPanel, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
+        root.addView(zapProgress, FrameLayout.LayoutParams(if (phonePlayer) -1 else dp(500), dp(10), Gravity.CENTER).apply {
+            leftMargin = if (phonePlayer) dp(20) else 0
+            rightMargin = if (phonePlayer) dp(20) else 0
+            topMargin = if (phonePlayer) dp(80) else dp(100)
+        })
+        trackPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            setPadding(if (phonePlayer) dp(8) else dp(18), dp(10), if (phonePlayer) dp(8) else dp(18), if (phonePlayer) dp(12) else dp(18))
+            setBackgroundColor(Color.argb(200, 0, 0, 0)); visibility = View.GONE
+        }
+        val trackScroll = android.widget.HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(trackPanel, android.widget.HorizontalScrollView.LayoutParams(-2, -2))
+        }
+        root.addView(trackScroll, FrameLayout.LayoutParams(-1, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
     }
 
     private fun refreshOverlay() {
@@ -303,8 +327,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun addTrackButton(label: String, action: () -> Unit) {
-        val button = Button(this).apply { text = label; isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { action() } }
-        trackPanel.addView(button, LinearLayout.LayoutParams(0, FrameLayout.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(6, 0, 6, 0) })
+        val button = Button(this).apply {
+            text = label; textSize = if (phonePlayer) 12f else 14f; minHeight = dp(44)
+            isFocusable = true; isFocusableInTouchMode = true; setOnClickListener { action() }
+        }
+        trackPanel.addView(button, LinearLayout.LayoutParams(if (phonePlayer) dp(132) else dp(150), FrameLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(dp(4), 0, dp(4), 0) })
     }
 
     private fun seekBy(deltaMs: Long) {
