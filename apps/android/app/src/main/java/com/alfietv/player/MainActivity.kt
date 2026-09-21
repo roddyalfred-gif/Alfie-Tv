@@ -52,7 +52,11 @@ class MainActivity : ComponentActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val numericCommit = Runnable { commitNumericChannel() }
     private val widthDp: Int get() = resources.configuration.screenWidthDp
-    private val phonePlayer get() = widthDp < 600
+    private val heightDp: Int get() = resources.configuration.screenHeightDp
+
+    // Landscape phones can exceed 600dp in width, so use the shorter dimension too.
+    private val phonePlayer: Boolean
+        get() = widthDp < 600 || heightDp < 500
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt().coerceAtLeast(1)
     private val progressSaver = object : Runnable {
         override fun run() {
