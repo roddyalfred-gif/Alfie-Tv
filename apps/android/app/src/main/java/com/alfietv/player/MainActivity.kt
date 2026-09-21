@@ -363,6 +363,7 @@ class MainActivity : ComponentActivity() {
             KeyEvent.KEYCODE_BACK -> {
                 if (trackPanel.visibility == View.VISIBLE) { showingPlaybackRetry = false; trackPanel.visibility = View.GONE; playerView.requestFocus() }
                 else if (playerView.isControllerFullyVisible) { playerView.hideController(); playerView.requestFocus() }
+                else if (intent.getBooleanExtra("fullscreen_handoff", false)) finish()
                 else if (!dispatchExit()) finish()
                 return true
             }
