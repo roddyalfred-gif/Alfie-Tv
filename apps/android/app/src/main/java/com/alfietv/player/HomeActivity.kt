@@ -294,6 +294,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
         val compact = resources.configuration.screenWidthDp < 600
         val b = Button(this).apply {
             text = "$icon\n$title"
+            contentDescription = title
             isAllCaps = false
             textSize = if (compact) 8f else 9f
             gravity = Gravity.CENTER
@@ -301,6 +302,8 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             background = if (selected) selectedNav(accent) else rounded(rail)
             isFocusable = true
             isFocusableInTouchMode = true
+            contentDescription = title
+            minHeight = if (compact) 64 else 60
             stateListAnimator = null
             setOnFocusChangeListener { v, focused ->
                 v.background = if (focused) selectedNav(accent) else if (selected) selectedNav(accent) else rounded(rail)
@@ -320,6 +323,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     private fun card(root: LinearLayout, title: String, subtitle: String, color: Int, action: () -> Unit): Button {
         val b = Button(this).apply {
             text = "$title\n$subtitle"
+            contentDescription = "$title. $subtitle"
             isAllCaps = false
             textSize = 12f
             gravity = Gravity.CENTER_VERTICAL or Gravity.START
