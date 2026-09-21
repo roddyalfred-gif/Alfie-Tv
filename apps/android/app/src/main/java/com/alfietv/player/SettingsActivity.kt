@@ -16,6 +16,8 @@ import android.widget.Switch
 /** TV-friendly settings hub. Options persist locally and are usable with a remote. */
 class SettingsActivity : androidx.activity.ComponentActivity() {
     private var renderedSkinId: String? = null
+    private var focusedSettingKey: String? = null
+    private var settingsScrollY: Int = 0
     private val skin get() = SkinStore.current(this)
     private val bg get() = skin.background
     private val surface get() = skin.surface
@@ -130,9 +132,26 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
             setBackgroundColor(bg)
             addView(content, ViewGroup.LayoutParams(-1, -2))
         }
+        scroll.setOnScrollChangeListener { _, _, scrollY, _, _ -> settingsScrollY = scrollY }
         setContentView(scroll)
         SkinStore.animate(content, skin)
-        content.post { content.getChildAt(3)?.requestFocus() }
+        content.post {
+            scroll.scrollTo(0, settingsScrollY)
+            val target = focusedSettingKey?.let { key -> findFocusableByTag(content, key) }
+            (target ?: content.getChildAt(3))?.requestFocus()
+        }
+    }
+
+    private fun findFocusableByTag(root: ViewGroup, key: String): android.view.View? {
+        for (index in 0 until root.childCount) {
+            val child = root.getChildAt(index)
+            if (child.tag == key && child.isFocusable) return child
+            if (child is ViewGroup) {
+                val match = findFocusableByTag(child, key)
+                if (match != null) return match
+            }
+        }
+        return null
     }
 
     private fun addHeader(root: LinearLayout, title: String) {
@@ -143,7 +162,11 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(16, 8, 16, 8); background = rounded(surface)
             isFocusable = true; isFocusableInTouchMode = true
-            setOnFocusChangeListener { v, focused -> v.background = if (focused) focusedRow() else rounded(surface) }
+            setOnFocusChangeListener { v, focused ->
+                if (focused) focusedSettingKey = title
+                v.background = if (focused) focusedRow() else rounded(surface)
+            }
+            tag = title
         }
         val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; isFocusable = false }
         labels.addView(TextView(this).apply { text = title; textSize = 16f; setTextColor(primaryText) })
@@ -158,7 +181,11 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(16, 8, 16, 8); background = rounded(surface)
             isFocusable = true; isFocusableInTouchMode = true
-            setOnFocusChangeListener { v, focused -> v.background = rounded(if (focused) accent else surface) }
+            setOnFocusChangeListener { v, focused ->
+                if (focused) focusedSettingKey = title
+                v.background = rounded(if (focused) accent else surface)
+            }
+            tag = title
         }
         val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; isFocusable = false }
         labels.addView(TextView(this).apply { text = title; textSize = 16f; setTextColor(primaryText) })
@@ -189,7 +216,11 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
         val button = Button(this).apply {
             text = label; isAllCaps = false; textSize = 15f; minHeight = 54; setTextColor(primaryText); background = rounded(surface)
             isFocusable = true; isFocusableInTouchMode = true; stateListAnimator = null
-            setOnFocusChangeListener { v, focused -> v.background = rounded(if (focused) accent else surface) }
+            setOnFocusChangeListener { v, focused ->
+                if (focused) focusedSettingKey = label
+                v.background = rounded(if (focused) accent else surface)
+            }
+            tag = label
             setOnClickListener { action() }
         }
         root.addView(button, LinearLayout.LayoutParams(-1, 54).apply { topMargin = 5 })
