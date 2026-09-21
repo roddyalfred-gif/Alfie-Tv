@@ -55,12 +55,14 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         sortMode = savedInstanceState?.getInt("content_sort_mode", 0) ?: 0
 
         val widthDp = resources.configuration.screenWidthDp
-        val compact = widthDp < 600
+        val heightDp = resources.configuration.screenHeightDp
+        val compact = widthDp < 600 || heightDp < 500
+        val layoutWidthDp = minOf(widthDp, heightDp)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(bg)
-            setPadding(if (widthDp < 360) 10 else if (compact) 14 else 20, if (compact) 10 else 16,
-                if (widthDp < 360) 10 else if (compact) 14 else 20, if (compact) 10 else 16)
+            setPadding(if (layoutWidthDp < 360) 10 else if (compact) 14 else 20, if (compact) 10 else 16,
+                if (layoutWidthDp < 360) 10 else if (compact) 14 else 20, if (compact) 10 else 16)
         }
         val header = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
@@ -203,14 +205,14 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         val columns = when (layoutMode) {
             LayoutMode.LIST -> 1
             LayoutMode.GRID -> when {
-                resources.configuration.screenWidthDp < 360 -> 1
-                resources.configuration.screenWidthDp < 600 -> 2
-                resources.configuration.screenWidthDp < 900 -> 3
+                layoutWidthDp < 360 -> 1
+                layoutWidthDp < 600 -> 2
+                layoutWidthDp < 900 -> 3
                 else -> 4
             }
             LayoutMode.TILE -> when {
-                resources.configuration.screenWidthDp < 600 -> 2
-                resources.configuration.screenWidthDp < 900 -> 4
+                layoutWidthDp < 600 -> 2
+                layoutWidthDp < 900 -> 4
                 else -> 5
             }
         }
