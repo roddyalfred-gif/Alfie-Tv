@@ -158,7 +158,7 @@ class MainActivity : ComponentActivity() {
             }
         })
         intent.getStringExtra("stream_url")?.takeIf { it.isNotBlank() }?.let {
-            if (SettingsStore.autoPlay(this)) alfiePlayer.playWithFallback(listOf(it, intent.getStringExtra("fallback_stream_url") ?: ""), currentTitle(), currentChannelNumber())
+            if (SettingsStore.autoPlay(this) || intent.getBooleanExtra("force_autoplay", false)) alfiePlayer.playWithFallback(listOf(it, intent.getStringExtra("fallback_stream_url") ?: ""), currentTitle(), currentChannelNumber())
         }
         showZapOverlay()
         refreshOverlay()
