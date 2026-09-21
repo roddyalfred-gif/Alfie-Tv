@@ -18,6 +18,7 @@ import android.widget.ListView
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.media3.ui.PlayerView
 import java.text.DateFormat
 import java.util.Date
 import java.util.concurrent.Executors
@@ -36,6 +37,10 @@ class SafeEpgGuideActivity : ComponentActivity() {
     private val epgByChannel = mutableMapOf<String, List<EpgProgram>>()
     private var channels: List<IptvChannel> = emptyList()
     private var selectedChannelId: String? = null
+    private var previewPlayer: AlfiePlayer? = null
+    private lateinit var previewView: PlayerView
+    private var fullscreenLaunchInProgress = false
+    private var awaitingFullscreenReturn = false
     private val epgCompleted = AtomicInteger(0)
     private var epgTotal = 0
     private var guideScrollX = 0
@@ -98,6 +103,18 @@ class SafeEpgGuideActivity : ComponentActivity() {
             setPadding(dp(12), dp(10), dp(12), dp(4))
         }, LinearLayout.LayoutParams(-1, -2))
         root.addView(status, LinearLayout.LayoutParams(-1, -2))
+
+        previewView = PlayerView(this).apply {
+            useController = false
+            controllerAutoShow = false
+            setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
+            resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+            setBackgroundColor(Color.BLACK)
+            isFocusable = false
+        }
+        root.addView(previewView, LinearLayout.LayoutParams(-1, dp(if (compact) 190 else 250)).apply {
+            leftMargin = dp(8); rightMargin = dp(8); bottomMargin = dp(6)
+        })
 
         val loading = ProgressBar(this).apply { isIndeterminate = true }
         root.addView(loading, LinearLayout.LayoutParams(-1, dp(3)))
@@ -319,7 +336,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                     }
                     setOnClickListener {
                         val nowAtClick = System.currentTimeMillis()
-                        if (nowAtClick in program.startUtcMs until program.endUtcMs) playChannel(channel) else if (program.startUtcMs <= nowAtClick) activateChannel(channel) else showFuture(program, channel)
+                        if (nowAtClick in program.startUtcMs until program.endUtcMs) activateChannel(channel) else if (program.startUtcMs <= nowAtClick) activateChannel(channel) else showFuture(program, channel)
                     }
                     setOnKeyListener { _, keyCode, event ->
                         if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
@@ -353,16 +370,75 @@ class SafeEpgGuideActivity : ComponentActivity() {
         }
     }
 
-    /** First activation selects a channel; activating the same channel again opens fullscreen Live TV. */
+    /** Guide owns its preview. A second activation of the same channel opens fullscreen and returns here. */
     private fun activateChannel(channel: IptvChannel) {
+        if (fullscreenLaunchInProgress) return
         if (selectedChannelId == channel.id) {
-            playChannel(channel)
+            playFullscreen(channel)
             return
         }
         selectedChannelId = channel.id
-        status.text = "${channel.name} selected • press again to open fullscreen"
+        getSharedPreferences("alfie_tv", MODE_PRIVATE).edit()
+            .putString("guide_preview_channel_${config.serverUrl}_${config.username}", channel.id)
+            .apply()
+        preview(channel)
+    }
+
+    private fun preview(channel: IptvChannel) {
+        val url = channel.streamUrl.trim()
+        if (url.isBlank()) {
+            status.text = "${channel.name} has no stream URL"
+            return
+        }
+        selectedChannelId = channel.id
+        if (previewPlayer == null) previewPlayer = AlfiePlayer(this).also { it.attach(previewView) }
+        previewPlayer?.playWithFallback(
+            listOf(url, channel.fallbackStreamUrl ?: "").filter { it.isNotBlank() },
+            channel.name,
+            (channels.indexOfFirst { it.id == channel.id } + 1).coerceAtLeast(1).toString()
+        )
+        status.text = "${channel.name} • Guide preview playing • OK again = fullscreen"
         adapter.notifyDataSetChanged()
         focusSelectedChannel()
+    }
+
+    private fun playFullscreen(channel: IptvChannel) {
+        if (fullscreenLaunchInProgress) return
+        val url = channel.streamUrl.trim()
+        if (url.isBlank()) {
+            status.text = "${channel.name} has no stream URL"
+            return
+        }
+        fullscreenLaunchInProgress = true
+        awaitingFullscreenReturn = true
+        selectedChannelId = channel.id
+        val index = channels.indexOfFirst { it.id == channel.id }.coerceAtLeast(0)
+        previewPlayer?.release()
+        previewPlayer = null
+        previewView.player = null
+        runCatching {
+            startActivity(Intent(this, MainActivity::class.java).apply {
+                putExtra("url", url)
+                putExtra("stream_url", url)
+                putExtra("fallback_stream_url", channel.fallbackStreamUrl ?: "")
+                putExtra("title", channel.name)
+                putExtra("content_id", channel.id)
+                putExtra("content_type", "LIVE")
+                putExtra("channel_id", channel.id)
+                putExtra("channel_number", (index + 1).toString())
+                putExtra("preview_category_id", channel.categoryId)
+                putExtra("channel_index", index)
+                putExtra("server", config.serverUrl)
+                putExtra("username", config.username)
+                putExtra("password", config.password)
+                putExtra("fullscreen_handoff", true)
+            })
+        }.onFailure {
+            fullscreenLaunchInProgress = false
+            awaitingFullscreenReturn = false
+            status.text = "Unable to open fullscreen: ${it.message ?: "unknown error"}"
+            preview(channel)
+        }
     }
 
     private fun focusSelectedChannel() {
@@ -446,26 +522,6 @@ class SafeEpgGuideActivity : ComponentActivity() {
             }.show()
     }
 
-    private fun playChannel(channel: IptvChannel) {
-        if (channel.streamUrl.isBlank()) {
-            status.text = "${channel.name} has no stream URL"
-            return
-        }
-        // Do not pass the entire provider channel list through the Activity Intent.
-        // Large IPTV lists can exceed Android Binder transaction limits and cause
-        // "Unable to open Live TV: Failure from system". LiveTvActivity already
-        // reloads/caches the provider list and only needs the selected channel ID.
-        runCatching {
-            startActivity(Intent(this, LiveTvActivity::class.java).apply {
-                putExtra("server", config.serverUrl)
-                putExtra("username", config.username)
-                putExtra("password", config.password)
-                putExtra("preview_channel_id", channel.id)
-                putExtra("guide_handoff", true)
-            })
-        }.onFailure { status.text = "Unable to open Live TV: " + (it.message ?: "unknown error") }
-    }
-
     private fun buildChannelLabel(channel: IptvChannel, position: Int): String {
         val number = (position + 1).toString()
         val category = channel.categoryId?.takeIf { it.isNotBlank() }?.let { " • $it" } ?: ""
@@ -490,11 +546,18 @@ class SafeEpgGuideActivity : ComponentActivity() {
         super.onResume()
         val persisted = getSharedPreferences("alfie_tv", MODE_PRIVATE)
             .getString("last_channel_${config.serverUrl}_${config.username}", null)
-        val restoredId = intent.getStringExtra("preview_channel_id") ?: persisted
+        val savedGuideId = getSharedPreferences("alfie_tv", MODE_PRIVATE)
+            .getString("guide_preview_channel_${config.serverUrl}_${config.username}", null)
+        val restoredId = savedGuideId ?: intent.getStringExtra("preview_channel_id") ?: persisted
         if (!restoredId.isNullOrBlank() && channels.any { it.id == restoredId }) {
             selectedChannelId = restoredId
             adapter.notifyDataSetChanged()
             focusSelectedChannel()
+            if (awaitingFullscreenReturn) {
+                awaitingFullscreenReturn = false
+                fullscreenLaunchInProgress = false
+                channels.firstOrNull { it.id == restoredId }?.let(::preview)
+            }
         }
         // Rebuild the timeline anchor so NOW/current-program styling stays aligned after returning.
         renderTimeHeader()
@@ -503,6 +566,8 @@ class SafeEpgGuideActivity : ComponentActivity() {
 
     override fun onDestroy() {
         guideClockHandler.removeCallbacks(guideClockTicker)
+        previewPlayer?.release()
+        previewPlayer = null
         executor.shutdownNow()
         epgExecutor.shutdownNow()
         super.onDestroy()

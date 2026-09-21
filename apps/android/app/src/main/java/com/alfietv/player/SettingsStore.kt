@@ -14,6 +14,8 @@ object SettingsStore {
     private const val REMEMBER_CHANNEL = "remember_channel"
     private const val AUTO_RETRY = "auto_retry"
     private const val SEEK_SECONDS = "seek_seconds"
+    private const val SPLASH_ENABLED = "splash_enabled"
+    private const val SPLASH_STYLE = "splash_style"
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -43,6 +45,14 @@ object SettingsStore {
 
     fun seekSeconds(context: Context) = prefs(context).getInt(SEEK_SECONDS, 10).coerceIn(5, 60)
     fun setSeekSeconds(context: Context, value: Int) = prefs(context).edit().putInt(SEEK_SECONDS, value.coerceIn(5, 60)).apply()
+
+    fun splashEnabled(context: Context) = prefs(context).getBoolean(SPLASH_ENABLED, true)
+    fun setSplashEnabled(context: Context, value: Boolean) = prefs(context).edit().putBoolean(SPLASH_ENABLED, value).apply()
+    fun splashStyle(context: Context) = prefs(context).getString(SPLASH_STYLE, "neon") ?: "neon"
+    fun setSplashStyle(context: Context, value: String) {
+        val safe = if (value in setOf("neon", "orbit", "cinematic")) value else "neon"
+        prefs(context).edit().putString(SPLASH_STYLE, safe).apply()
+    }
 
     fun reset(context: Context) = prefs(context).edit().clear().apply()
 }
