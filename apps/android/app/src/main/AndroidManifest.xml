@@ -20,7 +20,7 @@
         <activity android:name=".FavoritesActivity" android:screenOrientation="fullSensor" android:configChanges="orientation|screenSize|smallestScreenSize" android:exported="false" />
         <activity android:name=".SettingsActivity" android:screenOrientation="fullSensor" android:configChanges="orientation|screenSize|smallestScreenSize" android:exported="false" />
         <activity android:name=".HomeActivity" android:screenOrientation="fullSensor" android:configChanges="orientation|screenSize|smallestScreenSize" android:exported="false" />
-        <activity android:name=".LoginActivity" android:screenOrientation="fullSensor" android:configChanges="orientation|screenSize|smallestScreenSize" android:exported="true">
+        <activity android:name=".SplashActivity" android:screenOrientation="fullSensor" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -29,6 +29,9 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
+        </activity>
+        <activity android:name=".LoginActivity" android:screenOrientation="fullSensor" android:configChanges="orientation|screenSize|smallestScreenSize" android:exported="true">
+
         </activity>
     </application>
 </manifest>
