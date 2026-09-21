@@ -67,7 +67,9 @@ class LoginActivity : androidx.activity.ComponentActivity() {
         val widthDp = resources.configuration.screenWidthDp
         val heightDp = resources.configuration.screenHeightDp
         // Landscape phones can exceed 600dp in width, so use the shorter dimension too.
-        val adaptiveWidthDp = minOf(widthDp, heightDp)\n        val compact = adaptiveWidthDp < 600\n        val root = LinearLayout(this).apply {
+        val adaptiveWidthDp = minOf(widthDp, heightDp)
+        val compact = adaptiveWidthDp < 600
+        val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(
