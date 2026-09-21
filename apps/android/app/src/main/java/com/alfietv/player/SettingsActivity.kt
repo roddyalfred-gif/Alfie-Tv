@@ -46,11 +46,13 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
 
     private fun buildSettings() {
         val widthDp = resources.configuration.screenWidthDp
-        val compact = widthDp < 600
+        val heightDp = resources.configuration.screenHeightDp
+        val compact = widthDp < 600 || heightDp < 500
+        val layoutWidthDp = minOf(widthDp, heightDp)
         val horizontalPadding = when {
-            widthDp < 360 -> 12
+            layoutWidthDp < 360 -> 12
             compact -> 16
-            widthDp < 900 -> 28
+            layoutWidthDp < 900 -> 28
             else -> 72
         }
         val content = LinearLayout(this).apply {
@@ -206,10 +208,10 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
             }
         }
         row.addView(button, LinearLayout.LayoutParams(
-            if (resources.configuration.screenWidthDp < 600) -2 else 150, 52
+            if (layoutWidthDp < 600) -2 else 150, 52
         ))
         row.setOnClickListener { button.performClick() }
-        root.addView(row, LinearLayout.LayoutParams(-1, if (resources.configuration.screenWidthDp < 600) 86 else 72).apply { topMargin = 5 })
+        root.addView(row, LinearLayout.LayoutParams(-1, if (layoutWidthDp < 600) 86 else 72).apply { topMargin = 5 })
     }
 
     private fun addButton(root: LinearLayout, label: String, action: () -> Unit) {
