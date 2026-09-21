@@ -24,6 +24,7 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
     private val accent get() = skin.accent
     private val primaryText = Color.WHITE
     private val secondary get() = skin.secondary
+    private val adaptiveWidthDp get() = minOf(resources.configuration.screenWidthDp, resources.configuration.screenHeightDp)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
