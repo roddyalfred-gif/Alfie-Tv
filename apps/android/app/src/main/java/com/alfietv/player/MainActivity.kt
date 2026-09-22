@@ -63,10 +63,12 @@ class MainActivity : ComponentActivity() {
         val server = intent.getStringExtra("server")?.trim().orEmpty()
         val username = intent.getStringExtra("username")?.trim().orEmpty()
         val categoryId = intent.getStringExtra("preview_category_id")
-        val editor = preferences.edit().putString("last_channel_id", channelId)
+        val owner = intent.getStringExtra("playback_owner")?.lowercase().orEmpty()
+        val ownerPrefix = if (owner == "guide") "guide" else "live"
+        val editor = preferences.edit().putString("${ownerPrefix}_last_channel_id", channelId)
         if (server.isNotBlank() && username.isNotBlank()) {
-            editor.putString("last_channel_${server}_${username}", channelId)
-            if (!categoryId.isNullOrBlank()) editor.putString("last_category_${server}_${username}", categoryId)
+            editor.putString("${ownerPrefix}_last_channel_${server}_${username}", channelId)
+            if (!categoryId.isNullOrBlank()) editor.putString("${ownerPrefix}_last_category_${server}_${username}", categoryId)
         }
         editor.apply()
     }
