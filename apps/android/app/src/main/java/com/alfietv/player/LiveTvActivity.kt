@@ -192,8 +192,8 @@ class LiveTvActivity : ComponentActivity() {
         if (!hasPendingGuideChannel && !restoredLastChannel) {
             restoredLastChannel = true
             val prefs = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
-            val lastId = prefs.getString("last_channel_${config.serverUrl}_${config.username}", null)
-            val lastCategory = prefs.getString("last_category_${config.serverUrl}_${config.username}", null)
+            val lastId = prefs.getString("live_last_channel_${config.serverUrl}_${config.username}", null)
+            val lastCategory = prefs.getString("live_last_category_${config.serverUrl}_${config.username}", null)
             if (!lastCategory.isNullOrBlank()) selectedCategory = lastCategory
             lastId?.let { id -> channels.firstOrNull { it.id == id }?.let { favoritesMode = false; selectedCategory = it.categoryId ?: selectedCategory; previewCategoryId = it.categoryId; selectedIndex = filteredChannels().indexOfFirst { c -> c.id == it.id }.coerceAtLeast(0); rebuildCategories(); list.post { list.setSelection(selectedIndex); showEpg(it); focusSelectedChannel() } } }
         }
@@ -242,7 +242,7 @@ class LiveTvActivity : ComponentActivity() {
             ChannelActivationPolicy.Action.FULLSCREEN -> playFullscreen(channel)
             ChannelActivationPolicy.Action.PREVIEW -> preview(channel)
         } }
-    private fun preview(channel: IptvChannel) { val url = channel.streamUrl.trim(); if (url.isBlank()) { status.text = "${channel.name} has no stream URL"; return }; previewChannelId = channel.id; previewCategoryId = channel.categoryId; if (!favoritesMode) selectedCategory = channel.categoryId; getSharedPreferences("alfie_tv", Context.MODE_PRIVATE).edit().putString("last_channel_${config.serverUrl}_${config.username}", channel.id).putString("last_category_${config.serverUrl}_${config.username}", channel.categoryId ?: "").apply(); rebuildCategories(); if (previewPlayer == null) previewPlayer = AlfiePlayer(this).also { it.attach(previewView) }; previewPlayer?.playWithFallback(listOf(url, channel.fallbackStreamUrl ?: "").filter { it.isNotBlank() }, channel.name, (displayedChannels.indexOfFirst { it.id == channel.id } + 1).coerceAtLeast(1).toString()); epgTitle.text = "PREVIEW  •  ${channel.name}"; status.text = "${channel.name}  •  Preview playing  •  OK again = fullscreen"; showEpg(channel); list.post { list.invalidateViews(); focusSelectedChannel() } }
+    private fun preview(channel: IptvChannel) { val url = channel.streamUrl.trim(); if (url.isBlank()) { status.text = "${channel.name} has no stream URL"; return }; previewChannelId = channel.id; previewCategoryId = channel.categoryId; if (!favoritesMode) selectedCategory = channel.categoryId; getSharedPreferences("alfie_tv", Context.MODE_PRIVATE).edit().putString("live_last_channel_${config.serverUrl}_${config.username}", channel.id).putString("live_last_category_${config.serverUrl}_${config.username}", channel.categoryId ?: "").apply(); rebuildCategories(); if (previewPlayer == null) previewPlayer = AlfiePlayer(this).also { it.attach(previewView) }; previewPlayer?.playWithFallback(listOf(url, channel.fallbackStreamUrl ?: "").filter { it.isNotBlank() }, channel.name, (displayedChannels.indexOfFirst { it.id == channel.id } + 1).coerceAtLeast(1).toString()); epgTitle.text = "PREVIEW  •  ${channel.name}"; status.text = "${channel.name}  •  Preview playing  •  OK again = fullscreen"; showEpg(channel); list.post { list.invalidateViews(); focusSelectedChannel() } }
     private fun playFullscreen(channel: IptvChannel) {
         if (fullscreenLaunchInProgress) return
         val url = channel.streamUrl.trim()
@@ -268,6 +268,7 @@ class LiveTvActivity : ComponentActivity() {
             putExtra("username", config.username)
             putExtra("password", config.password)
             putExtra("fullscreen_handoff", true)
+            putExtra("playback_owner", "live")
         }
         previewPlayer?.release()
         previewPlayer = null
@@ -327,10 +328,6 @@ class LiveTvActivity : ComponentActivity() {
         if (search.hasFocus() && search.text.isNotEmpty()) {
             search.text.clear()
             list.requestFocus()
-            return
-        }
-        if (intent.getBooleanExtra("guide_handoff", false)) {
-            finish()
             return
         }
         super.onBackPressed()
