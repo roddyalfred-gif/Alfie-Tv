@@ -42,7 +42,6 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
     private val row get() = skin.surface2
     private val accent get() = skin.accent
     private val muted get() = skin.secondary
-    private val adaptiveWidthDp get() = minOf(resources.configuration.screenWidthDp, resources.configuration.screenHeightDp)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,13 +73,11 @@ class FavoritesActivity : androidx.activity.ComponentActivity() {
         restoreSearchFocus = hadSearch && search.hasFocus()
         restoreListPosition = if (hadList) list.selectedItemPosition.coerceAtLeast(0) else 0
         val widthDp = resources.configuration.screenWidthDp
-        val heightDp = resources.configuration.screenHeightDp
-        val compact = widthDp < 600 || heightDp < 500
-        val layoutWidthDp = minOf(widthDp, heightDp)
+        val compact = widthDp < 600
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(if (layoutWidthDp < 360) 10 else if (compact) 14 else 18, if (compact) 10 else 14,
-                if (layoutWidthDp < 360) 10 else if (compact) 14 else 18, if (compact) 8 else 10)
+            setPadding(if (widthDp < 360) 10 else if (compact) 14 else 18, if (compact) 10 else 14,
+                if (widthDp < 360) 10 else if (compact) 14 else 18, if (compact) 8 else 10)
             setBackgroundColor(SkinStore.current(this@FavoritesActivity).background)
         }
         val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
