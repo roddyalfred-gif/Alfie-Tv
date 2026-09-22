@@ -34,10 +34,6 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private var selectedSeriesId: String? = null
     private var pendingSeriesId: String? = null
     private var sortMode = 0
-    private var restoreListPosition = 0
-    private var restoreSearchFocus = false
-    private var restoreSearchText = ""
-    private val adaptiveWidthDp get() = minOf(resources.configuration.screenWidthDp, resources.configuration.screenHeightDp)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,24 +42,14 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         config = XtreamConfig(intent.getStringExtra("server") ?: "", intent.getStringExtra("username") ?: "", intent.getStringExtra("password") ?: "")
         pendingSeriesId = intent.getStringExtra("selected_series_id")
         layoutMode = LayoutModeStore.get(this, screenKey(), LayoutMode.GRID)
-        restoreSearchText = savedInstanceState?.getString("content_search") ?: ""
-        restoreSearchFocus = savedInstanceState?.getBoolean("content_search_focus") ?: false
-        restoreListPosition = savedInstanceState?.getInt("content_list_position", 0) ?: 0
-        selectedCategory = savedInstanceState?.getString("content_category")
-        selectedSeason = if (savedInstanceState?.containsKey("content_season") == true) savedInstanceState.getInt("content_season") else null
-        selectedSeriesId = savedInstanceState?.getString("content_series_id")
-        pendingSeriesId = savedInstanceState?.getString("content_pending_series_id") ?: pendingSeriesId
-        sortMode = savedInstanceState?.getInt("content_sort_mode", 0) ?: 0
 
         val widthDp = resources.configuration.screenWidthDp
-        val heightDp = resources.configuration.screenHeightDp
-        val compact = widthDp < 600 || heightDp < 500
-        val layoutWidthDp = minOf(widthDp, heightDp)
+        val compact = widthDp < 600
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(bg)
-            setPadding(if (layoutWidthDp < 360) 10 else if (compact) 14 else 20, if (compact) 10 else 16,
-                if (layoutWidthDp < 360) 10 else if (compact) 14 else 20, if (compact) 10 else 16)
+            setPadding(if (widthDp < 360) 10 else if (compact) 14 else 20, if (compact) 10 else 16,
+                if (widthDp < 360) 10 else if (compact) 14 else 20, if (compact) 10 else 16)
         }
         val header = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
@@ -139,7 +125,6 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         setContentView(root)
         SkinStore.animate(root, skin)
 
-        search.setText(restoreSearchText)
         search.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { render() }
@@ -151,12 +136,6 @@ class ContentActivity : androidx.activity.ComponentActivity() {
             else if (episodes.isNotEmpty()) playEpisode(filteredEpisodes()[position])
             else loadEpisodes(filteredSeries()[position].id)
         }
-        list.setOnScrollListener(object : AbsListView.OnScrollListener {
-            override fun onScroll(view: AbsListView?, firstVisibleItem: Int, visibleItemCount: Int, totalItemCount: Int) {
-                restoreListPosition = firstVisibleItem
-            }
-            override fun onScrollStateChanged(view: AbsListView?, scrollState: Int) = Unit
-        })
         list.setOnItemLongClickListener { _, _, position, _ ->
             if (mode == "vod") {
                 val item = filteredVod()[position]
@@ -178,26 +157,6 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         load()
     }
 
-    override fun onSaveInstanceState(outState: Bundle) {
-        outState.putString("content_search", search.text.toString())
-        outState.putBoolean("content_search_focus", search.hasFocus())
-        outState.putInt("content_list_position", restoreListPosition)
-        outState.putString("content_category", selectedCategory)
-        selectedSeason?.let { outState.putInt("content_season", it) }
-        outState.putString("content_series_id", selectedSeriesId)
-        outState.putString("content_pending_series_id", pendingSeriesId)
-        outState.putInt("content_sort_mode", sortMode)
-        super.onSaveInstanceState(outState)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        if (!::list.isInitialized) return
-        list.post {
-            if (restoreSearchFocus) search.requestFocus() else if (!search.hasFocus()) list.requestFocus()
-        }
-    }
-
     private fun roundedSkinField() = android.graphics.drawable.GradientDrawable().apply { setColor(panel); cornerRadius = 12f * resources.displayMetrics.density }
 
     private fun screenKey(): String = if (mode == "series") "series" else "movies"
@@ -206,14 +165,14 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         val columns = when (layoutMode) {
             LayoutMode.LIST -> 1
             LayoutMode.GRID -> when {
-                adaptiveWidthDp < 360 -> 1
-                adaptiveWidthDp < 600 -> 2
-                adaptiveWidthDp < 900 -> 3
+                resources.configuration.screenWidthDp < 360 -> 1
+                resources.configuration.screenWidthDp < 600 -> 2
+                resources.configuration.screenWidthDp < 900 -> 3
                 else -> 4
             }
             LayoutMode.TILE -> when {
-                adaptiveWidthDp < 600 -> 2
-                adaptiveWidthDp < 900 -> 4
+                resources.configuration.screenWidthDp < 600 -> 2
+                resources.configuration.screenWidthDp < 900 -> 4
                 else -> 5
             }
         }
@@ -370,11 +329,6 @@ class ContentActivity : androidx.activity.ComponentActivity() {
                 ArtworkLoader.load(urls.getOrNull(position), icon, placeholder)
                 return row
             }
-        }
-        list.post {
-            val count = list.adapter?.count ?: 0
-            if (count > 0) list.setSelection(restoreListPosition.coerceIn(0, count - 1))
-            if (restoreSearchFocus) search.requestFocus() else if (!search.hasFocus()) list.requestFocus()
         }
     }
 
