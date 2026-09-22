@@ -43,7 +43,7 @@ class XtreamClient {
             val id = o.optString("stream_id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
             val ext = o.optString("container_extension").ifBlank { "mp4" }
             val fallback = "$base/movie/${enc(config.username)}/${enc(config.password)}/$id.$ext"
-            VodItem(id, o.optString("name"), o.optString("direct_source").trim().ifBlank { fallback }, o.optString("category_id").ifBlank { null }, o.optString("stream_icon").ifBlank { null }, o.optString("year").ifBlank { null }, o.optString("rating").ifBlank { null }, o.optString("duration").ifBlank { null })
+            VodItem(id, o.optString("name"), o.optString("direct_source").trim().takeIf { it.startsWith("http://") || it.startsWith("https://") } ?: fallback, o.optString("category_id").ifBlank { null }, o.optString("stream_icon").ifBlank { null }, o.optString("year").ifBlank { null }, o.optString("rating").ifBlank { null }, o.optString("duration").ifBlank { null }, fallback)
         }
         return categories to items
     }
