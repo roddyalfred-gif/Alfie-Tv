@@ -26,7 +26,7 @@ class SplashActivity : ComponentActivity() {
         }
         splashView = AlfieSplashView(this, SettingsStore.splashStyle(this))
         setContentView(splashView)
-        val duration = 10_000L
+        val duration = 30_000L
         handler.postDelayed({ openNext() }, duration)
     }
 
