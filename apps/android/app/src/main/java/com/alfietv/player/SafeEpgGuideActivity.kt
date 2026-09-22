@@ -432,6 +432,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 putExtra("username", config.username)
                 putExtra("password", config.password)
                 putExtra("fullscreen_handoff", true)
+                putExtra("playback_owner", "guide")
             })
         }.onFailure {
             fullscreenLaunchInProgress = false
@@ -545,7 +546,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         val persisted = getSharedPreferences("alfie_tv", MODE_PRIVATE)
-            .getString("last_channel_${config.serverUrl}_${config.username}", null)
+            .getString("guide_last_channel_${config.serverUrl}_${config.username}", null)
         val savedGuideId = getSharedPreferences("alfie_tv", MODE_PRIVATE)
             .getString("guide_preview_channel_${config.serverUrl}_${config.username}", null)
         val restoredId = savedGuideId ?: intent.getStringExtra("preview_channel_id") ?: persisted
