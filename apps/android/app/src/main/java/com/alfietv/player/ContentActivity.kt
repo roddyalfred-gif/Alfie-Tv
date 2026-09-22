@@ -377,9 +377,9 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         }
     }
 
-    private fun playVod(item: VodItem) { UserLibraryStore.recordWatched(this, config, item.toLibraryItem()); play(item.streamUrl, item.name, item.id, UserLibraryStore.Type.MOVIE.name) }
-    private fun playEpisode(item: SeriesEpisode) { UserLibraryStore.recordWatched(this, config, item.toLibraryItem(selectedSeriesId)); play(item.streamUrl, item.name, item.id, UserLibraryStore.Type.EPISODE.name) }
-    private fun play(url: String, title: String, id: String, type: String) { startActivity(Intent(this, MainActivity::class.java).apply { putExtra("stream_url", url); putExtra("title", title); putExtra("content_id", id); putExtra("content_type", type); putExtra("server", config.serverUrl); putExtra("username", config.username); putExtra("password", config.password); putExtra("force_autoplay", true) }) }
+    private fun playVod(item: VodItem) { UserLibraryStore.recordWatched(this, config, item.toLibraryItem()); play(listOf(item.streamUrl, item.fallbackStreamUrl ?: "").filter { it.isNotBlank() }, item.name, item.id, UserLibraryStore.Type.MOVIE.name) }
+    private fun playEpisode(item: SeriesEpisode) { UserLibraryStore.recordWatched(this, config, item.toLibraryItem(selectedSeriesId)); play(listOf(item.streamUrl), item.name, item.id, UserLibraryStore.Type.EPISODE.name) }
+    private fun play(urls: List<String>, title: String, id: String, type: String) { startActivity(Intent(this, MainActivity::class.java).apply { putExtra("stream_url", urls.firstOrNull() ?: ""); putExtra("fallback_stream_url", urls.drop(1).firstOrNull() ?: ""); putExtra("title", title); putExtra("content_id", id); putExtra("content_type", type); putExtra("server", config.serverUrl); putExtra("username", config.username); putExtra("password", config.password); putExtra("force_autoplay", true) }) }
 
     private fun VodItem.toLibraryItem() = UserLibraryStore.Item(id, UserLibraryStore.Type.MOVIE, name, streamUrl, categoryId, posterUrl)
     private fun SeriesItem.toLibraryItem() = UserLibraryStore.Item(id, UserLibraryStore.Type.SERIES, name, "", categoryId, posterUrl)

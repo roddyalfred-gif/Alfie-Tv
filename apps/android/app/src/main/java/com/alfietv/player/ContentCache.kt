@@ -49,7 +49,7 @@ object ContentCache {
         try {
             val root = JSONObject().put("savedAt", System.currentTimeMillis())
             root.put("categories", JSONArray().apply { categories.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("type", it.type)) } })
-            root.put("items", if (mode == "vod") JSONArray().apply { vod.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("streamUrl", it.streamUrl).put("categoryId", it.categoryId).put("posterUrl", it.posterUrl).put("year", it.year).put("rating", it.rating).put("duration", it.duration)) } } else JSONArray().apply { series.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("categoryId", it.categoryId).put("posterUrl", it.posterUrl).put("year", it.year).put("rating", it.rating)) } })
+            root.put("items", if (mode == "vod") JSONArray().apply { vod.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("streamUrl", it.streamUrl).put("categoryId", it.categoryId).put("posterUrl", it.posterUrl).put("year", it.year).put("rating", it.rating).put("duration", it.duration).put("fallbackStreamUrl", it.fallbackStreamUrl)) } } else JSONArray().apply { series.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("categoryId", it.categoryId).put("posterUrl", it.posterUrl).put("year", it.year).put("rating", it.rating)) } })
             writeAtomically(file(context, config, mode), root.toString())
         } catch (_: Exception) { }
     }
@@ -108,7 +108,7 @@ object ContentCache {
     }
 
     private fun JSONArray?.toCategories(): List<IptvCategory> = this?.let { a -> List(a.length()) { i -> a.getJSONObject(i).let { IptvCategory(it.optString("id"), it.optString("name"), it.optString("type")) } } } ?: emptyList()
-    private fun JSONArray?.toVod(): List<VodItem> = this?.let { a -> List(a.length()) { i -> a.getJSONObject(i).let { VodItem(it.optString("id"), it.optString("name"), it.optString("streamUrl"), it.optString("categoryId").ifBlank { null }, it.optString("posterUrl").ifBlank { null }, it.optString("year").ifBlank { null }, it.optString("rating").ifBlank { null }, it.optString("duration").ifBlank { null }) } } } ?: emptyList()
+    private fun JSONArray?.toVod(): List<VodItem> = this?.let { a -> List(a.length()) { i -> a.getJSONObject(i).let { VodItem(it.optString("id"), it.optString("name"), it.optString("streamUrl"), it.optString("categoryId").ifBlank { null }, it.optString("posterUrl").ifBlank { null }, it.optString("year").ifBlank { null }, it.optString("rating").ifBlank { null }, it.optString("duration").ifBlank { null }, it.optString("fallbackStreamUrl").ifBlank { null }) } } } ?: emptyList()
     private fun JSONArray?.toSeries(): List<SeriesItem> = this?.let { a -> List(a.length()) { i -> a.getJSONObject(i).let { SeriesItem(it.optString("id"), it.optString("name"), it.optString("categoryId").ifBlank { null }, it.optString("posterUrl").ifBlank { null }, it.optString("year").ifBlank { null }, it.optString("rating").ifBlank { null }) } } } ?: emptyList()
     private fun JSONArray?.toEpisodes(): List<SeriesEpisode> = this?.let { a -> List(a.length()) { i -> a.getJSONObject(i).let { SeriesEpisode(it.optString("id"), it.optString("name"), it.optString("streamUrl"), it.optInt("season", 0).takeIf { n -> n != 0 }, it.optInt("episode", 0).takeIf { n -> n != 0 }, it.optString("overview").ifBlank { null }) } } } ?: emptyList()
     private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString("") { "%02x".format(it) }
