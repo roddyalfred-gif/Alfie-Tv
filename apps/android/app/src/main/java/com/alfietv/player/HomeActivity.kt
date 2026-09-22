@@ -68,8 +68,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     private fun buildHome() {
         val widthDp = resources.configuration.screenWidthDp
         val heightDp = resources.configuration.screenHeightDp
-        // Landscape phones can report a wide screen width, so classify by the shorter dimension too.
-        val compact = widthDp < 600 || heightDp < 500
+        val compact = widthDp < 600
         val tablet = widthDp in 600..899
         val wide = widthDp >= 900
         val contentHorizontalPadding = when {
@@ -271,8 +270,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     }
 
     private fun row(root: LinearLayout, height: Int): LinearLayout {
-        val screen = resources.configuration
-        val compact = screen.screenWidthDp < 600 || screen.screenHeightDp < 500
+        val compact = resources.configuration.screenWidthDp < 600
         val r = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -293,11 +291,9 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     }
 
     private fun navButton(root: LinearLayout, icon: String, title: String, selected: Boolean = false, action: () -> Unit): Button {
-        val screen = resources.configuration
-        val compact = screen.screenWidthDp < 600 || screen.screenHeightDp < 500
+        val compact = resources.configuration.screenWidthDp < 600
         val b = Button(this).apply {
             text = "$icon\n$title"
-            contentDescription = title
             isAllCaps = false
             textSize = if (compact) 8f else 9f
             gravity = Gravity.CENTER
@@ -305,8 +301,6 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             background = if (selected) selectedNav(accent) else rounded(rail)
             isFocusable = true
             isFocusableInTouchMode = true
-            contentDescription = title
-            minHeight = if (compact) 64 else 60
             stateListAnimator = null
             setOnFocusChangeListener { v, focused ->
                 v.background = if (focused) selectedNav(accent) else if (selected) selectedNav(accent) else rounded(rail)
@@ -326,7 +320,6 @@ class HomeActivity : androidx.activity.ComponentActivity() {
     private fun card(root: LinearLayout, title: String, subtitle: String, color: Int, action: () -> Unit): Button {
         val b = Button(this).apply {
             text = "$title\n$subtitle"
-            contentDescription = "$title. $subtitle"
             isAllCaps = false
             textSize = 12f
             gravity = Gravity.CENTER_VERTICAL or Gravity.START
@@ -353,8 +346,7 @@ class HomeActivity : androidx.activity.ComponentActivity() {
             }
             setOnClickListener { action() }
         }
-        val screen = resources.configuration
-        val compact = screen.screenWidthDp < 600 || screen.screenHeightDp < 500
+        val compact = resources.configuration.screenWidthDp < 600
         if (compact) {
             val widthDp = if (resources.configuration.screenWidthDp < 360) 230 else 260
             root.addView(
