@@ -14,7 +14,6 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
-import android.widget.AbsListView
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.EditText
@@ -54,9 +53,6 @@ class LiveTvActivity : ComponentActivity() {
     private var favoritesMode = false
     private var selectedIndex = -1
     private var restoredLastChannel = false
-    private var restoreListPosition = 0
-    private var restoreSearchText = ""
-    private var restoreSearchFocus = false
     private var fullscreenLaunchInProgress = false
     private var awaitingFullscreenReturn = false
     private var categories = emptyList<IptvCategory>()
@@ -99,9 +95,6 @@ class LiveTvActivity : ComponentActivity() {
             selectedIndex = state.getInt("live_selected_index", -1)
             favoritesMode = state.getBoolean("live_favorites_mode", false)
             restoredLastChannel = state.getBoolean("live_restored_last_channel", false)
-            restoreListPosition = state.getInt("live_list_position", 0)
-            restoreSearchText = state.getString("live_search_text", "")
-            restoreSearchFocus = state.getBoolean("live_search_focus", false)
         }
         buildUi()
         load()
@@ -159,22 +152,12 @@ class LiveTvActivity : ComponentActivity() {
             search.requestFocus()
             search.post { search.setSelection(search.text.length) }
         }
-        search.setText(restoreSearchText)
         search.addTextChangedListener(object : TextWatcher { override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit; override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { render() }; override fun afterTextChanged(s: Editable?) = Unit })
         list.setOnItemClickListener { _, _, position, _ -> displayedChannels.getOrNull(position)?.let { selectedIndex = position; handleChannelClick(it) } }
-        list.setOnScrollListener(object : AbsListView.OnScrollListener {
-            override fun onScroll(view: AbsListView?, firstVisibleItem: Int, visibleItemCount: Int, totalItemCount: Int) { restoreListPosition = firstVisibleItem }
-            override fun onScrollStateChanged(view: AbsListView?, scrollState: Int) = Unit
-        })
         list.setOnItemSelectedListener(object : AdapterView.OnItemSelectedListener { override fun onNothingSelected(parent: AdapterView<*>?) = Unit; override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { selectedIndex = position; displayedChannels.getOrNull(position)?.let(::showEpg); list.post { list.invalidateViews() } } })
         val prefs = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
         val savedColumns = prefs.getInt("live_tv_columns_${config.serverUrl}_${config.username}", 0)
         setColumns(if (savedColumns > 0) savedColumns else adaptiveColumns())
-        list.post {
-            if (restoreSearchFocus) search.requestFocus() else if (!search.hasFocus()) list.requestFocus()
-            val count = list.adapter?.count ?: 0
-            if (count > 0) list.setSelection(restoreListPosition.coerceIn(0, count - 1))
-        }
     }
     private fun isPortrait() = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
     private fun adaptiveColumns(): Int = when {
@@ -253,7 +236,7 @@ class LiveTvActivity : ComponentActivity() {
                 return item
             }
         }
-        if (channels.isNotEmpty()) { list.setSelection(selectedIndex); list.post { list.invalidateViews(); if (restoreListPosition > 0 && selectedIndex == 0) list.setSelection(restoreListPosition.coerceIn(0, channels.lastIndex)) } }
+        if (channels.isNotEmpty()) { list.setSelection(selectedIndex); list.post { list.invalidateViews() } }
     }
     private fun handleChannelClick(channel: IptvChannel) { if (fullscreenLaunchInProgress) return; when (ChannelActivationPolicy.action(previewChannelId, channel.id)) {
             ChannelActivationPolicy.Action.FULLSCREEN -> playFullscreen(channel)
@@ -319,9 +302,6 @@ class LiveTvActivity : ComponentActivity() {
         outState.putInt("live_selected_index", selectedIndex)
         outState.putBoolean("live_favorites_mode", favoritesMode)
         outState.putBoolean("live_restored_last_channel", restoredLastChannel)
-        outState.putString("live_search_text", search.text.toString())
-        outState.putBoolean("live_search_focus", search.hasFocus())
-        outState.putInt("live_list_position", restoreListPosition)
         super.onSaveInstanceState(outState)
     }
 
