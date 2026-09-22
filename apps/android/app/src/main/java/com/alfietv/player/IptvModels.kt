@@ -8,6 +8,6 @@ data class IptvChannel(val id: String, val name: String, val streamUrl: String, 
 
 data class EpgProgram(val channelId: String, val title: String, val startUtcMs: Long, val endUtcMs: Long, val description: String? = null)
 
-data class VodItem(val id: String, val name: String, val streamUrl: String, val categoryId: String? = null, val posterUrl: String? = null, val year: String? = null, val rating: String? = null, val duration: String? = null)
+data class VodItem(val id: String, val name: String, val streamUrl: String, val categoryId: String? = null, val posterUrl: String? = null, val year: String? = null, val rating: String? = null, val duration: String? = null, val fallbackStreamUrl: String? = null)
 data class SeriesItem(val id: String, val name: String, val categoryId: String? = null, val posterUrl: String? = null, val year: String? = null, val rating: String? = null)
 data class SeriesEpisode(val id: String, val name: String, val streamUrl: String, val season: Int? = null, val episode: Int? = null, val overview: String? = null)
