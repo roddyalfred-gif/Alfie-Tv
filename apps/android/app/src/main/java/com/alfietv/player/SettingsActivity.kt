@@ -16,15 +16,12 @@ import android.widget.Switch
 /** TV-friendly settings hub. Options persist locally and are usable with a remote. */
 class SettingsActivity : androidx.activity.ComponentActivity() {
     private var renderedSkinId: String? = null
-    private var focusedSettingKey: String? = null
-    private var settingsScrollY: Int = 0
     private val skin get() = SkinStore.current(this)
     private val bg get() = skin.background
     private val surface get() = skin.surface
     private val accent get() = skin.accent
     private val primaryText = Color.WHITE
     private val secondary get() = skin.secondary
-    private val adaptiveWidthDp get() = minOf(resources.configuration.screenWidthDp, resources.configuration.screenHeightDp)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,13 +44,11 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
 
     private fun buildSettings() {
         val widthDp = resources.configuration.screenWidthDp
-        val heightDp = resources.configuration.screenHeightDp
-        val compact = widthDp < 600 || heightDp < 500
-        val layoutWidthDp = minOf(widthDp, heightDp)
+        val compact = widthDp < 600
         val horizontalPadding = when {
-            layoutWidthDp < 360 -> 12
+            widthDp < 360 -> 12
             compact -> 16
-            adaptiveWidthDp < 900 -> 28
+            widthDp < 900 -> 28
             else -> 72
         }
         val content = LinearLayout(this).apply {
@@ -135,26 +130,9 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
             setBackgroundColor(bg)
             addView(content, ViewGroup.LayoutParams(-1, -2))
         }
-        scroll.setOnScrollChangeListener { _, _, scrollY, _, _ -> settingsScrollY = scrollY }
         setContentView(scroll)
         SkinStore.animate(content, skin)
-        content.post {
-            scroll.scrollTo(0, settingsScrollY)
-            val target = focusedSettingKey?.let { key -> findFocusableByTag(content, key) }
-            (target ?: content.getChildAt(3))?.requestFocus()
-        }
-    }
-
-    private fun findFocusableByTag(root: ViewGroup, key: String): android.view.View? {
-        for (index in 0 until root.childCount) {
-            val child = root.getChildAt(index)
-            if (child.tag == key && child.isFocusable) return child
-            if (child is ViewGroup) {
-                val match = findFocusableByTag(child, key)
-                if (match != null) return match
-            }
-        }
-        return null
+        content.post { content.getChildAt(3)?.requestFocus() }
     }
 
     private fun addHeader(root: LinearLayout, title: String) {
@@ -165,11 +143,7 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(16, 8, 16, 8); background = rounded(surface)
             isFocusable = true; isFocusableInTouchMode = true
-            setOnFocusChangeListener { v, focused ->
-                if (focused) focusedSettingKey = title
-                v.background = if (focused) focusedRow() else rounded(surface)
-            }
-            tag = title
+            setOnFocusChangeListener { v, focused -> v.background = if (focused) focusedRow() else rounded(surface) }
         }
         val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; isFocusable = false }
         labels.addView(TextView(this).apply { text = title; textSize = 16f; setTextColor(primaryText) })
@@ -184,11 +158,7 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(16, 8, 16, 8); background = rounded(surface)
             isFocusable = true; isFocusableInTouchMode = true
-            setOnFocusChangeListener { v, focused ->
-                if (focused) focusedSettingKey = title
-                v.background = rounded(if (focused) accent else surface)
-            }
-            tag = title
+            setOnFocusChangeListener { v, focused -> v.background = rounded(if (focused) accent else surface) }
         }
         val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; isFocusable = false }
         labels.addView(TextView(this).apply { text = title; textSize = 16f; setTextColor(primaryText) })
@@ -209,21 +179,17 @@ class SettingsActivity : androidx.activity.ComponentActivity() {
             }
         }
         row.addView(button, LinearLayout.LayoutParams(
-            if (adaptiveWidthDp < 600) -2 else 150, 52
+            if (resources.configuration.screenWidthDp < 600) -2 else 150, 52
         ))
         row.setOnClickListener { button.performClick() }
-        root.addView(row, LinearLayout.LayoutParams(-1, if (adaptiveWidthDp < 600) 86 else 72).apply { topMargin = 5 })
+        root.addView(row, LinearLayout.LayoutParams(-1, if (resources.configuration.screenWidthDp < 600) 86 else 72).apply { topMargin = 5 })
     }
 
     private fun addButton(root: LinearLayout, label: String, action: () -> Unit) {
         val button = Button(this).apply {
             text = label; isAllCaps = false; textSize = 15f; minHeight = 54; setTextColor(primaryText); background = rounded(surface)
             isFocusable = true; isFocusableInTouchMode = true; stateListAnimator = null
-            setOnFocusChangeListener { v, focused ->
-                if (focused) focusedSettingKey = label
-                v.background = rounded(if (focused) accent else surface)
-            }
-            tag = label
+            setOnFocusChangeListener { v, focused -> v.background = rounded(if (focused) accent else surface) }
             setOnClickListener { action() }
         }
         root.addView(button, LinearLayout.LayoutParams(-1, 54).apply { topMargin = 5 })
