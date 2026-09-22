@@ -44,9 +44,6 @@ class SafeEpgGuideActivity : ComponentActivity() {
     private val epgCompleted = AtomicInteger(0)
     private var epgTotal = 0
     private var guideScrollX = 0
-    private var restoreGuideScrollX = 0
-    private var restoreListPosition = 0
-    private var restoreSelectedChannelId: String? = null
     private var syncingGuideScroll = false
     private val guideClockHandler = Handler(Looper.getMainLooper())
     private val guideClockTicker = object : Runnable {
@@ -82,10 +79,6 @@ class SafeEpgGuideActivity : ComponentActivity() {
             intent.getStringExtra("username") ?: "",
             intent.getStringExtra("password") ?: ""
         )
-        restoreGuideScrollX = savedInstanceState?.getInt("guide_scroll_x", 0) ?: 0
-        restoreListPosition = savedInstanceState?.getInt("guide_list_position", 0) ?: 0
-        restoreSelectedChannelId = savedInstanceState?.getString("guide_selected_channel_id")
-        guideScrollX = restoreGuideScrollX
         buildUi()
         loadGuide()
         guideClockHandler.postDelayed(guideClockTicker, 30_000L)
@@ -177,7 +170,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 val requestedChannelId = intent.getStringExtra("preview_channel_id")
                 val persistedChannelId = getSharedPreferences("alfie_tv", MODE_PRIVATE)
                     .getString("last_channel_${config.serverUrl}_${config.username}", null)
-                selectedChannelId = (restoreSelectedChannelId ?: requestedChannelId ?: persistedChannelId)
+                selectedChannelId = (requestedChannelId ?: persistedChannelId)
                     ?.takeIf { id -> channels.any { it.id == id } }
                 LiveTvCache.write(this, config, categories, channels)
 
@@ -191,7 +184,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 runOnUiThread {
                     status.text = "${channels.size} channels • Loading provider EPG…"
                     adapter.notifyDataSetChanged()
-                    restoreGuidePosition()
+                    focusSelectedChannel()
                 }
 
                 if (channels.isEmpty()) {
@@ -225,7 +218,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                                 runOnUiThread {
                                     status.text = "${channels.size} channels • ${count} with EPG • Guide ready"
                                     adapter.notifyDataSetChanged()
-                                    restoreGuidePosition()
+                                    focusSelectedChannel()
                                 }
                             }
                         }
@@ -448,21 +441,6 @@ class SafeEpgGuideActivity : ComponentActivity() {
         }
     }
 
-    private fun restoreGuidePosition() {
-        if (!::list.isInitialized) return
-        val target = restoreSelectedChannelId ?: selectedChannelId
-        if (!target.isNullOrBlank() && channels.any { it.id == target }) selectedChannelId = target
-        list.post {
-            val position = channels.indexOfFirst { it.id == selectedChannelId }
-                .takeIf { it >= 0 } ?: restoreListPosition
-            list.setSelection(position.coerceIn(0, (channels.size - 1).coerceAtLeast(0)))
-            guideScrollX = restoreGuideScrollX.coerceAtLeast(0)
-            timeHeaderScroll.post { timeHeaderScroll.scrollTo(guideScrollX, 0) }
-            syncVisibleScheduleRows(guideScrollX)
-            focusSelectedChannel()
-        }
-    }
-
     private fun focusSelectedChannel() {
         val id = selectedChannelId ?: return
         val position = channels.indexOfFirst { it.id == id }
@@ -562,13 +540,6 @@ class SafeEpgGuideActivity : ComponentActivity() {
         setColor(fill)
         cornerRadius = 8f * resources.displayMetrics.density
         if (focused) setStroke(dp(if (compact) 2 else 3), focusStroke)
-    }
-
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        outState.putInt("guide_scroll_x", guideScrollX)
-        outState.putInt("guide_list_position", list.firstVisiblePosition.coerceAtLeast(0))
-        outState.putString("guide_selected_channel_id", selectedChannelId)
     }
 
     override fun onResume() {
