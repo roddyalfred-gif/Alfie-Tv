@@ -1,5 +1,6 @@
 package com.alfietv.player
 
+import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
