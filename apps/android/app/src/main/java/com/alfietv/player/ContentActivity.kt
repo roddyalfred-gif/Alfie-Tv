@@ -406,6 +406,29 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         }
         runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
     }
+    private fun playAllEpisodes() {
+        val playable = episodes.sortedWith(compareBy<SeriesEpisode> { it.season ?: 0 }.thenBy { it.episode ?: 0 }).filter { it.streamUrl.isNotBlank() }
+        if (playable.isEmpty()) { status.text = "No playable episodes are available."; return }
+        UserLibraryStore.recordWatched(this, config, playable.first().toLibraryItem(selectedSeriesId))
+        val urls = ArrayList(playable.map { it.streamUrl })
+        val titles = ArrayList(playable.map { it.name })
+        val ids = ArrayList(playable.map { it.id })
+        val types = ArrayList(playable.map { UserLibraryStore.Type.EPISODE.name })
+        startActivity(Intent(this, MainActivity::class.java).apply {
+            putExtra("stream_url", urls.first())
+            putExtra("title", titles.firstOrNull() ?: "Episode")
+            putExtra("content_id", ids.firstOrNull() ?: "")
+            putExtra("content_type", UserLibraryStore.Type.EPISODE.name)
+            putExtra("server", config.serverUrl)
+            putExtra("username", config.username)
+            putExtra("password", config.password)
+            putExtra("force_autoplay", true)
+            putStringArrayListExtra("queue_urls", urls)
+            putStringArrayListExtra("queue_titles", titles)
+            putStringArrayListExtra("queue_ids", ids)
+            putStringArrayListExtra("queue_types", types)
+        })
+    }
     private fun loadEpisodes(seriesId: String) {
         selectedSeriesId = seriesId
         selectedSeason = null
