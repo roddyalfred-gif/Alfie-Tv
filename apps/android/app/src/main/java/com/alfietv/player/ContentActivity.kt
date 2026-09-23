@@ -2,6 +2,7 @@ package com.alfietv.player
 
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -132,7 +133,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         })
         search.setOnEditorActionListener { _, _, _ -> list.requestFocus(); true }
         list.setOnItemClickListener { _, _, position, _ ->
-            if (mode == "vod") playVod(filteredVod()[position])
+            if (mode == "vod") showMovieDetails(filteredVod()[position])
             else if (episodes.isNotEmpty()) playEpisode(filteredEpisodes()[position])
             else loadEpisodes(filteredSeries()[position].id)
         }
@@ -258,6 +259,9 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private fun rebuildSeasonButtons() {
         while (categoryRow.childCount > 0) categoryRow.removeViewAt(0)
         val seasons = episodes.mapNotNull { it.season }.distinct().sorted()
+        categoryRow.addView(filterButton("▶ Play All Seasons", false) {
+            playAllEpisodes()
+        })
         categoryRow.addView(filterButton("All Seasons", selectedSeason == null) {
             selectedSeason = null
             rebuildSeasonButtons()
@@ -342,7 +346,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
             val items = filteredSeries()
             val labels = items.mapIndexed { i, x -> "${i + 1}. ${if (UserLibraryStore.isFavorite(this, config, x.toLibraryItem())) "★ " else ""}${x.name}" }
             renderArtworkList(items, labels, items.map { it.posterUrl }, android.R.drawable.ic_menu_gallery)
-            if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} series • ${layoutMode.name.lowercase()} • Select for episodes • Long-press to favorite"
+            if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} series • ${layoutMode.name.lowercase()} • Select for seasons • Play All Seasons available"
         } else {
             val items = filteredEpisodes()
             val labels = items.map { e -> "S${e.season ?: 0} E${e.episode ?: 0}  ${if (UserLibraryStore.isFavorite(this, config, e.toLibraryItem(selectedSeriesId))) "★ " else ""}${e.name}" }
