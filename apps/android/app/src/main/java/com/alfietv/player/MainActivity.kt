@@ -315,6 +315,20 @@ class MainActivity : ComponentActivity() {
         playerView.showController()
     }
 
+    private fun returnToPlaybackOwner(): Boolean {
+        val owner = intent.getStringExtra("playback_owner")?.lowercase().orEmpty()
+        if (intent.getBooleanExtra("fullscreen_handoff", false) && (owner == "live" || owner == "guide")) {
+            val target = if (owner == "guide") SafeEpgGuideActivity::class.java else LiveTvActivity::class.java
+            val returnIntent = android.content.Intent(this, target).apply {
+                addFlags(android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            }
+            startActivity(returnIntent)
+            finish()
+            return true
+        }
+        return false
+    }
+
     private fun dispatchExit(): Boolean {
         if (!SettingsStore.confirmExit(this)) return false
         AlertDialog.Builder(this).setTitle("Exit Alfie TV?").setMessage("Are you sure you want to close the player?")
@@ -338,7 +352,7 @@ class MainActivity : ComponentActivity() {
             KeyEvent.KEYCODE_BACK -> {
                 if (trackPanel.visibility == View.VISIBLE) { showingPlaybackRetry = false; trackPanel.visibility = View.GONE; playerView.requestFocus() }
                 else if (playerView.isControllerFullyVisible) { playerView.hideController(); playerView.requestFocus() }
-                else if (!dispatchExit()) finish()
+                else if (!returnToPlaybackOwner() && !dispatchExit()) finish()
                 return true
             }
             KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER -> if (numericBuffer.isNotEmpty()) { commitNumericChannel(); return true }
@@ -365,11 +379,7 @@ class MainActivity : ComponentActivity() {
         } else if (playerView.isControllerFullyVisible) {
             playerView.hideController()
             playerView.requestFocus()
-        } else if (intent.getBooleanExtra("fullscreen_handoff", false)) {
-            // Fullscreen is a child of Live TV preview. One BACK returns to the
-            // existing LiveTvActivity instead of showing the app-exit flow.
-            finish()
-        } else if (!dispatchExit()) finish()
+        } else if (!returnToPlaybackOwner() && !dispatchExit()) finish()
     }
 
     override fun onUserLeaveHint() {
