@@ -48,6 +48,24 @@ class XtreamClient {
         return categories to items
     }
 
+    fun loadVodInfo(config: XtreamConfig, vodId: String): MovieDetails {
+        val root = JSONObject(get(api(config, "get_vod_info", "vod_id" to vodId)))
+        val info = root.optJSONObject("info") ?: JSONObject()
+        val movieData = root.optJSONObject("movie_data") ?: JSONObject()
+        return MovieDetails(
+            title = firstNonBlank(info, "name", "title").ifBlank { firstNonBlank(movieData, "name", "title").ifBlank { "Movie" } },
+            posterUrl = firstNonBlank(info, "movie_image", "stream_icon").ifBlank { null },
+            plot = firstNonBlank(info, "plot", "description").ifBlank { null },
+            genre = firstNonBlank(info, "genre").ifBlank { null },
+            cast = firstNonBlank(info, "cast").ifBlank { null },
+            director = firstNonBlank(info, "director").ifBlank { null },
+            year = firstNonBlank(info, "releasedate", "releaseDate", "year").ifBlank { null },
+            rating = firstNonBlank(info, "rating").ifBlank { null },
+            duration = firstNonBlank(info, "duration").ifBlank { null },
+            trailer = firstNonBlank(info, "youtube_trailer", "trailer", "youtubeTrailer").ifBlank { null }
+        )
+    }
+
     fun loadSeries(config: XtreamConfig): Pair<List<IptvCategory>, List<SeriesItem>> {
         val categories = parseArray(get(api(config, "get_series_categories"))).map { IptvCategory(it.optString("category_id"), it.optString("category_name"), "series") }
         val items = parseArray(get(api(config, "get_series"))).mapNotNull { o ->
