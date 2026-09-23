@@ -169,7 +169,7 @@ class SafeEpgGuideActivity : ComponentActivity() {
                 channels = loadedChannels.distinctBy { it.id }
                 val requestedChannelId = intent.getStringExtra("preview_channel_id")
                 val persistedChannelId = getSharedPreferences("alfie_tv", MODE_PRIVATE)
-                    .getString("last_channel_${config.serverUrl}_${config.username}", null)
+                    .getString("guide_last_channel_${config.serverUrl}_${config.username}", null)\n                    ?: getSharedPreferences("alfie_tv", MODE_PRIVATE).getString("last_channel_${config.serverUrl}_${config.username}", null)
                 selectedChannelId = (requestedChannelId ?: persistedChannelId)
                     ?.takeIf { id -> channels.any { it.id == id } }
                 LiveTvCache.write(this, config, categories, channels)
