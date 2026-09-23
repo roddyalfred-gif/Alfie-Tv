@@ -1,7 +1,9 @@
 package com.alfietv.player
 
+import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -132,7 +134,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         })
         search.setOnEditorActionListener { _, _, _ -> list.requestFocus(); true }
         list.setOnItemClickListener { _, _, position, _ ->
-            if (mode == "vod") playVod(filteredVod()[position])
+            if (mode == "vod") showMovieDetails(filteredVod()[position])
             else if (episodes.isNotEmpty()) playEpisode(filteredEpisodes()[position])
             else loadEpisodes(filteredSeries()[position].id)
         }
@@ -258,6 +260,9 @@ class ContentActivity : androidx.activity.ComponentActivity() {
     private fun rebuildSeasonButtons() {
         while (categoryRow.childCount > 0) categoryRow.removeViewAt(0)
         val seasons = episodes.mapNotNull { it.season }.distinct().sorted()
+        categoryRow.addView(filterButton("▶ Play All Seasons", false) {
+            playAllEpisodes()
+        })
         categoryRow.addView(filterButton("All Seasons", selectedSeason == null) {
             selectedSeason = null
             rebuildSeasonButtons()
@@ -342,7 +347,7 @@ class ContentActivity : androidx.activity.ComponentActivity() {
             val items = filteredSeries()
             val labels = items.mapIndexed { i, x -> "${i + 1}. ${if (UserLibraryStore.isFavorite(this, config, x.toLibraryItem())) "★ " else ""}${x.name}" }
             renderArtworkList(items, labels, items.map { it.posterUrl }, android.R.drawable.ic_menu_gallery)
-            if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} series • ${layoutMode.name.lowercase()} • Select for episodes • Long-press to favorite"
+            if (!status.text.contains("Refreshing") && !status.text.contains("Offline") && !status.text.contains("Updated") && !status.text.contains("Added") && !status.text.contains("Removed")) status.text = "${items.size} series • ${layoutMode.name.lowercase()} • Select for seasons • Play All Seasons available"
         } else {
             val items = filteredEpisodes()
             val labels = items.map { e -> "S${e.season ?: 0} E${e.episode ?: 0}  ${if (UserLibraryStore.isFavorite(this, config, e.toLibraryItem(selectedSeriesId))) "★ " else ""}${e.name}" }
@@ -352,6 +357,79 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         list.post { if (!search.hasFocus()) list.requestFocus() }
     }
 
+    private fun showMovieDetails(item: VodItem) {
+        val container = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(20, 8, 20, 8) }
+        val poster = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; layoutParams = LinearLayout.LayoutParams(-1, 300) }
+        ArtworkLoader.load(item.posterUrl, poster, android.R.drawable.ic_menu_gallery)
+        val title = TextView(this).apply { text = item.name; setTextColor(Color.WHITE); textSize = 22f; typeface = android.graphics.Typeface.DEFAULT_BOLD; setPadding(0, 14, 0, 6) }
+        val meta = TextView(this).apply { text = listOfNotNull(item.year, item.rating?.takeIf { it.isNotBlank() }?.let { "★ $it" }, item.duration).joinToString("  •  "); setTextColor(skin.secondary); textSize = 13f }
+        val plot = TextView(this).apply { text = "Loading movie information…"; setTextColor(Color.WHITE); textSize = 14f; setPadding(0, 12, 0, 12) }
+        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+        val playButton = Button(this).apply { text = "▶ Play Movie"; isAllCaps = false; isFocusable = true; isFocusableInTouchMode = true }
+        val trailerButton = Button(this).apply { text = "▶ Trailer on YouTube"; isAllCaps = false; isFocusable = true; isFocusableInTouchMode = true }
+        buttons.addView(playButton, LinearLayout.LayoutParams(0, 52, 1f).apply { marginEnd = 8 })
+        buttons.addView(trailerButton, LinearLayout.LayoutParams(0, 52, 1f))
+        container.addView(poster); container.addView(title); container.addView(meta); container.addView(plot); container.addView(buttons)
+        val dialog = AlertDialog.Builder(this).setTitle("Movie Details").setView(container).setNegativeButton("Close", null).create()
+        playButton.setOnClickListener { dialog.dismiss(); playVod(item) }
+        trailerButton.setOnClickListener { openYouTubeTrailer(item.name, null) }
+        dialog.setOnShowListener { playButton.requestFocus() }
+        dialog.show()
+        executor.execute {
+            runCatching { XtreamClient().loadVodInfo(config, item.id) }
+                .onSuccess { details ->
+                    runOnUiThread {
+                        if (isFinishing || isDestroyed) return@runOnUiThread
+                        title.text = details.title.ifBlank { item.name }
+                        meta.text = listOfNotNull(details.year?.takeIf { it.isNotBlank() }, details.genre?.takeIf { it.isNotBlank() }, details.rating?.takeIf { it.isNotBlank() }?.let { "★ $it" }, details.duration?.takeIf { it.isNotBlank() }).joinToString("  •  ")
+                        plot.text = buildString {
+                            details.plot?.takeIf { it.isNotBlank() }?.let { append(it) }
+                            details.director?.takeIf { it.isNotBlank() }?.let { if (isNotEmpty()) append("\n\n"); append("Director: $it") }
+                            details.cast?.takeIf { it.isNotBlank() }?.let { if (isNotEmpty()) append("\n\n"); append("Cast: $it") }
+                        }.ifBlank { "No additional information was supplied by the provider." }
+                        trailerButton.text = if (details.trailer.isNullOrBlank()) "▶ Trailer on YouTube" else "▶ Play Trailer"
+                        trailerButton.setOnClickListener { openYouTubeTrailer(item.name, details.trailer) }
+                        ArtworkLoader.load(details.posterUrl ?: item.posterUrl, poster, android.R.drawable.ic_menu_gallery)
+                    }
+                }
+                .onFailure {
+                    runOnUiThread { if (!isFinishing && !isDestroyed) plot.text = "Movie information could not be loaded. You can still play the movie or search YouTube for its trailer." }
+                }
+        }
+    }
+
+    private fun openYouTubeTrailer(title: String, trailer: String?) {
+        val raw = trailer?.trim().orEmpty()
+        val url = when {
+            raw.startsWith("http://") || raw.startsWith("https://") -> raw
+            raw.isNotBlank() -> "https://www.youtube.com/watch?v=${Uri.encode(raw)}"
+            else -> "https://www.youtube.com/results?search_query=${Uri.encode("$title official trailer")}"
+        }
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+    }
+    private fun playAllEpisodes() {
+        val playable = episodes.sortedWith(compareBy<SeriesEpisode> { it.season ?: 0 }.thenBy { it.episode ?: 0 }).filter { it.streamUrl.isNotBlank() }
+        if (playable.isEmpty()) { status.text = "No playable episodes are available."; return }
+        UserLibraryStore.recordWatched(this, config, playable.first().toLibraryItem(selectedSeriesId))
+        val urls = ArrayList(playable.map { it.streamUrl })
+        val titles = ArrayList(playable.map { it.name })
+        val ids = ArrayList(playable.map { it.id })
+        val types = ArrayList(playable.map { UserLibraryStore.Type.EPISODE.name })
+        startActivity(Intent(this, MainActivity::class.java).apply {
+            putExtra("stream_url", urls.first())
+            putExtra("title", titles.firstOrNull() ?: "Episode")
+            putExtra("content_id", ids.firstOrNull() ?: "")
+            putExtra("content_type", UserLibraryStore.Type.EPISODE.name)
+            putExtra("server", config.serverUrl)
+            putExtra("username", config.username)
+            putExtra("password", config.password)
+            putExtra("force_autoplay", true)
+            putStringArrayListExtra("queue_urls", urls)
+            putStringArrayListExtra("queue_titles", titles)
+            putStringArrayListExtra("queue_ids", ids)
+            putStringArrayListExtra("queue_types", types)
+        })
+    }
     private fun loadEpisodes(seriesId: String) {
         selectedSeriesId = seriesId
         selectedSeason = null

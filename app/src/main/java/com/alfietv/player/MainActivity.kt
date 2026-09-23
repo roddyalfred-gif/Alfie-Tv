@@ -42,6 +42,11 @@ class MainActivity : ComponentActivity() {
     private var channelTitles = emptyList<String>()
     private var channelIds = emptyList<String>()
     private var channelNumbers = emptyList<String>()
+    private var queueUrls = emptyList<String>()
+    private var queueTitles = emptyList<String>()
+    private var queueIds = emptyList<String>()
+    private var queueTypes = emptyList<String>()
+    private var queueIndex = 0
     private var channelIndex = 0
     private var zapHideAt = 0L
     private var numericBuffer = ""
@@ -96,6 +101,11 @@ class MainActivity : ComponentActivity() {
         channelTitles = intent.getStringArrayListExtra("channel_titles") ?: emptyList()
         channelIds = intent.getStringArrayListExtra("channel_ids") ?: emptyList()
         channelNumbers = intent.getStringArrayListExtra("channel_numbers") ?: emptyList()
+        queueUrls = intent.getStringArrayListExtra("queue_urls") ?: emptyList()
+        queueTitles = intent.getStringArrayListExtra("queue_titles") ?: emptyList()
+        queueIds = intent.getStringArrayListExtra("queue_ids") ?: emptyList()
+        queueTypes = intent.getStringArrayListExtra("queue_types") ?: emptyList()
+        queueIndex = intent.getIntExtra("queue_index", 0).coerceIn(0, (queueUrls.size - 1).coerceAtLeast(0))
         channelIndex = intent.getIntExtra("channel_index", 0).coerceIn(0, (channelUrls.size - 1).coerceAtLeast(0))
         setupLibraryProgress()
         root = FrameLayout(this)
@@ -142,7 +152,7 @@ class MainActivity : ComponentActivity() {
                 } else if (playbackState == Player.STATE_BUFFERING && alfiePlayer.player.currentMediaItem != null) {
                     if (!showingPlaybackRetry) topOverlay.visibility = View.GONE
                 } else if (playbackState == Player.STATE_ENDED) {
-                    clearProgress()
+                    if (!playNextQueuedEpisode()) clearProgress()
                 }
             }
         })
@@ -159,6 +169,27 @@ class MainActivity : ComponentActivity() {
     }
 
 
+    private fun playNextQueuedEpisode(): Boolean {
+        if (queueUrls.isEmpty() || queueIndex >= queueUrls.lastIndex) return false
+        queueIndex += 1
+        val url = queueUrls[queueIndex]
+        val title = queueTitles.getOrNull(queueIndex) ?: "Episode ${queueIndex + 1}"
+        val id = queueIds.getOrNull(queueIndex).orEmpty()
+        val type = queueTypes.getOrNull(queueIndex) ?: UserLibraryStore.Type.EPISODE.name
+        resumePositionMs = 0L
+        resumeApplied = false
+        val config = SessionStore.load(this)
+        if (config != null && id.isNotBlank()) {
+            libraryConfig = config
+            libraryItem = UserLibraryStore.Item(id, runCatching { UserLibraryStore.Type.valueOf(type) }.getOrDefault(UserLibraryStore.Type.EPISODE), title, url)
+            UserLibraryStore.recordWatched(this, config, libraryItem!!)
+        }
+        topOverlay.visibility = View.VISIBLE
+        statusView.text = "NEXT EPISODE • ${queueIndex + 1}/${queueUrls.size}"
+        alfiePlayer.playWithFallback(listOf(url), title, null)
+        playerView.requestFocus()
+        return true
+    }
     /** Build resilient VOD candidates, including the canonical Xtream endpoint for cached/indirect sources. */
     private fun buildVodPlaybackCandidates(primary: String): List<String> {
         val candidates = mutableListOf(primary.trim())
@@ -270,7 +301,7 @@ class MainActivity : ComponentActivity() {
         epgView.text = id?.let { preferences.getString("epg_$it", null) } ?: "NOW  Program guide loading…\nNEXT  —"
     }
 
-    private fun currentTitle(): String = channelTitles.getOrNull(channelIndex) ?: intent.getStringExtra("title") ?: "Alfie TV"
+    private fun currentTitle(): String = queueTitles.getOrNull(queueIndex) ?: channelTitles.getOrNull(channelIndex) ?: intent.getStringExtra("title") ?: "Alfie TV"
     private fun currentChannelNumber(): String? = channelNumbers.getOrNull(channelIndex) ?: intent.getStringExtra("channel_number")
 
     private fun switchChannel(delta: Int) {
