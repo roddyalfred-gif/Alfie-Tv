@@ -394,7 +394,7 @@ class MainActivity : ComponentActivity() {
         if (::alfiePlayer.isInitialized) {
             playerView.requestFocus()
             if (alfiePlayer.player.playbackState == Player.STATE_IDLE) alfiePlayer.prepare()
-            if (SettingsStore.autoPlay(this)) alfiePlayer.player.playWhenReady = true
+            if (SettingsStore.autoPlay(this) || intent.getBooleanExtra("force_autoplay", false)) alfiePlayer.player.playWhenReady = true
         }
     }
 
