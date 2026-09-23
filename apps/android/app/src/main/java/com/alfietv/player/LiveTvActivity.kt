@@ -192,8 +192,8 @@ class LiveTvActivity : ComponentActivity() {
         if (!hasPendingGuideChannel && !restoredLastChannel) {
             restoredLastChannel = true
             val prefs = getSharedPreferences("alfie_tv", Context.MODE_PRIVATE)
-            val lastId = prefs.getString("live_last_channel_${config.serverUrl}_${config.username}", null)
-            val lastCategory = prefs.getString("live_last_category_${config.serverUrl}_${config.username}", null)
+            val lastId = prefs.getString("live_last_channel_${config.serverUrl}_${config.username}", null) ?: prefs.getString("last_channel_${config.serverUrl}_${config.username}", null)
+            val lastCategory = prefs.getString("live_last_category_${config.serverUrl}_${config.username}", null) ?: prefs.getString("last_category_${config.serverUrl}_${config.username}", null)
             if (!lastCategory.isNullOrBlank()) selectedCategory = lastCategory
             lastId?.let { id -> channels.firstOrNull { it.id == id }?.let { favoritesMode = false; selectedCategory = it.categoryId ?: selectedCategory; previewCategoryId = it.categoryId; selectedIndex = filteredChannels().indexOfFirst { c -> c.id == it.id }.coerceAtLeast(0); rebuildCategories(); list.post { list.setSelection(selectedIndex); showEpg(it); focusSelectedChannel() } } }
         }
