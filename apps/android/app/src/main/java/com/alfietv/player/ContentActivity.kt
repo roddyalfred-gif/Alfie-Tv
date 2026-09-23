@@ -356,6 +356,56 @@ class ContentActivity : androidx.activity.ComponentActivity() {
         list.post { if (!search.hasFocus()) list.requestFocus() }
     }
 
+    private fun showMovieDetails(item: VodItem) {
+        val container = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(20, 8, 20, 8) }
+        val poster = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; layoutParams = LinearLayout.LayoutParams(-1, 300) }
+        ArtworkLoader.load(item.posterUrl, poster, android.R.drawable.ic_menu_gallery)
+        val title = TextView(this).apply { text = item.name; setTextColor(Color.WHITE); textSize = 22f; typeface = android.graphics.Typeface.DEFAULT_BOLD; setPadding(0, 14, 0, 6) }
+        val meta = TextView(this).apply { text = listOfNotNull(item.year, item.rating?.takeIf { it.isNotBlank() }?.let { "★ $it" }, item.duration).joinToString("  •  "); setTextColor(skin.secondary); textSize = 13f }
+        val plot = TextView(this).apply { text = "Loading movie information…"; setTextColor(Color.WHITE); textSize = 14f; setPadding(0, 12, 0, 12) }
+        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+        val playButton = Button(this).apply { text = "▶ Play Movie"; isAllCaps = false; isFocusable = true; isFocusableInTouchMode = true }
+        val trailerButton = Button(this).apply { text = "▶ Trailer on YouTube"; isAllCaps = false; isFocusable = true; isFocusableInTouchMode = true }
+        buttons.addView(playButton, LinearLayout.LayoutParams(0, 52, 1f).apply { marginEnd = 8 })
+        buttons.addView(trailerButton, LinearLayout.LayoutParams(0, 52, 1f))
+        container.addView(poster); container.addView(title); container.addView(meta); container.addView(plot); container.addView(buttons)
+        val dialog = AlertDialog.Builder(this).setTitle("Movie Details").setView(container).setNegativeButton("Close", null).create()
+        playButton.setOnClickListener { dialog.dismiss(); playVod(item) }
+        trailerButton.setOnClickListener { openYouTubeTrailer(item.name, null) }
+        dialog.setOnShowListener { playButton.requestFocus() }
+        dialog.show()
+        executor.execute {
+            runCatching { XtreamClient().loadVodInfo(config, item.id) }
+                .onSuccess { details ->
+                    runOnUiThread {
+                        if (isFinishing || isDestroyed) return@runOnUiThread
+                        title.text = details.title.ifBlank { item.name }
+                        meta.text = listOfNotNull(details.year?.takeIf { it.isNotBlank() }, details.genre?.takeIf { it.isNotBlank() }, details.rating?.takeIf { it.isNotBlank() }?.let { "★ $it" }, details.duration?.takeIf { it.isNotBlank() }).joinToString("  •  ")
+                        plot.text = buildString {
+                            details.plot?.takeIf { it.isNotBlank() }?.let { append(it) }
+                            details.director?.takeIf { it.isNotBlank() }?.let { if (isNotEmpty()) append("\n\n"); append("Director: $it") }
+                            details.cast?.takeIf { it.isNotBlank() }?.let { if (isNotEmpty()) append("\n\n"); append("Cast: $it") }
+                        }.ifBlank { "No additional information was supplied by the provider." }
+                        trailerButton.text = if (details.trailer.isNullOrBlank()) "▶ Trailer on YouTube" else "▶ Play Trailer"
+                        trailerButton.setOnClickListener { openYouTubeTrailer(item.name, details.trailer) }
+                        ArtworkLoader.load(details.posterUrl ?: item.posterUrl, poster, android.R.drawable.ic_menu_gallery)
+                    }
+                }
+                .onFailure {
+                    runOnUiThread { if (!isFinishing && !isDestroyed) plot.text = "Movie information could not be loaded. You can still play the movie or search YouTube for its trailer." }
+                }
+        }
+    }
+
+    private fun openYouTubeTrailer(title: String, trailer: String?) {
+        val raw = trailer?.trim().orEmpty()
+        val url = when {
+            raw.startsWith("http://") || raw.startsWith("https://") -> raw
+            raw.isNotBlank() -> "https://www.youtube.com/watch?v=${Uri.encode(raw)}"
+            else -> "https://www.youtube.com/results?search_query=${Uri.encode("$title official trailer")}"
+        }
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+    }
     private fun loadEpisodes(seriesId: String) {
         selectedSeriesId = seriesId
         selectedSeason = null
