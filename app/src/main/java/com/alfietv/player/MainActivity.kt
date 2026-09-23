@@ -146,14 +146,40 @@ class MainActivity : ComponentActivity() {
                 }
             }
         })
-        intent.getStringExtra("stream_url")?.takeIf { it.isNotBlank() }?.let {
-            if (SettingsStore.autoPlay(this)) alfiePlayer.play(it, currentTitle(), channelNumber = currentChannelNumber())
+        intent.getStringExtra("stream_url")?.takeIf { it.isNotBlank() }?.let { streamUrl ->
+            if (SettingsStore.autoPlay(this) || intent.getBooleanExtra("force_autoplay", false)) {
+                alfiePlayer.playWithFallback(buildVodPlaybackCandidates(streamUrl), currentTitle(), currentChannelNumber())
+            }
         }
         showZapOverlay()
         refreshOverlay()
         scheduleRefresh()
         mainHandler.removeCallbacks(progressSaver)
         mainHandler.postDelayed(progressSaver, 5000L)
+    }
+
+
+    /** Build resilient VOD candidates, including the canonical Xtream endpoint for cached/indirect sources. */
+    private fun buildVodPlaybackCandidates(primary: String): List<String> {
+        val candidates = mutableListOf(primary.trim())
+        intent.getStringExtra("fallback_stream_url")?.trim()?.takeIf { it.isNotBlank() }?.let { candidates += it }
+        val type = intent.getStringExtra("content_type")
+        val id = intent.getStringExtra("content_id")?.trim().orEmpty()
+        val server = intent.getStringExtra("server")?.trim()?.trimEnd('/').orEmpty()
+        val username = intent.getStringExtra("username")?.trim().orEmpty()
+        val password = intent.getStringExtra("password")?.trim().orEmpty()
+        if ((type == UserLibraryStore.Type.MOVIE.name || type == UserLibraryStore.Type.EPISODE.name) &&
+            id.isNotBlank() && server.isNotBlank() && username.isNotBlank() && password.isNotBlank()) {
+            val folder = if (type == UserLibraryStore.Type.EPISODE.name) "series" else "movie"
+            val extension = primary.substringBefore('?').substringAfterLast('.', "").lowercase()
+                .takeIf { it.matches(Regex("[a-z0-9]{2,5}")) } ?: "mp4"
+            val u = java.net.URLEncoder.encode(username, Charsets.UTF_8.name())
+            val p = java.net.URLEncoder.encode(password, Charsets.UTF_8.name())
+            val i = java.net.URLEncoder.encode(id, Charsets.UTF_8.name())
+            candidates += "$server/$folder/$u/$p/$i.$extension"
+            if (extension != "mp4") candidates += "$server/$folder/$u/$p/$i.mp4"
+        }
+        return candidates.filter { it.startsWith("http://") || it.startsWith("https://") }.distinct()
     }
 
     private fun setupLibraryProgress() {
